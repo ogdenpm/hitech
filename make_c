@@ -1,0 +1,97 @@
+########################################################################
+#
+#  Use this Makefile to build the CGEN for HiTech C v3.09 under Linux
+#  using John Elliott's zxcc emulator.
+#
+########################################################################
+
+VERSION = 3.0
+
+CSRCS = 1.c \
+	2.c \
+	3.c \
+	4.c \
+	5.c \
+	13D.c \
+	1B2.c \
+	306.c \
+	406.c \
+	6D1.c \
+	76F.c \
+	808.c \
+	B19new.c \
+	1659.c \
+	1680.c \
+	17E0.c \
+	19C1.c \
+	1C6D.c \
+	1C8E.c \
+	283E.c \
+	2B2A.c \
+	2B79.c \
+	2C5E.c \
+	2CE0.c \
+	3564.c \
+	37ED.c \
+	385B.c \
+	3A79.c \
+	3B65.c \
+	3BC6.c \
+	3CDF.c \
+	3EAA.c \
+	415E.c \
+	4192.c \
+	43EF.c \
+	46F7.c \
+	475C.c \
+	47B2.c \
+	4B89.c \
+	4BE5.c \
+	4C6D.c \
+	4C8B.c \
+	4FCE.c \
+	508A.c \
+	5CF5.c \
+	5DF6.c \
+	5F52.c \
+	600E.c \
+	605E.c \
+	60A8.c \
+	61AA.c \
+	63B8.c \
+	6589.c \
+	6AA2.c \
+	6B1D.c \
+	6B9B.c \
+	6D1C.c \
+	vfprintf.c
+
+# Optim Out of memory:
+
+ASRCS =	1F4B.asm \
+	2D09.asm \
+	54B6.asm
+
+COBJS = $(CSRCS:.c=.obj)
+AOBJS = $(ASRCS:.asm=.obj)
+
+OBJS = $(COBJS) $(AOBJS)
+
+all:	$(COBJS) $(AOBJS) cgen.com 
+
+.SUFFIXES:		# delete the default suffixes
+.SUFFIXES: .c .obj .asm
+
+$(COBJS): %.obj: %.c
+	zxc -c -o  $<
+
+$(AOBJS): %.obj: %.asm
+	zxas -n $<
+#	zxas -j -n $<
+
+cgen.com: $(OBJS)
+	zxcc link -"<" +linkcgen
+	sort cgen1.sym | uniq > cgen1.sym.sorted
+
+clean:
+	rm -f $(OBJS) cgen1.com *.\$$\$$\$$ cgen1.map cgen1.sym cgen1.sym.sorted
