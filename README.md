@@ -169,7 +169,7 @@ and the command
 will create a package file including all the necessary files (if you have
 the enhuff program).
 
-      The contents of files with the .HUF extension are essentially a backup
+The contents of files with the .HUF extension are essentially a backup
 copy of the files in use. 
 
 What is this all for
