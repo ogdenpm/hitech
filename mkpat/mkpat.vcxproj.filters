@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="version.c">
+    <ClCompile Include="$projectname$.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="libr.c">
+    <ClCompile Include="version.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -34,7 +34,7 @@
     <ClInclude Include="Generated\version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="libr.h">
+    <ClInclude Include="$projectname$.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

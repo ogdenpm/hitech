@@ -17,4 +17,5 @@ SpaceBeforeSquareBrackets: false
 SpaceInEmptyBlock: false
 TabWidth: 4
 UseCRLF: true
+ColumnLimit: 120
 ...
