@@ -28,9 +28,14 @@
 #if CPM
 #include "stdio.h"
 #include <sys.h>
+#define _Noreturn
 #else
+#include <stdarg.h>
 #include <stdio.h>
-#define index   strchr
+#define index strchr
+#ifndef _MSC_VER
+#include <unistd.h>
+#endif
 #endif
 
 #include <ctype.h>
@@ -71,10 +76,10 @@
 /*
  *	Initialized variables
  */
-char arry_4204[] = "D?C???U";
-int width        = 80;      // Output width		word_4256
-char arry_4258[] = "rdxms"; // Program Keys
-char msg_425e[] =
+char symbolTypes[] = "D?C???U";
+int width          = 80;      // Output width		word_4256
+char commands[]    = "rdxms"; // Program Keys
+char usageMsg[] =
     "Usage: libr [-w][-pwidth] key [subkeys symbol] file.lib [modules ...]";
 char arry_42f0[] = { 0 };
 char order32[]   = { 0, 1, 2, 3 }; // 4358
@@ -83,54 +88,54 @@ uchar order16[]  = { 0, 1 };       // 435c
 /*
  *	Descriptions of uninitialized variables and arrays
  */
-int num_ofiles;   // Number of object files		word_4745
-char **word_4747; //
-char *word_4749;  // Pointer to an area of size num_ofiles
-int *word_474b;   // Pointer to an area of size num_ofiles * 2
-int word_474d;
+int num_ofiles;      // Number of object files		word_4745
+char **cmdLineNames; //
+char *moduleFlags;   // Pointer to an area of modsize num_ofiles
+int *moduleSizes;    // Pointer to an area of modsize num_ofiles * 2
+int tempFileSize;
 int num_modules; // Number of modules in library file	word_474f
-char byte_4751;
-int word_4752; //
-long long_4754;
-char *fname_4758; // filename
-int word_475a;
-int word_475c;
-char byte_475e;
-int word_475f;
-FILE *fptr_4761; // file pointer
-long long_4763;
-char buff_4767[512];
-FILE *fptr_4967; // file pointer
-char buff_4969[512];
-long long_4b69;
-FILE *fptr_4b6d; // file pointer
-int word_4b6f;
-uchar byte_4b71;
-uchar byte_4b72;
-uchar byte_4b73;
-char *word_4b74; //
-char byte_4b76;
-int word_4b77;
-int word_4b79;
+char moduleRead;
+int size_symbols; //
+long longZero;
+char *libraryName; // filename
+int newModuleCnt;
+int newSymSize;
+char symbolsRead;
+int symCnt;
+FILE *libraryFp; // file pointer
+long moduleSize;
+char moduleBuf[512];
+FILE *tempFp; // file pointer
+char libBuf[512];
+long unusedLong;
+FILE *libContentFp; // file pointer
+int symSize;
+uchar listModuleType;
+uchar listDefinedOpt;
+uchar listUndefinedOpt;
+char *listModuleName; //
+char listModuleFound;
+int columns;
+int curColumn;
 char ban_warn; // byte_4b7b
 int err_num;   // word_4b7c
-int word_4b7e;
-char byte_4b80;
-char buff_4b81[512];
-uchar recd_type; // byte_4d81
-int length;      // word_4d82
+int cmdIndex;
+char haveIdent;
+uchar recbuf[512];
+uchar rectyp; // byte_4d81
+int length;   // word_4d82
 
-struct aaa {
-    char *i1;
-    uchar i2;
+struct sym {
+    uchar *name;
+    uchar flags;
 };
 
-struct aaa *word_4d84; // ptr to struct aaa
-long long_4d86;
-char byte_4d8a;
-FILE *fptr_4d8b; // file pointer
-struct aaa word_4d8d[500];
-char *fname_5369; // file name
+struct sym *curSymPtr; // ptr to struct sym
+ulong reclen;
+char hasNonExtern;
+FILE *moduleFp; // file pointer
+struct sym symbols[500];
+char *moduleName; // file name
 
 /****************************************************************
  * Prototype functions are located in sequence of being in
@@ -141,71 +146,78 @@ char *fname_5369; // file name
  *        but is logically correct;
  ****************************************************************/
 
-int sub_013dh(char *, char *); //  1 ok++   |  sub_12d4h Delete, Extract and
-                               //  List modules with symbols
-void sub_01cch(int, char **);  //  2 ok++   |  sub_0a93h Replace modules
-uchar sub_01fbh(char *);       //  3 ok++   |  sub_09cdh Replace modules
-// void	sub_025bh( void (*fun)(char *, uint) );	//  4 ok++ <-+
-void sub_02b3h(char *, long); //* 5 ok++
-void sub_02cch(char *, long); //* 6 ok++
-void sub_02e5h();             //  7 ok++ 		Delete modules
-void sub_0317h(char *, long); //* 8 ok++
-void sub_0337h();             //  9 ok++ 		Extract modules
-void sub_034ah();             // 10 ok++   |  sub_02b3h Delete modules
-int sub_0366h(char *, uint, uint,
-              FILE *);  // 11 ok++   |  sub_02cch Delete modules
-void sub_03c7h();       // 12 ok++   |  sub_0317h Extract modules
-void sub_03dah(char *); // 13 ok++   |  sub_0d7ch List modules
-void sub_0487h();       // 14 ok++   |  sub_0ec1h List modules with symbols
-void sub_04d6h();       // 15 ok++   |  sub_16e8h Replace modules
-void sub_053ch();       // 16 ok++   |  sub_1721h Replace modules
-void sub_0621h(void (*funptr)(char *, long)); // 17 ok++ <-+
-// void	sub_0727h(void (*funptr)(char *, int));	// 18 ok++ <-+  sub_0d22h
-void sub_0789h();                      // 19 ok++   |  sub_0e48h
-void sub_0874h();                      // 20 ok++
-void sub_0912h(char *);                // 21 ok++
-void sub_09cdh(char *, uint);          // 22 ok++
-void sub_0a93h(char *, uint);          // 23 ok++
-void conv_ltoa(unsigned long, char *); // 24 ok++ sub_0bd5h
-void conv_itoa(uint, char *);          // 25 ok++ sub_0c31h
-uint conv_atoi(uchar *);               // 26 ok++ sub_0c53h
-long conv_atol(uchar *);               // 27 ok++ sub_0c73h
-void sub_0cb3h(char *);                // 28 ok++
-void sub_0ce7h(char *);                // 29 ok++
-void unexp_eof();               // 30 ok++ sub_0d14h 	Unexpected end of file
-void sub_0d22h(char *, int);    //%31 ok++
-void sub_0d7ch(char *, long);   //*32 ok++
-void sub_0df2h(char *, char *); // 33 ok++ 		List modules
-void sub_0e48h(char *, int);    //%34 ok++
-void sub_0ec1h(char *, long);   //*35 ok++
-void sub_0f0dh();               // 36 ok++ 		List modules with symbols
+int cmpNames(char *, char *); //  1 ok++   |  noModule Delete, Extract and
+                              //  List modules with symbols
+void allocModuleArrays(
+    int, char **);        //  2 ok++   |  copyNewSymbols Replace modules
+uchar lookupName(char *); //  3 ok++   |  copyNewModule Replace modules
+// void	processUnmatched( void (*fun)(char *, uint) );	//  4 ok++ <-+
+void copyUnchangedSymbols(char *, long); //* 5 ok++
+void copyUnchangedModules(char *, long); //* 6 ok++
+void deleteModule();                     //  7 ok++ 		Delete modules
+void extractNamedModule(char *, long);   //* 8 ok++
+void extractModules();                   //  9 ok++ 		Extract modules
+void openTemp(); // 10 ok++   |  copyUnchangedSymbols Delete modules
+int writeFile(char *, uint, uint,
+              FILE *);    // 11 ok++   |  copyUnchangedModules Delete modules
+void closeTemp();         // 12 ok++   |  extractNamedModule Extract modules
+void openLibrary(char *); // 13 ok++   |  listOneModule List modules
+void openContent(); // 14 ok++   |  printObjAndSymbols List modules with symbols
+void rewindLibrary();    // 15 ok++   |  copyMatchedSymbols Replace modules
+void commitNewLibrary(); // 16 ok++   |  copyMatchedModules Replace modules
+void visitModules(void (*funptr)(char *, long)); // 17 ok++ <-+
+// void	visitSymbols(void (*action)(char *, int));	// 18 ok++ <-+  checkToList
+void copySymbolsToTemp();                // 19 ok++   |  printSymbol
+void copyModuleToTemp();                 // 20 ok++
+void extractOneModule(char *);           // 21 ok++
+void copyNewModule(char *, uint);        // 22 ok++
+void copyNewSymbols(char *, uint);   // 23 ok++
+void conv_u32tob(unsigned long, char *); // 24 ok++ sub_0bd5h
+void conv_u16tob(uint, char *);          // 25 ok++ sub_0c31h
+uint conv_btou16(uchar *);               // 26 ok++ sub_0c53h
+long conv_btou32(uchar *);               // 27 ok++ sub_0c73h
+void readName(char *);                   // 28 ok++
+void writeName(char *);                  // 29 ok++
+void unexp_eof();                // 30 ok++ sub_0d14h 	Unexpected end of file
+void checkToList(char *, int);     //%31 ok++
+void listOneModule(char *, long);    //*32 ok++
+void listModules(char *, char *); // 33 ok++ 		List modules
+void printSymbol(char *, int);   //%34 ok++
+void printObjAndSymbols(char *, long); //*35 ok++
+void listWithSymbols();                // 36 ok++ 		List modules with symbols
 //	main();					// 37 ok+- 		Main program
-void fatal_err();             // 38 ok++ sub_117ch 	Fatal error
-void err_open(char *);        // 39 ok++ sub_11c4h 	Error open file
-void err_seek(char *);        // 40 ok++ sub_11e5h 	Seek error
-void simpl_err();             // 41 ok++ sub_1206h 	Simple error
-void warning();               // 42 ok++ sub_124dh 	Warning message
-void bf_format();             // 43 ok++ sub_1294h 	Bad file format
-void sub_12d4h(char *, uint); //*44 ok++ 		Module not found
-void sub_12e8h(int);          // 45 ok++
-void sub_12fbh(int);          // 46 ok++
+#if CPM
+_Noreturn void fatal_err(); // 38 ok++ sub_117ch 	Fatal error
+#else
+_Noreturn void fatal_err(char *fmt, ...);
+_Noreturn void vfatal_err(char *fmt, va_list args);
+#endif
+_Noreturn void open_err(char *); // 39 ok++ sub_11c4h 	Error open file
+void seek_err(char *);           // 40 ok++ sub_11e5h 	Seek error
+void simpl_err();                // 41 ok++ sub_1206h 	Simple error
+void warning();                  // 42 ok++ sub_124dh 	Warning message
+#if CPM
+_Noreturn void badFormat(); // 43 ok++ sub_1294h 	Bad file format
+#else
+_Noreturn void badFormat(char *name, char *fmt, ...);
+#endif
+void noModule(char *, uint);  //*44 ok++ 		Module not found
+_Noreturn void finish(int);   // 45 ok++
+void sigintHandler(int);      // 46 ok++
 char *allocmem(int);          // 47 ok++ sub_1304h
-void sub_1351h();             // 48 ok
-int calc_val(uchar *);        // 49 ok++ sub_1429h
-void sub_1457h(uchar *, int); // 50 ok++
-int sub_14aeh(char *);        // 51 ok
-int conv_atoi1(char *);       // 52 ok++ sub_1548h
-void sub_1568h();             // 53 ok++		Get type of record
-void sub_15fbh();             // 54 ok++
-void sub_162ah();             // 55 ok++
-void sub_16e8h(char *, long); //*56 ok++
-void sub_1721h(char *, long); //*57 ok++
-void sub_175ah();             // 58 ok++ 		Replace modules
+void parseIdentRec();         // 48 ok
+uint get_modu16(uchar *);     // 49 ok++ sub_1429h
+void addSymbol(uchar *, int); // 50 ok++
+int scanModule(char *);       // 51 ok
+uint conv_btou16a(uchar *);   // 52 ok++ sub_1548h
+void getRecord();             // 53 ok++		Get type of record
+void skipRecord();            // 54 ok++
+void parseSymbolRec();        // 55 ok++
+void copyMatchedSymbols(char *, long); //*56 ok++
+void copyMatchedModules(char *, long); //*57 ok++
+void replaceModule();         // 58 ok++ 		Replace modules
 
 //	_getargs()				// 59			From library
-
-int sub_2355h(char *, uint, uint, FILE *); //    ok++
-int read1(char *, int, unsigned, FILE *);  //
 
 #if CPM
 char *strrchr(char *, int);
@@ -216,23 +228,24 @@ int unlink(char *name);
 char *index(char *s, char c);
 #endif
 
-void (*func_42e1[])() = {
-    sub_175ah, // Replace modules
-    sub_02e5h, // Delete modules
-    sub_0337h, // Extract modules
-    sub_0df2h, // List modules
-    sub_0f0dh  // List modules with symbols
+void (*dispatch[])() = {
+    replaceModule,  // Replace modules
+    deleteModule,   // Delete modules
+    extractModules, // Extract modules
+    listModules,     // List modules
+    listWithSymbols // List modules with symbols
 };
 
 /**************************************************************************
- 1	sub_013dh	ok++	String comparison
+ 1	cmpNames	ok++	String comparison
  **************************************************************************/
-int sub_013dh(register char *st, char *p2) {
+/* could use strcasecmp */
+int cmpNames(register char *st, char *p2) {
     char l1, l2;
 
     while (*st != 0) {
-        l1 = isupper(*st) ? 0x20 + *st : *st;
-        l2 = isupper(*p2) ? 0x20 + *p2 : *p2;
+        l1 = tolower(*st);
+        l2 = tolower(*p2);
         if (l1 != l2)
             break;
         ++st;
@@ -242,21 +255,21 @@ int sub_013dh(register char *st, char *p2) {
 }
 
 /**************************************************************************
- 2	sub_01cch	ok++
+ 2	allocModuleArrays	ok++
  **************************************************************************/
-void sub_01cch(int p1, char **p2) {
+void allocModuleArrays(int p1, char **p2) {
 
-    word_4747 = p2;
+    cmdLineNames = p2;
     if ((num_ofiles = p1) != 0) {
-        word_4749 = allocmem(num_ofiles);
-        word_474b = (int *)allocmem(num_ofiles * 2);
+        moduleFlags = allocmem(num_ofiles);
+        moduleSizes = (int *)allocmem(num_ofiles * sizeof(int));
     }
 }
 
 /**************************************************************************
- 3	sub_01fbh	ok++
+ 3	lookupName	ok++
  **************************************************************************/
-uchar sub_01fbh(char *p1) {
+uchar lookupName(char *p1) {
     char l1;
 
     if (num_ofiles == 0)
@@ -265,378 +278,374 @@ uchar sub_01fbh(char *p1) {
     do {
         if (l1-- == 0)
             return 0;
-    } while (sub_013dh(word_4747[l1], p1) != 0);
+    } while (cmpNames(cmdLineNames[l1], p1) != 0);
 
-    word_4749[l1] = 1;
+    moduleFlags[l1] = 1;
     return l1 + 1;
 }
 
 /**************************************************************************
- 4	sub_025bh	ok++
+ 4	processUnmatched	ok++
  **************************************************************************/
-void sub_025bh(void (*fun)(char *, uint)) {
+void processUnmatched(void (*fun)(char *, uint)) {
     int l1;
 
     l1 = 0;
     while (l1 != num_ofiles) {
-        if (word_4749[l1] == 0)
-            fun(word_4747[l1], l1);
+        if (moduleFlags[l1] == 0)
+            fun(cmdLineNames[l1], l1);
         ++l1;
     }
 }
 
 /**************************************************************************
- 5	sub_02b3h	ok++
+ 5	copyUnchangedSymbols	ok++
  **************************************************************************/
-void sub_02b3h(char *p1, long dummy) {
+void copyUnchangedSymbols(char *name, long dummy) {
 
-    if (sub_01fbh(p1) == 0)
-        sub_0789h();
+    if (lookupName(name) == 0)
+        copySymbolsToTemp();
 }
 
 /**************************************************************************
- 6	sub_02cch	ok++
+ 6	copyUnchangedModules	ok++
  **************************************************************************/
-void sub_02cch(char *p1, long dummy) {
+void copyUnchangedModules(char *name, long dummy) {
 
-    if (sub_01fbh(p1) == 0)
-        sub_0874h();
+    if (lookupName(name) == 0)
+        copyModuleToTemp();
 }
 
 /**************************************************************************
- 7	sub_02e5h	Delete modules		ok++
+ 7	deleteModule	Delete modules		ok++
  **************************************************************************/
-void sub_02e5h() {
+void deleteModule() {
 
     if (num_ofiles == 0)
         fatal_err("delete what ?");
-    sub_0487h();
-    sub_034ah();
-    sub_0621h(sub_02b3h);
-    sub_025bh(sub_12d4h); // Module not found
-    sub_04d6h();
-    sub_0621h(sub_02cch);
-    sub_053ch();
+    openContent();
+    openTemp();
+    visitModules(copyUnchangedSymbols);
+    processUnmatched(noModule); // Module not found
+    rewindLibrary();
+    visitModules(copyUnchangedModules);
+    commitNewLibrary();
 }
 
 /**************************************************************************
- 8	sub_0317h	ok++
+ 8	extractNamedModule	ok++
  **************************************************************************/
-void sub_0317h(char *p1, long dummy) {
+void extractNamedModule(char *p1, long dummy) {
 
-    if (sub_01fbh(p1) != 0)
-        sub_0912h(p1);
+    if (lookupName(p1) != 0)
+        extractOneModule(p1);
 }
 
 /**************************************************************************
- 9	sub_0337h	Extract modules		ok++
+ 9	extractModules	Extract modules		ok++
  **************************************************************************/
-void sub_0337h() {
+void extractModules() {
 
-    sub_0487h();
-    sub_0621h(sub_0317h);
-    sub_025bh(sub_12d4h); // Module not found
+    openContent();
+    visitModules(extractNamedModule);
+    processUnmatched(noModule); // Module not found
 }
 
 /**************************************************************************
- 10	sub_034ah	ok++
+ 10	openTemp	ok++
  **************************************************************************/
-void sub_034ah() {
+void openTemp() {
 
-    if ((fptr_4967 = fopen("libtmp.$$$", "wb")) == 0) {
-        err_open("libtmp.$$$");
+    if ((tempFp = fopen("libtmp.$$$", "wb")) == 0) {
+        open_err("libtmp.$$$");
     }
 }
 
 /**************************************************************************
- 11	sub_0366h	ok++
+ 11	writeFile	ok++
  **************************************************************************/
-int sub_0366h(char *p1, uint p2, uint p3, FILE *p4) {
+int writeFile(char *buf, uint size, uint count, FILE *fp) {
 
-    if ((p2 = sub_2355h(p1, p2, p3, p4)) != p3) {
-        fatal_err("Write error on %s file",
-                  (p4 == fptr_4967) ? "temp" : "output");
+    if ((size = fwrite(buf, size, count, fp)) != count) {
+        fatal_err("Write error on %s file", (fp == tempFp) ? "temp" : "output");
     }
-    return p2;
+    return size;
 }
 
 /**************************************************************************
- 12	sub_03c7hh	ok++
+ 12	closeTemp() sub_03c7hh	ok++
  **************************************************************************/
-void sub_03c7h() {
+void closeTemp() {
 
-    if (fptr_4967 != 0) {
-        fclose(fptr_4967);
+    if (tempFp != 0) {
+        fclose(tempFp);
         unlink("libtmp.$$$");
     }
 }
 
 /**************************************************************************
- 13	sub_03dah	ok++
+ 13	openLibrary	ok++
  **************************************************************************/
-void sub_03dah(char *p1) {
+void openLibrary(char *name) {
     register char *st;
 
-    fname_4758 = p1;
-    fptr_4761  = fopen(fname_4758, "rb");
+    libraryName = name;
+    libraryFp   = fopen(libraryName, "rb");
 
-    if (fptr_4761 == 0) {
-        if (word_4b7e != 0)
-            err_open(fname_4758);
+    if (libraryFp == 0) {
+        if (cmdIndex != 0)
+            open_err(libraryName);
 
-        st = strrchr(fname_4758, '.');
+        st = strrchr(libraryName, '.');
 
         if (st == 0 || (strcmp(st, ".lib") && strcmp(st, ".LIB")))
             warning("library file names should have .lib extension: %s",
-                    fname_4758);
+                    libraryName);
 
-        word_4752   = 0;
-        num_modules = 0;
+        size_symbols = 0;
+        num_modules  = 0;
         return;
     }
 
-    if (read1(buff_4969, 4, 1, fptr_4761) != 1)
+    if (fread(libBuf, 4, 1, libraryFp) != 1)
         unexp_eof();
 
-    word_4752 = conv_atoi(buff_4969);
+    size_symbols = conv_btou16(libBuf);
 
     //  Get the number of modules in a library file
-    num_modules = conv_atoi(buff_4969 + 2);
+    num_modules = conv_btou16(libBuf + 2);
 }
 
 /**************************************************************************
- 14	sub_0487h	ok++
+ 14	openContent	ok++
  **************************************************************************/
-void sub_0487h() {
+void openContent() {
 
-    if (fptr_4761 == 0)
+    if (libraryFp == 0)
         return;
-    if ((fptr_4b6d = fopen(fname_4758, "rb")) != 0) {
-        if (fseek(fptr_4b6d, ((long)word_4752 + 4), SEEK_SET) != -1)
+    if ((libContentFp = fopen(libraryName, "rb")) != 0) {
+        if (fseek(libContentFp, ((long)size_symbols + 4), SEEK_SET) != -1)
             return;
     }
-    err_open(fname_4758);
+    open_err(libraryName);
 }
 
 /**************************************************************************
- 15	sub_04d6h	ok++
+ 15	rewindLibrary	ok++
  **************************************************************************/
-void sub_04d6h() {
+void rewindLibrary() {
 
     if (err_num != 0)
-        sub_12e8h(5);
-    if (fptr_4761 == 0)
+        finish(5);
+    if (libraryFp == 0)
         return;
-    if (fseek(fptr_4761, 4, SEEK_SET) != -1) {
-        if (fseek(fptr_4b6d, ((long)word_4752 + 4), SEEK_SET) != -1)
+    if (fseek(libraryFp, 4, SEEK_SET) != -1) {
+        if (fseek(libContentFp, ((long)size_symbols + 4), SEEK_SET) != -1)
             return;
     }
-    err_seek(fname_4758);
+    seek_err(libraryName);
 }
 
 /**************************************************************************
- 16	sub_053ch	ok++
+ 16	commitNewLibrary	ok++
  **************************************************************************/
-void sub_053ch() {
+/*
+    close original library and replace with the new library created in
+    libtmp.$$$, the symbol directory sizing information and number of
+    modules is also added
+*/
+void commitNewLibrary() {
     int l1, l2;
 
-    fclose(fptr_4967);
-    if (fptr_4761 != 0) {
-        fclose(fptr_4761);
-        fclose(fptr_4b6d);
+    fclose(tempFp);
+    if (libraryFp != 0) {
+        fclose(libraryFp);
+        fclose(libContentFp);
     }
-    if ((fptr_4967 = fopen("libtmp.$$$", "rb")) == 0)
-        err_open("libtmp.$$$");
-    if ((fptr_4761 = fopen(fname_4758, "wb")) == 0)
-        err_open(fname_4758);
+    if ((tempFp = fopen("libtmp.$$$", "rb")) == 0)
+        open_err("libtmp.$$$");
+    if ((libraryFp = fopen(libraryName, "wb")) == 0)
+        open_err(libraryName);
 
-    conv_itoa(word_475c, buff_4969);
-    conv_itoa(word_475a, buff_4969 + 2);
+    conv_u16tob(newSymSize, libBuf);
+    conv_u16tob(newModuleCnt, libBuf + 2);
 
-    sub_0366h(buff_4969, 1, 4, fptr_4761);
+    writeFile(libBuf, 1, 4, libraryFp);
 
     l2 = 4;
-    while ((l1 = read1(buff_4969, 1, 0x200, fptr_4967)) != 0) {
-        sub_0366h(buff_4969, 1, l1, fptr_4761);
+    while ((l1 = fread(libBuf, 1, 512, tempFp)) != 0) {
+        writeFile(libBuf, 1, l1, libraryFp);
         l2 += l1;
     }
-    fclose(fptr_4761);
+    fclose(libraryFp);
 }
 
 /**************************************************************************
- 17	sub_0621h	ok++
+ 17	visitModules	ok++
  **************************************************************************/
-void sub_0621h(void (*funptr)(char *, long)) {
-    int loc;
+void visitModules(void (*funptr)(char *, long)) {
+    int cntModulesLeft;
 
-    loc = num_modules;
-    while (loc != 0) {
-        if (read1(buff_4969, 12, 1, fptr_4761) != 1)
+    for (cntModulesLeft = num_modules; cntModulesLeft; --cntModulesLeft) {
+        if (fread(libBuf, 12, 1, libraryFp) != 1)
             unexp_eof();
 
-        word_4b6f = conv_atoi(buff_4969);     // +0 Offset in the read buffer
-        word_475f = conv_atoi(buff_4969 + 2); // +2
-        long_4763 = conv_atol(buff_4969 + 4); // +4
-        long_4b69 = conv_atol(buff_4969 + 8); // +8
+        symSize    = conv_btou16(libBuf);     // +0 Offset in the read buffer
+        symCnt     = conv_btou16(libBuf + 2); // +2
+        moduleSize = conv_btou32(libBuf + 4); // +4
+        unusedLong = conv_btou32(libBuf + 8); // +8
 
-        sub_0cb3h(buff_4969 + 12);
+        readName(libBuf + 12);
 
-        byte_475e = byte_4751 = 0;
+        symbolsRead = moduleRead = 0;
 
-        funptr(buff_4969 + 12, long_4b69);
+        funptr(libBuf + 12, unusedLong);
 
-        if (byte_475e == 0) {
-            if (fseek(fptr_4761, word_4b6f, SEEK_CUR) == -1)
-                err_seek(fname_4758);
-        }
+        if (!symbolsRead && fseek(libraryFp, symSize, SEEK_CUR) == -1)
+            seek_err(libraryName);
 
-        if (fptr_4b6d != 0) {
-            if (byte_4751 == 0) {
-                if (fseek(fptr_4b6d, long_4763, SEEK_CUR) == -1)
-                    err_seek(fname_4758);
-            }
-        }
-        --loc;
+        if (libContentFp && !moduleRead &&
+            fseek(libContentFp, moduleSize, SEEK_CUR) == -1)
+            seek_err(libraryName);
     }
 }
+
 
 /**************************************************************************
  18	sub_0727	ok++
  **************************************************************************/
-void sub_0727h(void (*funptr)(char *, int)) {
-    int l1;
-    int l2;
+void visitSymbols(void (*action)(char *, int)) {
+    int cnt;
+    int type;
 
-    l1 = word_475f;
-    while (l1 != 0) {
-        if ((l2 = fgetc(fptr_4761)) == -1)
+    for (cnt = symCnt; cnt; cnt--) {
+        if ((type = fgetc(libraryFp)) == -1)
             unexp_eof();
-        sub_0cb3h(buff_4767);
-        funptr(buff_4767, l2);
-        --l1;
+        readName(moduleBuf);
+        action(moduleBuf, type);
     }
-    byte_475e = 1;
+    symbolsRead = 1;
 }
 
 /**************************************************************************
- 19	sub_0789h	ok++
+ 19	copySymbolsToTemp	ok++
  **************************************************************************/
-void sub_0789h() {
+void copySymbolsToTemp() {
     int l1, l2;
 
-    sub_0366h(buff_4969, 1, (l1 = strlen(buff_4969 + 12) + 0xD), fptr_4967);
-    word_474d += l1;
-    word_475c += (l1 + word_4b6f);
-    l1 = word_4b6f;
+    writeFile(libBuf, 1, (l1 = strlen(libBuf + 12) + 13), tempFp);
+    tempFileSize += l1;
+    newSymSize += (l1 + symSize);
+    l1 = symSize;
     while (l1 != 0) {
         l2 = (l1 < 0x200) ? l1 : 0x200;
-        if (read1(buff_4767, 1, l2, fptr_4761) != l2)
+        if (fread(moduleBuf, 1, l2, libraryFp) != l2)
             unexp_eof();
-        sub_0366h(buff_4767, 1, l2, fptr_4967);
-        word_474d += l2;
+        writeFile(moduleBuf, 1, l2, tempFp);
+        tempFileSize += l2;
         l1 -= l2;
     }
-    ++word_475a;
-    byte_475e = 1;
+    ++newModuleCnt;
+    symbolsRead = 1;
 }
 
 /**************************************************************************
- 20	sub_0874h	ok++
+ 20	copyModuleToTemp	ok++
  **************************************************************************/
-void sub_0874h() {
+void copyModuleToTemp() {
     int l1, l2;
 
-    l1 = long_4763;
+    l1 = moduleSize;
     while (l1 != 0) {
-        l2 = (l1 < 0x200) ? l1 : 0x200;
-        if (read1(buff_4767, 1, l2, fptr_4b6d) != l2)
+        l2 = (l1 < 512) ? l1 : 512;
+        if (fread(moduleBuf, 1, l2, libContentFp) != l2)
             unexp_eof();
-        sub_0366h(buff_4767, 1, l2, fptr_4967);
-        word_474d += l2;
+        writeFile(moduleBuf, 1, l2, tempFp);
+        tempFileSize += l2;
         l1 -= l2;
     }
-    byte_4751 = 1;
+    moduleRead = 1;
 }
 
 /**************************************************************************
- 21	sub_0912h	ok++
+ 21	extractOneModule	ok++
  **************************************************************************/
-void sub_0912h(char *p1) {
+void extractOneModule(char *name) {
     int l1, l2;
     register FILE *st;
 
-    if ((st = fopen(p1, "wb")) == 0)
-        err_open(p1);
-    l1 = long_4763;
+    if ((st = fopen(name, "wb")) == 0)
+        open_err(name);
+    l1 = moduleSize;
     while (l1 != 0) {
-        l2 = (l1 < 0x200) ? l1 : 0x200;
-        if (read1(buff_4767, 1, l2, fptr_4b6d) != l2)
+        l2 = (l1 < 512) ? l1 : 512;
+        if (fread(moduleBuf, 1, l2, libContentFp) != l2)
             unexp_eof();
-        sub_0366h(buff_4767, 1, l2, st);
+        writeFile(moduleBuf, 1, l2, st);
         l1 -= l2;
     }
     fclose(st);
-    byte_4751 = 1;
+    moduleRead = 1;
 }
 
 /**************************************************************************
- 22	sub_09cdh	ok++	used when replacing modules
+ 22	copyNewModule	ok++	used when replacing modules
  **************************************************************************/
-void sub_09cdh(char *p1, uint p2) {
+void copyNewModule(char *p1, uint moduleId) {
     unsigned int l1, l2, l3;
     register FILE *st;
 
     if ((st = fopen(p1, "rb")) == 0)
-        err_open(p1);
+        open_err(p1);
     l3 = 0;
-    l1 = word_474b[p2];
+    l1 = moduleSizes[moduleId];
 
-    while ((l2 = read1(buff_4767, 1, (0x200 < l1) ? 0x200 : l1, st)) != 0) {
-        sub_0366h(buff_4767, 1, l2, fptr_4967);
+    while ((l2 = fread(moduleBuf, 1, l1 > 512 ? 512 : l1, st)) != 0) {
+        writeFile(moduleBuf, 1, l2, tempFp);
         l3 += l2;
-        word_474d += l2;
+        tempFileSize += l2;
         l1 -= l2;
     }
     fclose(st);
 }
 
 /**************************************************************************
- 23	sub_0a93h	ok++	used when replacing modules
+ 23	copyNewSymbols	ok++	used when replacing modules
  **************************************************************************/
-void sub_0a93h(char *p1, uint p2) {
-    int l1, l2, l3;
-    register struct aaa *st;
+void copyNewSymbols(char *moduleName, uint moduleId) {
+    int modsize, simsize, cnt;
+    register struct sym *st;
 
-    word_474b[p2] = (l1 = sub_14aeh(p1));
+    moduleSizes[moduleId] = (modsize = scanModule(moduleName));
 
-    l3            = (word_4d84 - word_4d8d);
-    l2            = l3 * 2;
+    cnt                   = (curSymPtr - symbols);
+    simsize               = cnt * 2; /* flag & trailing 0 */
 
-    for (st = word_4d8d; st != word_4d84; ++st) {
-        l2 += strlen(st->i1);
+    for (st = symbols; st != curSymPtr; ++st)
+        simsize += strlen(st->name); /* add in the symbol lengths */
+
+    newSymSize += (strlen(moduleName) + simsize +
+                   13); /* 13 -> header size + trailing 0 of module name */
+    conv_u16tob(simsize, libBuf);
+    conv_u16tob(cnt, libBuf + 2);
+    conv_u32tob((unsigned long)modsize, libBuf + 4);
+    conv_u32tob(longZero, libBuf + 8);
+    writeFile(libBuf, 1, 12, tempFp);
+    tempFileSize += 12;
+    writeName(moduleName);
+
+    for (st = symbols; st != curSymPtr; ++st) {
+        fputc(st->flags, tempFp);
+        ++tempFileSize;
+        writeName(st->name);
     }
-
-    word_475c += (strlen(p1) + l2 + 0xD);
-    conv_itoa(l2, buff_4969);
-    conv_itoa(l3, buff_4969 + 2);
-    conv_ltoa((unsigned long)l1, buff_4969 + 4);
-    conv_ltoa(long_4754, buff_4969 + 8);
-    sub_0366h(buff_4969, 1, 0xC, fptr_4967);
-    word_474d += 0xC;
-    sub_0ce7h(p1);
-
-    for (st = word_4d8d; st != word_4d84; ++st) {
-        fputc(st->i2, fptr_4967);
-        ++word_474d;
-        sub_0ce7h(st->i1);
-    }
-    ++word_475a;
+    ++newModuleCnt;
 }
 
 /**************************************************************************
- 24	conv_ltoa	sub_0bd5h	ok++
+ 24	conv_u32tob	sub_0bd5h	ok++
  **************************************************************************/
-void conv_ltoa(unsigned long p1, char *p2) {
+void conv_u32tob(unsigned long p1, char *p2) {
 
     *p2       = p1;
     *(p2 + 1) = p1 >> 8;
@@ -645,51 +654,51 @@ void conv_ltoa(unsigned long p1, char *p2) {
 }
 
 /**************************************************************************
- 25	conv_itoa	sub_0c31h	ok++
+ 25	conv_u16tob	sub_0c31h	ok++
  **************************************************************************/
-void conv_itoa(uint p1, char *p2) {
+void conv_u16tob(uint p1, char *p2) {
 
     *p2       = p1;
     *(p2 + 1) = p1 >> 8;
 }
 
 /**************************************************************************
- 26	conv_atoi	sub_0c53h	ok++
+ 26	conv_btou16	sub_0c53h	ok++
  **************************************************************************/
-uint conv_atoi(register uchar *p1) {
+uint conv_btou16(register uchar *p1) {
 
     return *p1 + (*(p1 + 1) << 8);
 }
 
 /**************************************************************************
- 27	conv_atol	sub_0c73h	ok++
+ 27	conv_btou32	sub_0c73h	ok++
  **************************************************************************/
-long conv_atol(register uchar *p1) {
+long conv_btou32(register uchar *p1) {
 
     return *p1 + (*(p1 + 1) << 8) + (*(p1 + 2) << 0x10) + (*(p1 + 3) << 0x18);
 }
 
 /**************************************************************************
- 28	sub_0cb3h	ok++
+ 28	readName	ok++
  **************************************************************************/
-void sub_0cb3h(register char *p1) {
+void readName(register char *p1) {
     int l1;
 
     do {
-        if ((l1 = fgetc(fptr_4761)) == -1)
+        if ((l1 = fgetc(libraryFp)) == -1)
             unexp_eof();
         *(p1++) = l1;
     } while (l1 != 0);
 }
 
 /**************************************************************************
- 29	sub_0ce7h	ok++
+ 29	writeName	ok++
  **************************************************************************/
-void sub_0ce7h(register char *p1) {
+void writeName(register char *p1) {
 
     do {
-        ++word_474d;
-    } while (fputc(*(p1++), fptr_4967) != 0);
+        ++tempFileSize;
+    } while (fputc(*(p1++), tempFp) != 0);
 }
 
 /**************************************************************************
@@ -697,79 +706,77 @@ void sub_0ce7h(register char *p1) {
  **************************************************************************/
 void unexp_eof() {
 
-    bf_format(fname_4758, "unexpected end of file");
+    badFormat(libraryName, "unexpected end of file");
 }
 
 /**************************************************************************
- 31	sub_0d22h	ok++
+ 31	checkToList	ok++
  **************************************************************************/
-void sub_0d22h(char *p1, int p2) {
+void checkToList(char *p1, int type) {
 
-    if ((((char)p2 == 0) ? byte_4b72 : byte_4b73) == 0)
+    if (((char)type == 0 ? listDefinedOpt : listUndefinedOpt) == 0)
         return;
-    if (strcmp(word_4b74, p1) != 0) {
-        if (*p1 != '_')
-            return;
-        if (strcmp(word_4b74, p1 + 1) != 0)
+    if (strcmp(listModuleName, p1) != 0) {
+        if (*p1 != '_' || strcmp(listModuleName, p1 + 1) != 0)
             return;
     }
-    byte_4b76 = 1;
-    byte_4b71 = p2;
+    listModuleFound = 1;
+    listModuleType = type;
 }
 
 /**************************************************************************
- 32	sub_0d7ch	Print obj name from library	ok++
+ 32	listOneModule	Print obj name from library	ok++
  **************************************************************************/
-void sub_0d7ch(char *p1, long dummy) {
+void listOneModule(char *p1, long dummy) {
 
-    if (sub_01fbh(p1) == 0)
+    if (lookupName(p1) == 0)
         return;
-    if (word_4b74 != 0) {
-        byte_4b76 = 0;
-        sub_0727h(sub_0d22h);
-        if (byte_4b76 == 0)
+    if (listModuleName) {
+        listModuleFound = 0;
+        visitSymbols(checkToList);
+        if (!listModuleFound)
             return;
     }
     printf("%-15.15s", p1);
-    if (word_4b74 != 0)
-        printf(" %c", (byte_4b71 >= 7) ? 0x3f : arry_4204[byte_4b71]);
+    if (listModuleName != 0)
+        printf(" %c", (listModuleType >= 7) ? '?' : symbolTypes[listModuleType]);
     putchar('\n');
 }
 
 /**************************************************************************
- 33	sub_0df2h	List modules	ok++
+ 33	listModules	List modules	ok++
  **************************************************************************/
-void sub_0df2h(char *p1, char *p2) {
+void listModules(char *key, char *name) {
 
-    if (*p1 != 0) {
-        word_4b74 = p2;
+    if (*key) {
+        listModuleName = name;
         do {
-            switch (*p1) {
+            switch (*key) {
             case 'd':
-                byte_4b72 = 1;
+                listDefinedOpt = 1;
                 break;
             case 'u':
-                byte_4b73 = 1;
+                listUndefinedOpt = 1;
                 break;
             default:
                 fatal_err("Subkeys: d(defined) u(ndefined)");
             }
-        } while (*(++p1) != 0);
+        } while (*++key);
     }
-    sub_0621h(sub_0d7ch); // Print name obj name from library with the key m
+    visitModules(listOneModule); // Print name obj name from library with the key m
 }
 
 /**************************************************************************
- 34	sub_0e48h	ok++	Print symbol name with the key s
+ 34	printSymbol	ok++	Print symbol name with the key s
  **************************************************************************/
-void sub_0e48h(char *p1, int p2) {
+void printSymbol(char *name, int type) {
 
-    if (word_4b79 >= word_4b77) {
+    if (curColumn >= columns) {
         printf("\t\t");
-        word_4b79 = 0;
+        curColumn = 0;
     }
-    printf("%c %-12.12s", ((p2 >= 7) ? '?' : arry_4204[p2]), p1);
-    if (++word_4b79 >= word_4b77) {
+    printf("%c %-12.12s", ((type >= 7) ? '?' : symbolTypes[type]), name);
+    if (++curColumn >= columns) {
         printf("\n");
         return;
     }
@@ -777,31 +784,31 @@ void sub_0e48h(char *p1, int p2) {
 }
 
 /**************************************************************************
- 35	sub_0ec1h	ok+	Print obj name and symbol names
+ 35	printObjAndSymbols	ok+	Print obj name and symbol names
  **************************************************************************/
-void sub_0ec1h(char *p1, long dummy) {
+void printObjAndSymbols(char *p1, long dummy) {
 
-    if (sub_01fbh(p1) == 0)
+    if (lookupName(p1) == 0)
         return;
     printf("%-16.15s", p1); // Print obj name from library with the key s
-    word_4b79 = 0;
-    sub_0727h(sub_0e48h); // Print symbol name with the key s
-    if (word_4b79 == 0)
+    curColumn = 0;
+    visitSymbols(printSymbol); // Print symbol name with the key s
+    if (curColumn == 0)
         return;
-    if (word_4b79 >= word_4b77)
+    if (curColumn >= columns)
         return;
     putchar('\n');
 }
 
 /**************************************************************************
- 36	sub_0f0dh	List modules with symbols	ok++
+ 36	listWithSymbols	List modules with symbols	ok++
  **************************************************************************/
-void sub_0f0dh() {
+void listWithSymbols() {
 
-    if ((word_4b77 = (width - 16) / 16) == 0)
-        word_4b77 = 1;
-    sub_0621h(sub_0ec1h); // Print obj name and symbol names
-    sub_025bh(sub_12d4h); // Module not found
+    if ((columns = (width - 16) / 16) == 0)
+        columns = 1;
+    visitModules(printObjAndSymbols); // Print obj name and symbol names
+    processUnmatched(noModule);       // Module not found
 }
 
 /**************************************************************************
@@ -818,10 +825,9 @@ char **argv;
         exit(0);
     }
 
-#if CPM
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
-        signal(SIGINT, sub_12fbh);
-
+        signal(SIGINT, sigintHandler);
+#if CPM
     if (argc == 1) {
         argv = _getargs(0, "libr");
         argc = _argc_;
@@ -829,70 +835,37 @@ char **argv;
 #endif
 
     fclose(stdin);
-    --argc;
-    ++argv;
-    goto m5; // The code above this line generates a binary code
-//----------------------// that fully corresponds to the original image.
-m3:
-    l1 = *argv + 1; //
-
-m4:
-    if (*l1 != 0)
-        goto m6;
-    --argc;
-    ++argv;
-
-m5:
-    if (argc == 0)
-        goto m11;
-    goto m10;
-
-    //  Libr options
-
-m6:
-    switch (*l1++) {
-    case 'W': // Suppress non-fatal errors
-    case 'w':
-        goto m8;
-    case 'P': // Specify page width
-    case 'p':
-        goto m9;
-    default:
-        goto m7;
+    for (--argc, ++argv; argc && **argv == '-'; --argc, ++argv) {
+        l1 = *argv + 1;
+        while (*l1)
+            switch (*l1++) {
+            case 'W': // Suppress non-fatal errors
+            case 'w':
+                ban_warn = 1; // Disable warning messages
+                break;
+            case 'P': // Specify page width
+            case 'p':
+                if (isdigit(*l1)) {
+                    width = atoi(l1); // Assigning a new width value
+                    l1    = "";
+                    break;
+                }
+            default:
+                fatal_err(usageMsg); // "Usage: ...]"
+                break;
+            }
     }
-m7:
-    fatal_err(msg_425e); // "Usage: ...]"
-    goto m4;
 
-m8:
-    ban_warn = 1; // Disable warning messages
-    goto m4;
-
-m9:
-    if (isdigit(*l1) == 0)
-        goto m7;
-    width = atoi(l1);  // Assigning a new width value
-    l1    = arry_42f0; // This is an empty string ("")
-    goto m4;
-
-m10:
-    if (**argv == '-')
-        goto m3;
-
-    //----------------- The code below this line generates the correct binary
-    // code.
-
-m11:
     if (argc < 2)
-        fatal_err(msg_425e); // "Usage: ...]"
+        fatal_err(usageMsg); // "Usage: ...]"
     l2 = *argv;
     --argc;
     ++argv;
-    if ((l1 = index(arry_4258, ((isupper(*l2) != 0) ? *l2 + ' ' : *l2))) == 0)
+    if ((l1 = index(commands, tolower(*l2))) == NULL)
         fatal_err(
             "Keys: r(eplace), d(elete), (e)x(tract), m(odules), s(ymbols)");
 
-    word_4b7e = l1 - arry_4258;
+    cmdIndex = l1 - commands;
 
     if (*(l2 + 1) != 0) {
         l1 = *argv;
@@ -900,100 +873,145 @@ m11:
         ++argv;
     }
     if (argc == 0)
-        fatal_err(msg_425e); // "Usage: ...]"
+        fatal_err(usageMsg); // "Usage: ...]"
 
-    sub_03dah(*argv);
-    sub_01cch(argc - 1, argv + 1);
+    openLibrary(*argv);
+    allocModuleArrays(argc - 1, argv + 1);
 
-    (func_42e1[word_4b7e])(l2 + 1,
-                           l1); // Execute a function depending on the key
+    (dispatch[cmdIndex])(l2 + 1,
+                         l1); // Execute a function depending on the key
 
-    sub_12e8h(err_num !=
-              0); // Terminate the program with the appropriate error code
+    finish(err_num !=
+           0); // Terminate the program with the appropriate error code
 }
 
 /**************************************************************************
  38	fatal_err	sub_117ch	ok++
  **************************************************************************/
+#ifndef CPM
+void vfatal_err(char *fmt, va_list args) {
+    vfprintf(stderr, fmt, args);
+    fputc('\n', stderr);
+    finish(6);
+}
+void fatal_err(char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vfatal_err(fmt, args);
+    va_end(args);
+}
+#else
 void fatal_err(p1, p2, p3, p4, p5) {
 
     fprintf(stderr, (char *)p1, p2, p3, p4, p5);
     fputc('\n', stderr);
-    sub_12e8h(6);
+    finish(6);
 }
+#endif
 
 /**************************************************************************
- 39	err_open	sub_11c4h	ok++
+ 39	open_err	sub_11c4h	ok++
  **************************************************************************/
-void err_open(char *p1) {
+_Noreturn void open_err(char *p1) {
 
     fprintf(stderr, "Can't open %s\n", p1);
-    sub_12e8h(2);
+    finish(2);
 }
 
 /**************************************************************************
- 40	err_seek	sub_11e5h	ok++
+ 40	seek_err	sub_11e5h	ok++
  **************************************************************************/
-void err_seek(char *p1) {
+void seek_err(char *p1) {
 
     fprintf(stderr, "Seek error on %s\n", p1);
-    sub_12e8h(3);
+    finish(3);
 }
 
 /**************************************************************************
  41	Simple error	sub_1206h	ok++
  **************************************************************************/
-void simpl_err(p1, p2, p3, p4, p5) {
+#if CPM
+void simpl_err(p1, p2, p3, p4, p5) char *p1, *p2;
+{
 
-    fprintf(stderr, (char *)p1, p2, p3, p4, p5);
+    fprintf(stderr, p1, p2, p3, p4, p5);
     fputc('\n', stderr);
     ++err_num;
 }
+#else
+void simpl_err(char *p1, char *p2) {
+
+    fprintf(stderr, p1, p2);
+    fputc('\n', stderr);
+    ++err_num;
+}
+#endif
 
 /**************************************************************************
  42	warning		sub_124dh	ok++
  **************************************************************************/
-void warning(p1, p2, p3, p4, p5) {
+#if CPM
+void warning(p1, p2, p3, p4, p5) char *p1, *p2;
+{
 
     if (ban_warn != 0)
         return;
-    fprintf(stderr, (char *)p1, p2, p3, p4, p5);
+    fprintf(stderr, p1, p2, p3, p4, p5);
     fprintf(stderr, " (warning)\n");
 }
+#else
+void warning(char *p1, char *p2) {
 
-/**************************************************************************
- 43	bf_format		sub_1294h	ok++
- **************************************************************************/
-void bf_format(p1, p2, p3, p4, p5, p6) char *p1;
-{
-
-    fprintf(stderr, "bad file format: %s\n", p1);
-    fatal_err(p2, p3, p4, p5, p6);
+    if (ban_warn != 0)
+        return;
+    fprintf(stderr, p1, p2);
+    fprintf(stderr, " (warning)\n");
 }
+#endif
 
 /**************************************************************************
- 44	sub_12d4h	ok++	module not found
+ 43	badFormat		sub_1294h	ok++
  **************************************************************************/
-void sub_12d4h(char *p1, uint p2) {
+#if CPM
+void badFormat(name, fmt, p3, p4, p5, p6) char *name, *fmt;
+uint p3, p4;
+{
+    fprintf(stderr, "bad file format: %s\n", name);
+    fatal_err(fmt, p3, p4, p5, p6);
+}
+#else
+void badFormat(char *name, char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    fprintf(stderr, "bad file format: %s\n", name);
+    vfatal_err(fmt, args);
+    va_end(args);
+}
+#endif
+/**************************************************************************
+ 44	noModule	ok++	module not found
+ **************************************************************************/
+void noModule(char *p1, uint dummy) {
 
     simpl_err("no such module: %s", p1);
 }
 
 /**************************************************************************
- 45	sub_12e8h	ok++
+ 45	finish	ok++
  **************************************************************************/
-void sub_12e8h(int p1) {
+void finish(int p1) {
 
-    sub_03c7h();
+    closeTemp();
     exit(p1);
 }
 
 /**************************************************************************
- 46	sub_12fbh	ok++
+ 46	sigintHandler	ok++
  **************************************************************************/
-void sub_12fbh(int p1) {
+void sigintHandler(int p1) {
 
-    sub_12e8h(4);
+    finish(4);
 }
 
 /**************************************************************************
@@ -1015,302 +1033,220 @@ char *allocmem(int p1) {
 }
 
 /**************************************************************************
- 48	sub_1351h	ok
+ 48	parseIdentRec	ok
  **************************************************************************/
-void sub_1351h() {
+void parseIdentRec() {
     uchar l1;
 
-    if (read1(buff_4b81, 1, length, fptr_4d8b) != length)
-        bf_format(fname_5369, "incomplete ident record");
+    if (fread(recbuf, 1, length, moduleFp) != length)
+        badFormat(moduleName, "incomplete ident record");
 
     l1 = 0;
-    if (byte_4b80 != 0) {
+    if (haveIdent != 0) {
 
         while (l1 < 4) {
-            if (buff_4b81[l1] != order32[l1])
-                bf_format("ident records do not match");
+            if (recbuf[l1] != order32[l1])
+                badFormat(moduleName, "ident records do not match"); // bug fix
             l1++;
         }
         l1 = 0;
         while (l1 < 2) {
-            if ((char)(buff_4b81 + 4)[l1] != (char)order16[l1])
-                bf_format("ident records do not match");
+            if ((char)(recbuf + 4)[l1] != (char)order16[l1])
+                badFormat(moduleName, "ident records do not match"); // bug fix
             l1++;
         }
         return;
     }
-    while (l1 < 4) {
-        order32[l1] = buff_4b81[l1];
+    while (l1 < 4) { /* read the 32bit byte order */
+        order32[l1] = recbuf[l1];
         l1++;
     }
     l1 = 0;
-    while (l1 < 2) {
-        order16[l1] = (buff_4b81 + 4)[l1];
+    while (l1 < 2) { /* read the 16bit byte order */
+        order16[l1] = recbuf[l1 + 4];
         l1++;
     }
-    byte_4b80 = 1;
+    haveIdent = 1;
 }
 
 /**************************************************************************
- 49	calc_val	sub_1429h	ok++
+ 49	get_modu16	sub_1429h	ok++
  **************************************************************************/
-int calc_val(uchar *p1) {
+uint get_modu16(uchar *p1) {
 
-    return (uint)(*((uint)order16[1] + p1) << 8) +
-           (uint) * ((uint)order16[0] + p1);
+    return (p1[order16[1]] << 8) + p1[order16[0]];
 }
 
 /**************************************************************************
- 50	sub_1457h	ok+
+ 50	addSymbol	ok+
  **************************************************************************/
 
-void sub_1457h(uchar *p1, int p2) {
-    register struct aaa *st;
+void addSymbol(uchar *name, int flags) {
+    register struct sym *st;
 
-    if (word_4d84 == word_4d8d + 501)
-        fatal_err("Too many symbols in %s", fname_5369);
-    st = word_4d84;
-    if ((st->i2 = p2) != 6)
-        byte_4d8a = 1;
-    strcpy((word_4d84->i1 = allocmem(strlen((char *)p1) + 1)), (char *)p1);
+    if (curSymPtr == &symbols[500])
+        fatal_err("Too many symbols in %s", moduleName);
+    st = curSymPtr;
+    if ((st->flags = flags) != 6)
+        hasNonExtern = 1;
+    strcpy((curSymPtr->name = allocmem(strlen(name) + 1)), name);
 
-    ++word_4d84;
+    ++curSymPtr;
 }
 
-// Object file record types: | Length (16 bits)     | Record type (8 bits) |
-// Data (Length*8 bits) |
+// clang-format off
+// Object record types:   | Length (16 bits)     | Record type (8 bits) | Data (Length*8 bits) |
 #define TEXT_RECORD  1
 #define PSECT_RECORD 2
 #define RELOC_RECORD 3
-#define SYM_RECORD                                                             \
-    4 // | Value (32 bits)      | flags (16 bits)      | psect name           |
-      // symbol name |
+#define SYM_RECORD   4 // | Value (32 bits)      | flags (16 bits)      | psect name           | symbol name |
 #define START_RECORD 5
 #define END_RECORD   6 // | flags (16 bits)      |
-#define IDENT_RECORD                                                           \
-    7 // | byte order (32 bits) | byte order (16 bits) | machine name         |
-      // version number (16 bits) |
+#define IDENT_RECORD 7 // | byte order (32 bits) | byte order (16 bits) | machine name         | version number (16 bits) |
 #define XPSECT_RECORD  8
 #define SEGMENT_RECORD 9
+// clang-format on
 
 /**************************************************************************
- 51	sub_14aeh	ok+
+ 51	scanModule	ok+
  **************************************************************************/
-int sub_14aeh(char *p1) {
+int scanModule(char *name) {
 
-    fptr_4d8b = fopen((fname_5369 = p1), "rb");
-    if (fptr_4d8b == 0)
-        err_open(fname_5369);
-    byte_4d8a = 0;
-    long_4d86 = 0;
-    word_4d84 = &word_4d8d;
+    moduleFp = fopen((moduleName = name), "rb");
+    if (moduleFp == 0)
+        open_err(moduleName);
+    hasNonExtern = 0;
+    reclen       = 0;
+    curSymPtr    = symbols;
 
-//    for(;;) {		Failed attempt to use switch
-m2:
-    sub_1568h(); // Get type of record
+    for (;;) {
+        getRecord(); // Get type of record
 
-    if (recd_type == SYM_RECORD)
-        goto m3;
-    if (recd_type == END_RECORD)
-        goto m5;
-    if (recd_type == IDENT_RECORD)
-        goto m4;
-    sub_15fbh();
-    goto m2;
-
-m3:
-    sub_162ah(); // SYM_RECORD
-    goto m2;
-
-m4:
-    sub_1351h(); // IDENT_RECORD
-    goto m2;
-
-m5:
-    fclose(fptr_4d8b); // END_RECORD
-
-    if ((ulong)long_4d86 >= (ulong)0x00010000)
-        fatal_err("file too big");
-    if (byte_4d8a == 0)
-        warning("module %s defines no symbols", fname_5369);
-    return long_4d86;
-    /*
-        switch(recd_type) {
-          case IDENT_RECORD:	sub_1351h(); break; //goto m2;
-          case SYM_RECORD:	sub_162ah(); break; //goto m2;
-          default:		sub_15fbh(); break; //goto m2;
-          case END_RECORD:	fclose(fptr_4d8b);
-                    if((ulong)long_4d86 >= (ulong)0x00010000) fatal_err("file
-       too big"); if(byte_4d8a == 0) warning("module %s defines no symbols",
-       fname_5369); return long_4d86;
+        switch (rectyp) {
+        case IDENT_RECORD:
+            parseIdentRec();
+            break;
+        case SYM_RECORD:
+            parseSymbolRec();
+            break;
+        default:
+            skipRecord();
+            break;
+        case END_RECORD:
+            fclose(moduleFp);
+            if (reclen >= 0x10000)
+                fatal_err("file too big ");
+            if (hasNonExtern == 0)
+                warning(" module %s defines no symbols ", moduleName);
+            return reclen;
         }
-        }
-    */
+    }
 }
 
 /**************************************************************************
- 52	conv_atoi1	sub_1548h	ok++
+ 52	conv_btou16a	sub_1548h	ok++
  **************************************************************************/
-int conv_atoi1(register char *st) {
+uint conv_btou16a(register uchar *st) {
 
-    return (((uint)(*st)) + ((uint) * (st + 1) << 8));
+    return st[0] + (st[1] << 8);
 }
 
 /**************************************************************************
- 53	sub_1568h	ok++	Get type of record
+ 53	getRecord	ok++	Get type of record
  **************************************************************************/
-void sub_1568h() {
+void getRecord() {
 
-    if (read1(buff_4b81, 3, 1, fptr_4d8b) != 1)
-        bf_format(fname_5369, "no end record found");
+    if (fread(recbuf, 3, 1, moduleFp) != 1)
+        badFormat(moduleName, "no end record found");
 
-    recd_type = buff_4b81[2];
+    rectyp = recbuf[2];
 
-    if (recd_type == 0)
-        goto m2;
-    if (recd_type < 9)
-        goto m3;
+    if (rectyp == 0 || rectyp >= 9)
+        badFormat(moduleName, "unknown record type: %d", rectyp);
+    if ((512 - 3) < (length = conv_btou16a(recbuf)))
+        badFormat(moduleName, "record too long: %d+%d", 3, length);
 
-m2:
-    bf_format(fname_5369, "unknown record type: %d", (uint)recd_type);
-//	509 = 512-3
-m3:
-    if (0x01FD < (length = conv_atoi1(buff_4b81)))
-        bf_format(fname_5369, "record too long: %d+%d", 3, length);
-
-    long_4d86 += (length + 3);
+    reclen += (length + 3);
 }
 
 /**************************************************************************
- 54	sub_15fbh	ok++
+ 54	skipRecord	ok++
  **************************************************************************/
-void sub_15fbh() {
+void skipRecord() {
 
-    if (fseek(fptr_4d8b, length, SEEK_CUR) != -1)
+    if (fseek(moduleFp, length, SEEK_CUR) != -1)
         return;
-    bf_format(fname_5369, "incomplete record");
+    badFormat(moduleName, "incomplete record");
 }
 
 /**************************************************************************
- 55	sub_162ah	ok++
+ 55	parseSymbolRec	ok++
  **************************************************************************/
-void sub_162ah() {
-    char *l1;
-    int l2;
-    char l3;
-    register char *st;
+void parseSymbolRec() {
+    uchar *name;
+    uint l2;
+    uchar flags;
+    register uchar *st;
 
-    if (read1(buff_4b81, 1, length, fptr_4d8b) != length)
-        bf_format(fname_5369, "incomplete symbol record");
+    if (fread(recbuf, 1, length, moduleFp) != length)
+        badFormat(moduleName, "incomplete symbol record");
 
-    st = buff_4b81;
+    st = recbuf;
 
-    while (st < (buff_4b81 + length)) { // m8:
-        l2 = calc_val(st + 4);          // m2:
-        l3 = l2 & 0xF;
-        l1 = st + 6;
+    while (st < (recbuf + length)) {
+        l2    = get_modu16(st + 4); /* read flags */
+        flags = l2 & 0xF;           /* mask off low 4 bits */
+        name  = st + 6;             /* skip to psect name */
 
-        while (*(l1++) != 0)
+        while (*name++) /* skip psect name */
             ;
+        /* only process PUBLIC, COMM and EXTERN entries */
+        if ((bittst(l2, 4) && flags == 0) || flags == 2 || flags == 6)
+            addSymbol(name, flags);
+        st = name; // m6:
 
-        if (bittst(l2, 4) != 0) {
-            if (l3 == 0)
-                goto m5;
-        }
-        if (l3 == 2)
-            goto m5; // m4:
-        if (l3 == 6) {
-        m5:
-            sub_1457h((uchar *)l1, (uchar)l3);
-        }
-        st = l1; // m6:
-
-        while (*(st++) != 0)
+        while (*(st++) != 0) /* skip symbol name */
             ;
     }
 }
 
 /**************************************************************************
- 56	sub_16e8h	ok++
+ 56	copyMatchedSymbols	ok++
  **************************************************************************/
-void sub_16e8h(char *p1, long dummy) {
+void copyMatchedSymbols(char *p1, long dummy) {
 
-    if (sub_01fbh(p1) != 0) {
-        sub_0a93h(p1, sub_01fbh(p1) - 1);
+    if (lookupName(p1) != 0) {
+        copyNewSymbols(p1, lookupName(p1) - 1);
         return;
     }
-    sub_0789h();
+    copySymbolsToTemp();
 }
 
 /**************************************************************************
- 57	sub_1721h	ok++
+ 57	copyMatchedModules	ok++
  **************************************************************************/
-void sub_1721h(char *p1, long dummy) {
+void copyMatchedModules(char *p1, long dummy) {
 
-    if (sub_01fbh(p1) != 0) {
-        sub_09cdh(p1, sub_01fbh(p1) - 1);
+    if (lookupName(p1) != 0) {
+        copyNewModule(p1, lookupName(p1) - 1);
         return;
     }
-    sub_0874h();
+    copyModuleToTemp();
 }
 
 /**************************************************************************
- 58	sub_175ah	Replace modules		ok++
+ 58	replaceModule	Replace modules		ok++
  **************************************************************************/
-void sub_175ah() {
+void replaceModule() {
 
     if (num_ofiles == 0)
         fatal_err("replace what ?");
-    sub_0487h();
-    sub_034ah();
-    sub_0621h(sub_16e8h);
-    sub_025bh(sub_0a93h);
-    sub_04d6h();
-    sub_0621h(sub_1721h);
-    sub_025bh(sub_09cdh);
-    sub_053ch();
-}
-
-/**************************************************************************
- *	sub_2355h	ok++
- **************************************************************************/
-int sub_2355h(char *p1, uint p2, uint p3, FILE *p4) {
-    int l1;
-    char *l2;
-    register FILE *st;
-
-    st = p4;
-    l1 = p2 * p3;
-    l2 = p1;
-
-    while (l1 != 0) {
-        if (fputc(*(l2++), st) == -1)
-            break;
-        l1 += -1;
-    }
-    return p3 - (l1 + p2 - 1) / p2;
-}
-
-void sub_23e4() { // Not used function
-    fgetc(stdin);
-}
-
-/**************************************************************************
-    read1	ok++
- **************************************************************************/
-int read1(char *buf, int p2, unsigned count, register FILE *st) {
-    char *ptr_buf;
-    unsigned int tot_count;
-    unsigned int next_char;
-
-    tot_count = p2 * count;
-    ptr_buf   = buf;
-
-    while (tot_count != 0) {
-        if ((next_char = fgetc(st)) == EOF)
-            break;
-        --tot_count;
-        *ptr_buf++ = (char)next_char;
-    }
-    return count - (tot_count + p2 - 1) / p2;
+    openContent();
+    openTemp();
+    visitModules(copyMatchedSymbols);
+    processUnmatched(copyNewSymbols);
+    rewindLibrary();
+    visitModules(copyMatchedModules);
+    processUnmatched(copyNewModule);
+    commitNewLibrary();
 }
