@@ -14,9 +14,18 @@
  *
  *	Andrey Nikitin 06.06.2021
  */
-#include "dump.h"
 #include <stdio.h>
-#ifndef CPM
+#include <stdlib.h>
+#include <string.h>
+
+#if !defined(_STDC_VERSION__) || __STDC_VERSION < 201112L
+#define _Noreturn
+#endif
+#if defined(_MSC_VER) && !defined(__STDC__)
+#define __STDC__ 1
+#endif
+
+#ifdef __STDC__
 #include <stdarg.h>
 #endif
 
@@ -46,27 +55,31 @@
  * ok   - Code generated during compilation differs slightly,
  *        but is logically correct;
  ****************************************************************/
-/*    main();		    ok++ works good	*/
-void prc_rec();    /*  ok++ works good	*/
-int chk_rec();     /*  ok   works good	*/
-void cod_text();   /*  ok++ works good	*/
-void cod_psect();  /*  ok++ works with error */
-void cod_reloc();  /*  ok++ works good	*/
-void cod_sym();    /*  ok++ works good	*/
-void cod_start();  /*  ok++ works good	*/
-void cod_end();    /*  ok++ works good	*/
-void cod_ident();  /*  ok++ works good	*/
-void cod_xpsect(); /*  ok++ not verified	*/
-#if CPM
+#ifdef __STDC__
+#define P(s) s
+#else
+#define P(s) ()
+#endif
+int main P((int argc, char **argv)); /* ok++ works good */
+void cod_xpsect P((void));           /* ok++ not verified */
+void prc_rec P((void));              /* ok++ works good */
+int chk_rec P((void));               /* ok   works good */
+void cod_text P((void));             /* ok++ works good */
+void cod_psect P((void));            /* ok++ works with error */
+void cod_reloc P((void));            /* ok++ works good */
+void cod_sym P((void));              /* ok++ works good */
+void cod_start P((void));            /* ok++ works good */
+void cod_end P((void));              /* ok++ works good */
+void cod_ident P((void));            /* ok++ works good */
+#ifndef __STDC__
 void err_handling(); /*  ok++ works good	*/
 void error();        /*  ok++ works good	*/
 #else
-void err_handling(char *fmt, va_list args);
-_Noreturn void error(char *fmt, ...);
+void err_handling(char *fmt, va_list args); /* safer version */
+_Noreturn void error(char *fmt, ...);       /* safer version */
 #endif
-uint calc_val();   /*  ok++ works good	*/
-ulong calc_long(); /*  ok   works good	*/
-
+uint calc_val P((uchar * p1));   /*  ok++ works good	*/
+ulong calc_long P((uchar * p1)); /*  ok   works good	*/
 /*
  * To comply with C standard functions are replaced with
  * similar ones with a variable number of parameters
@@ -88,10 +101,10 @@ struct aaa {
 /*
  *	Descriptions of variables and arrays
  */
-char *name;         /* File name		*/
-int cur_rec;        /* current record	*/
-uchar rec_typ;      /* Record type		*/
-int rec_len;        /* Record length	*/
+char *name;          /* File name		*/
+int cur_rec;         /* current record	*/
+uchar rec_typ;       /* Record type		*/
+int rec_len;         /* Record length	*/
 uchar buf_data[512]; /* Record data buffer	*/
 
 char order32[] = { 0, 1, 2, 3 }; /* 32 bit order */
@@ -150,97 +163,62 @@ EXTERN	  5 "EXTERN";	+-- CP/M
  *
  *	Record types:
  */
-char msg_text[]        = "TEXT";
-char msg_psect[]       = "PSECT";
-char msg_reloc[]       = "RELOC";
-char msg_sym[]         = "SYM";
-char msg_start[]       = "START";
-char msg_end[]         = "END";
-char msg_ident[]       = "IDENT";
-char msg_xpsect[]      = "XPSECT";
 
 struct aaa rec_types[] = {
-    { "", 0 },                 /* 0 */
-    { msg_text, cod_text },    /* 1 */
-    { msg_psect, cod_psect },  /* 2 */
-    { msg_reloc, cod_reloc },  /* 3 */
-    { msg_sym, cod_sym },      /* 4 */
-    { msg_start, cod_start },  /* 5 */
-    { msg_end, cod_end },      /* 6 */
-    { msg_ident, cod_ident },  /* 7 */
-    { msg_xpsect, cod_xpsect } /* 8 */
+    { "", 0 },               /* 0 */
+    { "TEXT", cod_text },    /* 1 */
+    { "PSECT", cod_psect },  /* 2 */
+    { "RELOC", cod_reloc },  /* 3 */
+    { "SYM", cod_sym },      /* 4 */
+    { "START", cod_start },  /* 5 */
+    { "END", cod_end },      /* 6 */
+    { "IDENT", cod_ident },  /* 7 */
+    { "XPSECT", cod_xpsect } /* 8 */
 };
 
 /*
  *	Symbol types:
- *
-char    msg_blank[] = ""; */
-char st_stack[]   = "STACK";
-char st_comm[]    = "COMM";
-char st_reg[]     = "REG";
-char st_lineno[]  = "LINENO";
-char st_filnam[]  = "FILNAM";
-char st_extern[]  = "EXTERN";
-
+ */
 char *sym_types[] = {
-    0,
-    /* msg_blank; */ /* 0 */
-    st_stack,        /* 1 */
-    st_comm,         /* 2 */
-    st_reg,          /* 3 */
-    st_lineno,       /* 4 */
-    st_filnam,       /* 5 */
-    st_extern        /* 6 */
+    "",       /* 0 */
+    "STACK",  /* 1 */
+    "COMM",   /* 2 */
+    "REG",    /* 3 */
+    "LINENO", /* 4 */
+    "FILNAM", /* 5 */
+    "EXTERN"  /* 6 */
 };
 
 /*
  *	Psect flags:
  */
-char pf_global[]    = "GLOBAL";
-char pf_pure[]      = "PURE";
-char pf_ovrld[]     = "OVRLD";
-char pf_abs[]       = "ABS";
-
 char *psect_flags[] = {
-    pf_global, /* 0 */
-    pf_pure,   /* 1 */
-    pf_ovrld,  /* 2 */
-    pf_abs     /* 3 */
+    "GLOBAL", /* 0 */
+    "PURE",   /* 1 */
+    "OVRLD",  /* 2 */
+    "ABS"     /* 3 */
 };
 
 /*
  *	Relocation types:
  */
-char rt_rabs[]      = "RABS";
-char rt_rpsect[]    = "RPSECT";
-char rt_rname[]     = "RNAME";
-char rt_unkn1[]     = "Unknown";
-char rt_unkn2[]     = "Unknown";
-char rt_rrpsect[]   = "RRPSECT";
-char rt_rrname[]    = "RRNAME";
-
 char *reloc_types[] = {
-    rt_rabs,    /* 0 */
-    rt_rpsect,  /* 1 */
-    rt_rname,   /* 2 */
-    rt_unkn1,   /* 3 */
-    rt_unkn2,   /* 4 */
-    rt_rrpsect, /* 5 */
-    rt_rrname   /* 6 */
+    "RABS",    /* 0 */
+    "RPSECT",  /* 1 */
+    "RNAME",   /* 2 */
+    "Unknown", /* 3 */
+    "Unknown", /* 4 */
+    "RRPSECT", /* 5 */
+    "RRNAME"   /* 6 */
 };
 
 /*
  *	Main program (ok++, works good)
  */
-main(argc, argv) int argc;
+int main(argc, argv) int argc;
 char **argv;
 {
     char **next_arg;
-
-    if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
-        showVersion(stdout, argv[1][1] == 'V');
-        exit(0);
-    }
 
     if (argc == 1) {           /* When starting the program without     */
         *(argv + 1) = "l.obj"; /* parameters, process the file "l.obj"  */
@@ -281,15 +259,22 @@ int chk_rec() {
     if ((fread(buf_data, 1, 3, stdin)) != 3)
         return (0);
     ++cur_rec;
-    rec_len = (uint)buf_data[0] + ((uint)buf_data[1] << 8);
+    rec_len = buf_data[0] + (buf_data[1] << 8);
     rec_typ = buf_data[2];
 
-    if (rec_typ == 0 || rec_typ > 9)
+    if (rec_typ == 0 || rec_typ >= 9) /* original had rec_typ > 9, but this misses 9 as an invalid value */
         error("unknown record type: %d", rec_typ);
-    if (rec_len > 512) {
-        rec_types[rec_typ] = rec_types[0];
-        error("%s record too long: %d", &rec_types[0].name, rec_len);
-    }
+    /*
+        note the hitech compiler generates bizzare code for the call to error below
+        I suspect the original was coded in error as
+        error("%s record too long: %d", rec_types[rec_typ], rec_len);
+        unfortunately the compiler generates two push bc on the stack for the string
+        argument, and instead of generating the code to copy the structure onto the stack
+        if actually generates
+        rec_types[0] = rec_types[rec_typ];
+    */
+    if (rec_len > 512)
+        error("%s record too long: %d", rec_types[rec_typ].name, rec_len);
     if (fread(buf_data, 1, rec_len, stdin) != rec_len)
         error("incomplete record: type = %d, length = %d", (uchar)rec_typ, rec_len);
     return (1);
@@ -310,7 +295,7 @@ void cod_text() {
     while (*ptr != 0)
         ++ptr;
     ptr++;
-    data_bytes = rec_len - (5 + strlen(psect_name));
+    data_bytes = rec_len - (5 + (int)strlen(psect_name));
 
     if (BITTST(data_bytes, 15) != 0)
         error("text record has length too small: %d", data_bytes);
@@ -342,14 +327,14 @@ void cod_psect() {
     uint l1;
     uchar l2;
 
-    printf("\t\t%s", buf_data[2] != 0 ? &buf_data[2] : "(abs)");
+    printf("\t\t%s", buf_data[2] != 0 ? (char *)&buf_data[2] : "(abs)");
     l1 = calc_val(buf_data) >> 4;
     l2 = 0;
     while (l1 != 0) {
         if (BITTST(l1, 0) != 0) {
             if (l2 >= ARRAY_SIZE(psect_flags))
                 error("unknown psect flag: 0X%x", 1 << l2);
-            printf("\t%s", *(psect_flags + l2));
+            printf("\t%s", psect_flags[l2]);
         }
         l1 <<= 1;
         ++l2;
@@ -362,7 +347,7 @@ void cod_psect() {
  */
 void cod_reloc() {
     uchar l1; /* Relocation type */
-    char *l2;
+    uchar *l2;
 
     l2 = buf_data;
     while (l2 < &buf_data[rec_len]) {
@@ -378,7 +363,7 @@ void cod_reloc() {
  *	cod_sym (ok++, works good)
  */
 void cod_sym() {
-    char *l1;
+    uchar *l1;
     uchar *l2; /* Psect  name */
     uchar *l3; /* Symbol name */
     uint l4;
@@ -393,7 +378,7 @@ void cod_sym() {
 #if CPM
         printf("\t\t%s\t%s\t%D", l3, (*l2 != 0) ? l2 : (((l4 & 6) != 0) ? "" : "(abs)"), calc_long(l1));
 #else
-        printf("\t\t%s\t%s\t%ld", l3, (*l2 != 0) ? l2 : (((l4 & 6) != 0) ? "" : "(abs)"), calc_long(l1));
+        printf("\t\t%s\t%s\t%ld", l3, (*l2 != 0) ? (char *)l2 : (((l4 & 6) != 0) ? "" : "(abs)"), calc_long(l1));
 
 #endif
 
@@ -418,7 +403,7 @@ void cod_sym() {
  */
 void cod_start() {
 
-    printf("\t\t%s\t%lu\n", buf_data[4] != 0 ? buf_data + 4 : "(abs)", calc_long(buf_data));
+    printf("\t\t%s\t%lu\n", buf_data[4] != 0 ? (char *)&buf_data[4] : "(abs)", calc_long(buf_data));
 }
 
 /*
@@ -452,7 +437,7 @@ void cod_ident() {
  */
 void cod_xpsect() {
 
-    printf("\t\t%s", (buf_data[12] != 0) ? &buf_data[12] : "(abs)");
+    printf("\t\t%s", (buf_data[12] != 0) ? (char *)&buf_data[12] : "(abs)");
     if (calc_long(buf_data) != 0)
         printf("\tsize=%lu", calc_long(buf_data));
     if (calc_val(&buf_data[4]) != 0)
@@ -468,15 +453,15 @@ void cod_xpsect() {
 void err_handling(p1, p2, p3, p4, p5) char *p1;
 {
 
-    fputc('\n', stdin);
-    fflush(stdin);
+    fputc('\n', stdout);
+    fflush(stdout);
 
     if (name != 0)
-        fprintf(stdout, "%s: ", name);
+        fprintf(stderr, "%s: ", name);
     if (cur_rec != 0)
-        fprintf(stdout, "%d: ", cur_rec);
-    fprintf(stdout, p1, p2, p3, p4, p5);
-    fputc('\n', stdout);
+        fprintf(stderr, "%d: ", cur_rec);
+    fprintf(stderr, p1, p2, p3, p4, p5);
+    fputc('\n', stderr);
 }
 
 /*
@@ -492,19 +477,19 @@ void error(p1, p2, p3, p4, p5) {
 #else
 void err_handling(char *fmt, va_list args) {
 
-    fputc('\n', stdin);
-    fflush(stdin);
+    fputc('\n', stdout);
+    fflush(stdout);
 
     if (name != 0)
-        fprintf(stdout, "%s: ", name);
+        fprintf(stderr, "%s: ", name);
     if (cur_rec != 0)
-        fprintf(stdout, "%d: ", cur_rec);
+        fprintf(stderr, "%d: ", cur_rec);
 
-    vfprintf(stdout, fmt, args);
-    fputc('\n', stdout);
+    vfprintf(stderr, fmt, args);
+    fputc('\n', stderr);
 }
 
-void error(char *fmt, ...) {
+_Noreturn void error(char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     err_handling(fmt, args);

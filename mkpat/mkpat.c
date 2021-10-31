@@ -1,88 +1,114 @@
 #include "mkpat.h"
+unsigned short crc16(unsigned char *data_p, size_t length);
 
 #define NODATAREF
 
 /* record types */
 enum { TEXT = 1, PSECT, RELOC, SYM, START, END, IDENT, TOO_LONG = -1, PAST_END = -2 };
+enum { UNDEF = 0, ABS, FIXUP };
 
 #define CHUNK 50 // allocation chunk for symbols
 
 typedef unsigned char byte;
 typedef unsigned short word;
+#define MAXLABEL   1024
+#define MAXNAMELEN 64
 
-typedef struct {
+struct {
     int length;
+    int pos;
     int type;
     uint8_t data[512];
-} record_t;
+} record;
 
-record_t record;
+uint8_t code[0x8000];
+uint8_t flags[0x8000];
+uint16_t codesize;
+uint16_t codebase;
 
-typedef struct {
-    char *filename;
-    long size;
-    long startRec;
-    long pos;
-    long nextRec;
-    byte image[1];
-} omfFile;
+#define EXTERNAL 0x16
+#define PUBLIC   0x10
+#define HASDELTA 0x20
 
-typedef struct {
-    unsigned offset : 16;
-    unsigned segId : 8;
-    unsigned isLocal : 1;
-    unsigned instance : 5;
-    byte *name;
-} symbol_t;
+struct {
+    char *name;
+    uint16_t offset;
+    uint8_t type;
+} labels[MAXLABEL];
+int labelCnt;
 
-typedef struct {
-    unsigned data : 8;
-    unsigned dataType : 3;
-    unsigned isExternal : 1;
-    unsigned indexOrSegId : 16;
-} codeByte_t;
-
-#define ALNBOTH 3
-
-enum { // dataType values
-    UNDEF = 0,
-    ABS,
-    REFBYTE,
-    REFLOWORD,
-    REFHIWORD
+struct {
+    char *alias;
+    char *label;
+} map[] = { { "_bmove", "_movmem" },
+            { "_inp", "_in" },
+            { "_isdigit", "_isdig" },
+            { "_outp", "_out" },
+            { "asll", "asal" },
+            { "aslland", "asaland" },
+            { "asllmul", "asalmul" },
+            { "asllor", "asalor" },
+            { "asllsub", "asalsub" },
+            { "asllxor", "asalxor" },
+            { "aslmul", "asamul" },
+            { "lladd", "aladd" },
+            { "lland", "aland" },
+            { "lldec", "ladec" },
+            { "llinc", "lainc" },
+            { "llmul", "almul" },
+            { "llor", "alor" },
+            { "llsub", "alsub" },
+            { "llxor", "alxor" },
+            { "lmul", "amul" },
+            { "lrelop", "arelop" },
+            { "shll", "shal" },
+            { NULL }
 };
-
-typedef struct {
-    omfFile *fi;
-    byte *name;
-    int codeSize;
-    codeByte_t *codeImage;
-    int nSymbols;
-    symbol_t *symbols;
-    int nExternals;
-    symbol_t *externals;
-} module_t;
-
 
 int getWord(FILE *fp) {
     int c1 = getc(fp);
     int c2 = getc(fp);
-    if (c2 == EOF)
-        return EOF;
-    return c1 + c2 * 256;
+    return c2 == EOF ? -1 : c1 + c2 * 256;
+}
+
+int unpackByte() {
+    return record.pos < record.length ? record.data[record.pos++] : -1;
+}
+
+int unpackWord() {
+    int val1 = unpackByte();
+    int val2 = unpackByte();
+    return val2 < 0 ? -1 : val1 + (val2 << 8);
+}
+
+int unpackDWord() {
+    int val1 = unpackWord();
+    int val2 = unpackWord();
+    return val2 < 0 ? -1 : (val2 << 16) + val1;
 }
 
 bool getName(FILE *fp, char *name) {
     int c;
+    int i = 0;
     do {
         *name++ = c = getc(fp);
-    } while (c > 0);
+    } while (c > 0 && ++i < 128);
+    return c == 0;
+}
+
+bool unpackName(char *name) {
+    int c;
+    int i = 0;
+    do {
+        *name++ = c = unpackByte();
+    } while (c > 0 && ++i < 128);
     return c == 0;
 }
 
 int getRecord(FILE *fp) {
-    record.length = getword(fp);
-    record.type = getc(fp);
+    record.length = getWord(fp);
+    record.type   = getc(fp);
+    record.pos    = 0;
     if (record.type == EOF)
         return PAST_END;
     if (record.length > 512)
@@ -92,181 +118,179 @@ int getRecord(FILE *fp) {
     return record.type;
 }
 
-#if 0
-
-void printPstr(FILE *fp, byte *name, int deconflict) {
-    /* avoid conflict with register names*/
-    if (deconflict && name[0] == 1 && strchr("ABCDEFHILM", name[1]))
-        fprintf(fp, "_");
-    fprintf(fp, "%.*s", name[0], name + 1);
-}
-
-int cmpSymbol(const symbol_t *a, const symbol_t *b) {
-    int aval, bval;
-    aval = a->offset + (a->segId << 16) + (a->isLocal << 24);
-    bval = b->offset + (b->segId << 16) + (b->isLocal << 24);
-
-    return aval - bval;
-}
-
-markMultipleLocals(module_t *mod) {
-    int i, j;
-    int len;
-    int count;
-
-    /* runs through locals tagging multiple names with sequential numbers */
-    for (i = 1; i < mod->nSymbols; i++) {
-        if (mod->symbols[i].isLocal == 0)
-            continue; // its a public
-        len = mod->symbols[i].name[0];
-        for (count = j = 0; j < i; j++)
-            if (mod->symbols[j].name[0] == len && strncmp(mod->symbols[j].name + 1, mod->symbols[i].name + 1, len) == 0)
-                if (mod->symbols[j].offset == mod->symbols[i].offset &&
-                    mod->symbols[j].segId == mod->symbols[i].segId) { // matches earlier entry
-                    mod->symbols[i].name = ""; // will be seen earlier in list so remove from further checks
-                } else {
-                    count++;
-                }
-        mod->symbols[i].instance = count;
-    }
-}
-
-void dumpPattern(FILE *fpout, module_t *mod) {
-    int i, j, k;
-    int offset;
+void dumpPattern(FILE *fpout) {
+    int j;
     int splitRef = 0;
-    unsigned char code[256];
     int loc;
+    bool hasPublic = false;
 
-    for (loc = 0; loc < mod->codeSize && loc < 32; loc++) {
-        if (mod->codeImage[loc].dataType == ABS)
-            fprintf(fpout, "%02X", mod->codeImage[loc].data);
+    if (codesize == 0)
+        return;
+    for (loc = 0; loc < codesize && loc < 32; loc++) {
+        if (flags[loc] == ABS)
+            fprintf(fpout, "%02X", code[loc]);
         else
-            fprintf(fpout, "..");
+            fputs("..", fpout);
     }
     while (loc < 32) {
-        fprintf(fpout, "..");
+        fputs("..", fpout);
         loc++;
     }
-    for (j = 0; j < 255 && loc < mod->codeSize && mod->codeImage[loc].dataType == ABS; j++, loc++)
-        code[j] = mod->codeImage[loc].data;
+    for (j = loc; loc < j + 255 && loc < codesize && flags[loc] == ABS; loc++)
+        ;
 
-    fprintf(fpout, " %02X %04X %04X", j, crc16(code, j), mod->codeSize);
+    fprintf(fpout, " %02X %04X %04X ", loc - j, crc16(code + j, loc - j), codesize);
 
-    qsort(mod->symbols, (size_t)mod->nSymbols, sizeof(symbol_t), &cmpSymbol);
-
-    markMultipleLocals(mod);
-
-    for (i = 0; i < mod->nSymbols && mod->symbols[i].segId == 1; i++) // code seg
-        if (mod->symbols[i].isLocal == 0) {                           // public
-            fprintf(fpout, " :%04X ", mod->symbols[i].offset);
-            printPstr(fpout, mod->symbols[i].name, 1);
+    for (int i = 0; i < labelCnt; i++)
+        if (labels[i].type == PUBLIC) {
+            fprintf(fpout, ":%04X %s ", labels[i].offset, labels[i].name);
+            hasPublic = true;
         }
+    if (!hasPublic)
+        fprintf(fpout, ":0000 ? ");
 
-    for (i = 0; i < mod->codeSize; i++) { // process references
-        if (mod->codeImage[i].dataType == REFLOWORD && i + 1 < mod->codeSize) {
-            offset = mod->codeImage[i].data + 256 * mod->codeImage[i + 1].data;
-            if (mod->codeImage[i].isExternal) {
-                fprintf(fpout, " ^%04X ", i);
-                printPstr(fpout, mod->externals[mod->codeImage[i].indexOrSegId].name, offset != 0);
-                if (offset != 0)
-                    fprintf(fpout, "_%d", offset);
-            } else
-#ifdef NODATAREF
-                if (mod->codeImage[i].indexOrSegId == 1) // compile option is only to include CODE refs & externals
-#endif
-            {
-                for (k = 0; k < mod->nSymbols; k++) {
-                    if (mod->symbols[k].offset == offset && mod->symbols[k].segId == mod->codeImage[i].indexOrSegId) {
-                        fprintf(fpout, " ^%04X ", i);
-                        printPstr(fpout, mod->symbols[k].name, 0);
-                        if (mod->symbols[k].isLocal) { // it is a local so add make sure its unique
-                            if (mod->symbols[k].instance)
-                                fprintf(fpout, "_%d", mod->symbols[k].instance);
-                            if (mod->symbols[k].segId == 1) // ida handles locals in code
-                                fprintf(fpout, "@");
-                            else { // use module name to distinguish
-                                fprintf(fpout, "_");
-                                printPstr(fpout, mod->name, 0);
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-            i++;
-        }
-    }
+    for (int i = 0; i < labelCnt; i++)
+        if (labels[i].type == EXTERNAL)
+            fprintf(fpout, "^%04X %s ", labels[i].offset, labels[i].name);
 
-    if (loc < mod->codeSize)
-        fprintf(fpout, " ");
-
-    for (; loc < mod->codeSize; loc++) {
-        if (mod->codeImage[loc].dataType == ABS)
-            fprintf(fpout, "%02X", mod->codeImage[loc].data);
+    for (; loc < codesize; loc++)
+        if (flags[loc] == ABS)
+            fprintf(fpout, "%02X", code[loc]);
         else
-            fprintf(fpout, "..");
-    }
-    fprintf(fpout, "\n");
+            fputs("..", fpout);
+
+    fputc('\n', fpout);
 }
 
-void addSymbol(module_t *mod, int segId, int offset, byte *name, int isLocal) {
-    symbol_t *sym;
+void clearLabels() {
+    for (int i = 0; i < labelCnt; i++) {
+        free(labels[i].name);
+        labels[i].name = NULL;
+    }
+    labelCnt = 0;
+}
 
-    if (mod->nSymbols == 0)
-        mod->symbols = (symbol_t *)malloc(sizeof(symbol_t) * CHUNK);
-    else if (mod->nSymbols % CHUNK == 0)
-        mod->symbols = (symbol_t *)realloc(mod->symbols, sizeof(symbol_t) * (mod->nSymbols + CHUNK));
-    if (mod->symbols == NULL) {
-        fprintf(stderr, "out of memory\n");
+void addLabel(int offset, char *label, uint8_t type) {
+    for (int i = 0; map[i].alias; i++)
+        if (strcmp(map[i].alias, label) == 0) {
+            if (type != PUBLIC)
+               label = map[i].label;
+            else
+                return;
+            break;
+        }
+    for (int i = 0; i < labelCnt; i++) {
+        if (strcmp(labels[i].name, label) == 0) {
+            if (type == PUBLIC || ((labels[i].type & HASDELTA) && code[offset] + code[offset + 1] == 0)) {
+                labels[i].offset = offset;
+                labels[i].type   = type;
+            }
+            return;
+        }
+    }
+    if (labelCnt == MAXLABEL) {
+        fprintf(stderr, "Too many labels\n");
         exit(1);
     }
-    sym          = &mod->symbols[mod->nSymbols];
-    sym->name    = name;
-    sym->segId   = segId;
-    sym->offset  = offset;
-    sym->isLocal = isLocal;
-    mod->nSymbols++;
+    if (type != PUBLIC && code[offset] + code[offset + 1])
+        type |= HASDELTA;
+    labels[labelCnt].name   = strdup(label);
+    labels[labelCnt].offset = offset;
+    labels[labelCnt++].type = type;
 }
 
-void addExternal(module_t *mod, byte *name) {
-    symbol_t *sym;
+int doText(char *name) {
+    int offset = unpackDWord();
+    char psect[MAXNAMELEN];
 
-    if (mod->nExternals == 0)
-        mod->externals = (symbol_t *)malloc(sizeof(symbol_t) * CHUNK);
-    else if (mod->nExternals % CHUNK == 0)
-        mod->externals = (symbol_t *)realloc(mod->externals, sizeof(symbol_t) * (mod->nExternals + CHUNK));
-    if (mod->externals == NULL) {
-        fprintf(stderr, "out of memory\n");
+    if (offset < 0 || !unpackName(psect)) {
+        fprintf(stderr, "%s: unexpected EOF in TEXT record\n", name);
+        return false;
+    }
+    if (strcmp(psect, "text"))
+        return -1;
+
+    int length = record.length - record.pos;
+    if (codesize == 0)
+        codebase = offset;
+    if (offset + length - codebase >= sizeof(code)) {
+        fprintf(stderr, "%s: out of bounds - offset = %04X length = %04X\n", name, offset, length);
         exit(1);
     }
-    sym       = &mod->externals[mod->nExternals];
-    sym->name = name;
-    mod->nExternals++;
+    memcpy(code + offset - codebase, record.data + record.pos, length);
+    memset(flags + offset - codebase, ABS, length);
+    if (offset + length - codebase > codesize)
+        codesize = offset + length - codebase;
+
+    return offset;
 }
 
-void addFixup(module_t *mod, int offset, int isExternal, int indexOrSegId, int refType) {
-    codeByte_t *codeByte;
-
-    codeByte = &mod->codeImage[offset];
-    if (offset >= mod->codeSize)
-        fprintf(stderr, "reloc @%04X beyond end of code!!\n", offset);
-    else if (codeByte->dataType < REFBYTE) { // so far no reference
-        codeByte->isExternal   = isExternal;
-        codeByte->dataType     = refType;
-        codeByte->indexOrSegId = indexOrSegId;
-    } else
-        fprintf(stderr, "multiple fixups at @%04X\n", offset);
+void doReloc(char *name, int base) {
+    while (record.pos < record.length) {
+        int offset = unpackWord(); // assumption is that byte order is 0, 1
+        int type   = unpackByte();
+        char label[MAXNAMELEN];
+        if (!unpackName(label)) {
+            fprintf(stderr, "%s: unexpected EOF in RELOC record\n", name);
+            exit(1);
+        }
+        int size = type & 0xf;
+        switch (type >> 4) {
+        case 0:
+            break;
+        case 1:
+            if (base >= 0)
+                memset(flags + base + offset - codebase, FIXUP, size);
+            break;
+        case 2:
+            if (base >= 0) {
+                memset(flags + base + offset - codebase, FIXUP, size);
+                if (size == 2)
+                    addLabel(base + offset - codebase, label, EXTERNAL);
+            }
+            break;
+        default:
+            fprintf(stderr, "%s: unsupported reloc - offset=%04X type=%d psect=%s\n", name, offset, type >> 4, label);
+            break;
+        }
+    }
 }
-#endif
+
+void doSym(char *name) {
+    while (record.pos < record.length) {
+        int value = unpackDWord();
+        int flags = unpackWord();
+        char psect[MAXNAMELEN];
+        char symbol[MAXNAMELEN];
+        if (!unpackName(psect) || !unpackName(symbol)) {
+            fprintf(stderr, "%s: unexpected EOF in SYM record\n", name);
+            exit(1);
+        }
+        if ((flags & 0x1f) == PUBLIC && strcmp(psect, "text") == 0)
+            addLabel(value - codebase, symbol, PUBLIC);
+    }
+}
+
 bool doModule(char *name, FILE *fpin, FILE *fpout) {
     int type;
+    int textBase;
+
+    memset(flags, UNDEF, codesize ? codesize : sizeof(flags));
+    codesize = 0;
+    clearLabels();
+
     while ((type = getRecord(fpin)) != END && type > 0) {
         switch (type) {
         case TEXT:
-        case PSECT:
+            textBase = doText(name);
+            break;
         case RELOC:
+            doReloc(name, textBase);
+            break;
         case SYM:
+            doSym(name);
+            break;
+        case PSECT:
         case START:
         case IDENT:
             break;
@@ -275,8 +299,10 @@ bool doModule(char *name, FILE *fpin, FILE *fpout) {
             return false;
         }
     }
-    if (type == END)
+    if (type == END) {
+        dumpPattern(fpout);
         return true;
+    }
     if (type == TOO_LONG)
         fprintf(stderr, "%s: record length %d too long\n", name, record.length);
     else
@@ -285,8 +311,7 @@ bool doModule(char *name, FILE *fpin, FILE *fpout) {
 }
 
 void doLib(char *file, FILE *fpout) {
-    FILE *symin, *modin;
-    char modname[128];
+    FILE *symin;
 
     if (!(symin = fopen(file, "rb")))
         fprintf(stderr, "%s: cannot open library\n", file);
@@ -294,6 +319,7 @@ void doLib(char *file, FILE *fpout) {
         int symsize   = getWord(symin);
         int modulecnt = getWord(symin);
         FILE *modin   = fopen(file, "rb");
+        char modname[128];
 
         if (!modin || fseek(modin, symsize + 4, SEEK_SET) != 0) {
             fprintf(stderr, "%s: error locating modules\n", file);
@@ -301,7 +327,10 @@ void doLib(char *file, FILE *fpout) {
             return;
         }
         while (modulecnt-- != 0) {
-            if (fseek(symin, 12, SEEK_CUR) != 0 || !getName(symin, modname) || fseek(symin, symsize, SEEK_CUR) != 0) {
+            int modsymsize;
+
+            if ((modsymsize = getWord(symin)) < 0 || fseek(symin, 10, SEEK_CUR) != 0 || !getName(symin, modname) ||
+                fseek(symin, modsymsize, SEEK_CUR) != 0) {
                 fprintf(stderr, "%s: error processing symbols\n", file);
                 break;
             }
@@ -319,7 +348,7 @@ void doLib(char *file, FILE *fpout) {
 void doFile(char *file, FILE *fpout) {
     FILE *fpin = fopen(file, "rb");
     if (!fpin)
-        fprintf(stderr, "%s: cannot open file\n");
+        fprintf(stderr, "%s: cannot open file\n", file);
     else
         doModule(file, fpin, fpout);
 }

@@ -23,25 +23,31 @@
  *
  *	Andrey Nikitin 03.08.2021
  */
-
-#include "libr.h"
-#if CPM
-#include "stdio.h"
-#include <sys.h>
-#define _Noreturn
-#else
-#include <stdarg.h>
 #include <stdio.h>
-#define index strchr
-#ifndef _MSC_VER
-#include <unistd.h>
-#endif
-#endif
-
-#include <ctype.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <signal.h>
+
+#if !defined(_STDC_VERSION__) || __STDC_VERSION < 201112L
+#define _Noreturn
+#endif
+#if defined(_MSC_VER) && !defined(__STDC__)
+#define __STDC__ 1
+#endif
+
+#ifdef __STDC__
+#include <stdarg.h>
+#endif
+#if CPM
+#include <sys.h>
+#else
+#define index strchr
+#ifndef _MSC_VER
+#include <unistd.h>     // for unlink
+#endif
+#endif
+
 
 /*
  *	Assigned type abbreviations
@@ -145,79 +151,84 @@ char *moduleName; // file name
  * ok   - Code generated during compilation differs slightly,
  *        but is logically correct;
  ****************************************************************/
-
-int cmpNames(char *, char *); //  1 ok++   |  noModule Delete, Extract and
-                              //  List modules with symbols
-void allocModuleArrays(
-    int, char **);        //  2 ok++   |  copyNewSymbols Replace modules
-uchar lookupName(char *); //  3 ok++   |  copyNewModule Replace modules
-// void	processUnmatched( void (*fun)(char *, uint) );	//  4 ok++ <-+
-void copyUnchangedSymbols(char *, long); //* 5 ok++
-void copyUnchangedModules(char *, long); //* 6 ok++
-void deleteModule();                     //  7 ok++ 		Delete modules
-void extractNamedModule(char *, long);   //* 8 ok++
-void extractModules();                   //  9 ok++ 		Extract modules
-void openTemp(); // 10 ok++   |  copyUnchangedSymbols Delete modules
-int writeFile(char *, uint, uint,
-              FILE *);    // 11 ok++   |  copyUnchangedModules Delete modules
-void closeTemp();         // 12 ok++   |  extractNamedModule Extract modules
-void openLibrary(char *); // 13 ok++   |  listOneModule List modules
-void openContent(); // 14 ok++   |  printObjAndSymbols List modules with symbols
-void rewindLibrary();    // 15 ok++   |  copyMatchedSymbols Replace modules
-void commitNewLibrary(); // 16 ok++   |  copyMatchedModules Replace modules
-void visitModules(void (*funptr)(char *, long)); // 17 ok++ <-+
-// void	visitSymbols(void (*action)(char *, int));	// 18 ok++ <-+  checkToList
-void copySymbolsToTemp();                // 19 ok++   |  printSymbol
-void copyModuleToTemp();                 // 20 ok++
-void extractOneModule(char *);           // 21 ok++
-void copyNewModule(char *, uint);        // 22 ok++
-void copyNewSymbols(char *, uint);   // 23 ok++
-void conv_u32tob(unsigned long, char *); // 24 ok++ sub_0bd5h
-void conv_u16tob(uint, char *);          // 25 ok++ sub_0c31h
-uint conv_btou16(uchar *);               // 26 ok++ sub_0c53h
-long conv_btou32(uchar *);               // 27 ok++ sub_0c73h
-void readName(char *);                   // 28 ok++
-void writeName(char *);                  // 29 ok++
-void unexp_eof();                // 30 ok++ sub_0d14h 	Unexpected end of file
-void checkToList(char *, int);     //%31 ok++
-void listOneModule(char *, long);    //*32 ok++
-void listModules(char *, char *); // 33 ok++ 		List modules
-void printSymbol(char *, int);   //%34 ok++
-void printObjAndSymbols(char *, long); //*35 ok++
-void listWithSymbols();                // 36 ok++ 		List modules with symbols
-//	main();					// 37 ok+- 		Main program
-#if CPM
-_Noreturn void fatal_err(); // 38 ok++ sub_117ch 	Fatal error
+#ifdef __STDC__
+#define P(s) s
 #else
-_Noreturn void fatal_err(char *fmt, ...);
-_Noreturn void vfatal_err(char *fmt, va_list args);
+#define P(s) ()
 #endif
-_Noreturn void open_err(char *); // 39 ok++ sub_11c4h 	Error open file
-void seek_err(char *);           // 40 ok++ sub_11e5h 	Seek error
-void simpl_err();                // 41 ok++ sub_1206h 	Simple error
-void warning();                  // 42 ok++ sub_124dh 	Warning message
-#if CPM
-_Noreturn void badFormat(); // 43 ok++ sub_1294h 	Bad file format
-#else
-_Noreturn void badFormat(char *name, char *fmt, ...);
-#endif
-void noModule(char *, uint);  //*44 ok++ 		Module not found
-_Noreturn void finish(int);   // 45 ok++
-void sigintHandler(int);      // 46 ok++
-char *allocmem(int);          // 47 ok++ sub_1304h
-void parseIdentRec();         // 48 ok
-uint get_modu16(uchar *);     // 49 ok++ sub_1429h
-void addSymbol(uchar *, int); // 50 ok++
-int scanModule(char *);       // 51 ok
-uint conv_btou16a(uchar *);   // 52 ok++ sub_1548h
-void getRecord();             // 53 ok++		Get type of record
-void skipRecord();            // 54 ok++
-void parseSymbolRec();        // 55 ok++
-void copyMatchedSymbols(char *, long); //*56 ok++
-void copyMatchedModules(char *, long); //*57 ok++
-void replaceModule();         // 58 ok++ 		Replace modules
 
-//	_getargs()				// 59			From library
+/* libr.c */
+int cmpNames P((char *st, char *p2));
+void allocModuleArrays P((int p1, char **p2));
+uchar lookupName P((char *p1));
+void processUnmatched P((void (*fun)(char *, uint)));
+void copyUnchangedSymbols P((char *name, long dummy));
+void copyUnchangedModules P((char *name, long dummy));
+void deleteModule P((void));
+void extractNamedModule P((char *p1, long dummy));
+void extractModules P((void));
+void openTemp P((void));
+int writeFile P((char *buf, uint size, uint count, FILE *fp));
+void closeTemp P((void));
+void openLibrary P((char *name));
+void openContent P((void));
+void rewindLibrary P((void));
+void commitNewLibrary P((void));
+void visitModules P((void (*funptr)(char *, long)));
+void visitSymbols P((void (*action)(char *, int)));
+void copySymbolsToTemp P((void));
+void copyModuleToTemp P((void));
+void extractOneModule P((char *name));
+void copyNewModule P((char *p1, uint moduleId));
+void copyNewSymbols P((char *moduleName, uint moduleId));
+void conv_u32tob P((unsigned long p1, char *p2));
+void conv_u16tob P((uint p1, char *p2));
+uint conv_btou16 P((uchar * p1));
+long conv_btou32 P((uchar * p1));
+void readName P((char *p1));
+void writeName P((char *p1));
+void unexp_eof P((void));
+void checkToList P((char *p1, int type));
+void listOneModule P((char *p1, long dummy));
+void listModules P((char *key, char *name));
+void printSymbol P((char *name, int type));
+void printObjAndSymbols P((char *p1, long dummy));
+void listWithSymbols P((void));
+int main P((int argc, char **argv));
+#ifdef CPM
+void fatal_err P((int p1, int p2, int p3, int p4, int p5));
+#else
+void vfatal_err P((char *fmt, va_list args));
+void fatal_err P((char *fmt, ...));
+#endif
+_Noreturn void open_err P((char *p1));
+void seek_err P((char *p1));
+#ifdef CPM
+void simpl_err P((char *p1, char *p2, int p3, int p4, int p5));
+void warning P((char *p1, char *p2, int p3, int p4, int p5));
+void badFormat P((char *name, char *fmt, uint p3, uint p4, int p5, int p6));
+#else
+void simpl_err P((char *p1, char *p2));
+void warning P((char *p1, char *p2));
+void badFormat P((char *name, char *fmt, ...));
+#endif
+void noModule P((char *p1, uint dummy));
+void finish P((int p1));
+void sigintHandler P((int p1));
+char *allocmem P((int p1));
+void parseIdentRec P((void));
+uint get_modu16 P((uchar * p1));
+void addSymbol P((uchar * name, int flags));
+int scanModule(char *name);
+uint conv_btou16a P((uchar * st));
+void getRecord P((void));
+void skipRecord P((void));
+void parseSymbolRec P((void));
+void copyMatchedSymbols P((char *p1, long dummy));
+void copyMatchedModules P((char *p1, long dummy));
+void replaceModule P((void));
+
+#undef P
 
 #if CPM
 char *strrchr(char *, int);
@@ -820,11 +831,6 @@ char **argv;
     char *l1;
     char *l2;
 
-    if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
-        showVersion(stdout, argv[1][1] == 'V');
-        exit(0);
-    }
-
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
         signal(SIGINT, sigintHandler);
 #if CPM
@@ -1000,7 +1006,7 @@ void noModule(char *p1, uint dummy) {
 /**************************************************************************
  45	finish	ok++
  **************************************************************************/
-void finish(int p1) {
+_Noreturn void finish(int p1) {
 
     closeTemp();
     exit(p1);
