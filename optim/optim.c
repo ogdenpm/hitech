@@ -1,7 +1,7 @@
 /*
  * HI-TECH Software Optimization Program.
  *
- * File optim.c created 14.08.2021, last modified 16.10.2021.
+ * File optim.c created 14.08.2021, last modified 11.11.2021.
  *
  * The C source code was RESTORED by disassembling the original executable
  * file OPTIM.COM from the Hi-Tech v3.09 compiler.
@@ -20,8 +20,8 @@
  *    -l - Prints additional information on each pass;
  *    -n - Prints statistics: number of iterations and number of
  *         optimization types performed;
- *    -r -
- *    -f - The action is not clear;
+ *    -r - disables register load optimisation
+ *    -f - use inline frame initialisation
  *    -s - Unbuffered stdout;
  *
  * Options are unknown to ordinary users and are not used when compiling a
@@ -34,219 +34,184 @@
  * CP/M environment (Digital Research, Inc), for full operation in a
  * Unix-like operating system UZI-180 without using the CP/M emulator.
  *
+ * This version includes support for windows and linux both
+ * 32 & 64 bit. It also fixes some bugs in the original code
+ *
  *	Andrey Nikitin 16.10.2021
+ *  Mark Ogden 11.11.2021
  */
 #include "stdio.h"
+#include <assert.h>
 #include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 #if defined(__STDC__) || defined(__STDC_VERSION__)
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
+#else
+typedef unsigned short uint16_t;
+typedef short int16_t;
+typedef unsigned char uint8_t;
+#ifndef bool
+#define bool char
+#define true 1
+#define false 0
+#endif
+#define const
 #endif
 
 #ifndef INT_MAX
 #define INT_MAX 32767 /* max for int */
 #endif
+/* instructions only used in the tables*/
+#define I_ADC  0x88 /*   Add */
+#define I_ADD  0x80 /* */
+#define I_BIT  0x40 /*   Tests if the specified bit is set */
+#define I_DJNZ 0x10 /* */
+#define I_JR   0x18 /* */
+#define I_LDIR 0xB0 /*   Load, Inc., Repeat */
+#define I_RESB 0x80 /*   Reset bit */
+#define I_RL   0x10 /*   rl */
+#define I_RLA  0x17 /*   rla */
+#define I_RLC  0    /*   rlc */
+#define I_RLCA 7    /*   rlca */
+#define I_RLD  0x6F /*   rld */
+#define I_RR   0x18 /*   rr */
+#define I_RRA  0x1F /*   rra */
+#define I_RRC  8    /*   rrc */
+#define I_RRCA 0xF  /*   rrca */
+#define I_RRD  0x67 /*   rrd */
+#define I_RST  0xC7 /* */
+#define I_SBC  0x98 /*   Subtract */
+#define I_SETB 0xC0 /*   Set bit */
+#define I_SLA  0x20 /*   sla */
+#define I_SLL  0x20 /*   sll */
+#define I_SRA  0x28 /*   sra */
+#define I_SRL  0x38 /*   srl */
+/* instructions used in the code */
+#define I_AND  0xA0 /*   Logical AND */
+#define I_CCF  0x3F /*   Complement Carry Flag */
+#define I_CP   0xB8 /*   Compare */
+#define I_CPL  0x2F /*   Complement */
+#define I_DI   0xF3 /*   Disable Interrupts */
+#define I_EI   0xFB /*   Enable Interrupts */
+#define I_EXX  0xD9 /*   Exchange */
+#define I_HALT 0x76
+#define I_NEG  0x44 /*   Negates the accumulator */
+#define I_NOP  0    /*   No operation */
+#define I_OR   0xB0 /*   Logical inclusive OR */
+#define I_POP  0xC1 /*   pop */
+#define I_PUSH 0xC5 /*   push */
+#define I_SCF  0x37 /*   Set Carry Flag */
+#define I_SUB  0x90 /*   sub */
+#define I_XOR  0xA8 /*   xor */
+/* special shared instruction */
+#define SI_DEC 5 /*   Decrement */
+#define SI_INC 4 /*   Increment */
 
-#define P_CCF              0x3F /*   Complement Carry Flag */
-#define P_CPL              0x2F /*   Complement */
-#define P_DI               0xF3 /*   Disable Interrupts */
-#define P_EI               0xFB /*   Enable Interrupts */
-#define P_EXX              0xD9 /*   Exchange */
-#define P_NEG              0x44 /*   Negates the accumulator */
-#define P_NOP              0    /*   No operation */
-#define P_RLA              0x17 /*   rla */
-#define P_RLCA             7    /*   rlca */
-#define P_RRA              0x1F /*   rra */
-#define P_RRCA             0xF  /*   rrca */
-#define P_SCF              0x37 /*   Set Carry Flag */
-
-#define P_LDIR             0xB0 /*   Load, Inc., Repeat */
-#define P_RLD              0x6F /*   rld */
-#define P_RRD              0x67 /*   rrd */
-
-#define P_AND              0xA0 /*   Logical AND */
-#define P_CP               0xB8 /*   Compare */
-#define P_OR               0xB0 /*   Logical inclusive OR */
-#define P_SUB              0x90 /*   sub */
-#define P_XOR              0xA8 /*   xor */
-
-#define P_DEC              5 /*   Decrement */
-#define P_INC              4 /*   Increment */
-
-#define P_RL               0x10 /*   rl */
-#define P_RLC              0    /*   rlc */
-#define P_RR               0x18 /*   rr */
-#define P_RRC              8    /*   rrc */
-#define P_SLA              0x20 /*   sla */
-#define P_SLL              0x20 /*   sll */
-#define P_SRA              0x28 /*   sra */
-#define P_SRL              0x38 /*   srl */
-
-#define P_BIT              0x40 /*   Tests if the specified bit is set */
-#define P_RESB             0x80 /*   Reset bit */
-#define P_SETB             0xC0 /*   Set bit */
-
-#define P_JP               0    /* */
-#define P_JR               0x18 /* */
-#define P_DJNZ             0x10 /* */
-#define P_CALL             0    /* */
-#define P_RST              0xC7 /* */
-#define P_POP              0xC1 /*   pop */
-#define P_PUSH             0xC5 /*   push */
-#define P_EX               0    /* */
-#define P_ADC              0x88 /*   Add */
-#define P_SBC              0x98 /*   Subtract */
-#define P_CADD             0x80 /* */
-#define P_LD               0    /* */
-#define P_NOT              8    /* */
-#define P_HI               8    /* */
-#define P_LOW              8    /* */
-#define P_RES              7    /* */
-#define P_ADD              5    /* */
-#define P_SUB1             5    /* */
-#define P_MUL              6    /* */
-#define P_DIV              6    /* */
-#define P_MOD              6    /* */
-#define P_SHR              6    /* */
-#define P_SHL              6    /* */
-#define P_AND1             4    /* */
-#define P_OR1              3    /* */
-#define P_XOR1             3    /* */
-#define P_EQU              2    /* */
-#define P_LE               2    /* */
-#define P_GE               2    /* */
-#define P_OPAR             9    /* */
-#define P_CPAR             1    /* */
-#define P_PSCT             0    /* */
-#define P_GLB              0    /* */
-#define P_COMM             0    /* */
-#define P_DEFW             0    /* */
-#define P_DEFL             0    /* */
-#define P_DEFB             0    /* */
-#define P_DEFM             0    /* */
-#define P_DEFS             0    /* */
-#define P_DEFF             0    /* */
-#define P_OEQU             0    /* */
-#define P_COLN             0    /* */
-#define P_HALT             0x76
+/* the precedence values
+   P_NA is for not applicable
+*/
+#define P_ADD  5 /* */
+#define P_AND  4 /* */
+#define P_CPAR 1 /* */
+#define P_DIV  6 /* */
+#define P_EQU  2 /* */
+#define P_GE   2 /* */
+#define P_HI   8 /* */
+#define P_LE   2 /* */
+#define P_LOW  8 /* */
+#define P_MOD  6 /* */
+#define P_MUL  6 /* */
+#define P_NA   0 /* */
+#define P_NOT  8 /* */
+#define P_OPAR 9 /* */
+#define P_OR   3 /* */
+#define P_RES  7 /* */
+#define P_SHL  6 /* */
+#define P_SHR  6 /* */
+#define P_SUB  5 /* */
+#define P_XOR  3 /* */
 
 /****************************************************************
  *	Token definitions
  *
  *	Symbol	  Code	Description
  */
-#define T_ONEBYTE          1    /* one byte instruction: */
-#define T_TWOBYTE          2    /* two byte instruction: */
-#define T_3                3    /* Unknown: */
-#define T_INCDEC           4    /* Unknown: */
-#define T_5                5    /* Unknown */
-#define T_6                6    /* Unknown: */
-#define T_BIT              7    /* Bit operations */
-#define T_JP               8    /* Absolute jumps to address */
-#define T_JR               9    /* Relative jumps to address */
-#define T_DJNZ             0xA  /* Dec., Jump Non-Zero */
-#define T_CALL             0xB  /* Call */
-#define T_RET              0xC  /* Uunknown */
-#define T_RST              0xD  /* Restart Commands */
-#define T_0xE              0xE  /* Unknown */
-#define T_0xF              0xF  /* Unknown */
-#define T_STK              0x10 /* Stack operation: */
-#define T_EX               0x11 /* Exchange */
-#define T_CARR             0x12 /* With Carry: */
-#define T_CADD             0x13 /* Add */
-#define T_LD               0x14 /* Load */
+enum type {
+    T_INVALID = 0,
+    T_SIMPLE,        /* 1  one byte instruction: */
+    T_TWOBYTE,       /* 2  two byte instruction: */
+    T_3,             /* 3  Unknown: */
+    T_INCDEC,        /* 4  Unknown: */
+    T_5,             /* 5  Unknown */
+    T_SHIFT,         /* 6  Unknown: */
+    T_BIT,           /* 7  Bit operations */
+    T_JP,            /* 8  Absolute jumps to address */
+    T_JR,            /* 9  Relative jumps to address */
+    T_DJNZ,          /* 0xA  Dec., Jump Non-Zero */
+    T_CALL,          /* 0xB  Call */
+    T_RET,           /* 0xC  Uunknown */
+    T_RST,           /* 0xD  Restart Commands */
+    T_0xE,           /* 0xE  Unknown */
+    T_0xF,           /* 0xF  Unknown */
+    T_STK,           /* 0x10  Stack operation: */
+    T_EX,            /* 0x11  Exchange */
+    T_CARR,          /* 0x12  With Carry: */
+    T_CADD,          /* 0x13  Add */
+    T_LD,            /* 0x14  Load */
+    T_UPLUS,         /* 0x15  unary + */
+    T_UMINUS,        /* 0x16  unary - */
+    T_NOT,           /* 0x17  Bitwise complement */
+    T_HI,            /* 0x18  Hi byte of operand */
+    T_LOW,           /* 0x19  Low byte of operand */
+    T_RES,           /* 0x1A  .res. */
+    T_MARKER,        /* 0x1B  used to demark types */
+    T_PLUS,          /* 0x1C  Addition */
+    T_MINUS,         /* 0x1D  Subtraction */
+    T_MUL,           /* 0x1E  Multiplication */
+    T_DIV,           /* 0x1F  Divison */
+    T_MOD,           /* 0x20  Modulus */
+    T_SHR,           /* 0x21  Shift right */
+    T_SHL,           /* 0x22  Shift left */
+    T_AND,           /* 0x23  Bitwise AND */
+    T_OR,            /* 0x24  Bitwise or */
+    T_XOR,           /* 0x25  Exclusive or */
+    T_EQ,            /* 0x26  Equality */
+    T_LE,            /* 0x27  Signed greater than */
+    T_GE,            /* 0x28  Signed less than */
+    T_ULE,           /* 0x29  Unigned greater than */
+    T_UGE,           /* 0x2A  Unigned less than */
+    T_OPAR,          /* 0x2B  Open parenthesis */
+    T_CPAR,          /* 0x2C  Closing parenthesis */
+    T_LASTOP,        /* 0x2D  used to demark end of ops */
+    T_FWD,           /* 0x2E  Local refernce forward */
+    T_BWD,           /* 0x2F  Local reference backward */
+    T_SYMBOL = 0x31, /* 0x31  Symbol */
+    T_CONST,         /* 0x32  Constants */
+    T_STRING,        /* 0x33  String of characters */
+    T_PSCT,          /* 0x34  Psect */
+    T_GLB,           /* 0x35  Global */
+    T_COMM,          /* 0x36  Comma */
+    T_DEFW,          /* 0x37  Definition word */
+    T_DEFL,          /* 0x38  Definition label */
+    T_DEFB,          /* 0x39  Definition byte */
+    T_DEFM,          /* 0x3A  Definition a message */
+    T_DEFS,          /* 0x3B  Memory reservation */
+    T_DEFF,          /* 0x3C  Definition real */
+    T_EQU,           /* 0x3D  Set value of symbol */
 
-#define T_UPLUS            0x15 /* Unknown */
-#define T_UMINUS           0x16 /* Unknown */
+    T_EOL = 0x40, /* 0x40  end of line		';' */
+    T_COLN,       /* 0x41  Label separator	':' */
 
-#define T_NOT              0x17 /* Bitwise complement */
-#define T_HI               0x18 /* Hi byte of operand */
-#define T_LOW              0x19 /* Low byte of operand */
-#define T_RES              0x1A /* .res. */
-#define T_MARKER           0x1B /* Unknown */
-#define T_PLUS             0x1C /* Addition */
-#define T_MINUS            0x1D /* Subtraction */
-#define T_MUL              0x1E /* Multiplication */
-#define T_DIV              0x1F /* Divison */
-#define T_MOD              0x20 /* Modulus */
-#define T_SHR              0x21 /* Shift right */
-#define T_SHL              0x22 /* Shift left */
-#define T_AND              0x23 /* Bitwise AND */
-#define T_OR               0x24 /* Bitwise or */
-#define T_XOR              0x25 /* Exclusive or */
-#define T_EQ               0x26 /* Equality */
-#define T_LE               0x27 /* Signed greater than */
-#define T_GE               0x28 /* Signed less than */
-#define T_ULE              0x29 /* Unigned greater than */
-#define T_UGE              0x2A /* Unigned less than */
-#define T_OPAR             0x2B /* Open parenthesis */
-#define T_CPAR             0x2C /* Closing parenthesis */
+    T_REG = 0x46, /* 0x46  Registers */
+    T_COND,       /* 0x47  Condition code: */
 
-#define T_0x2D             0x2D /* Unknown */
-#define T_JBWD             0x2E /* Local jump backwards */
-#define T_JFWD             0x2F /* Local jump forwards */
-#define T_0x30             0x30 /* Unknown */
-
-#define T_SYMBOL           0x31 /* Symbol		aaa */
-#define T_CONST            0x32 /* Constants		123 */
-#define T_STRING           0x33 /* String of characters 'aaa' */
-
-#define T_PSCT             0x34 /* Psect */
-#define T_GLB              0x35 /* Global */
-#define T_COMM             0x36 /* Comma */
-#define T_DEFW             0x37 /* Definition word */
-#define T_DEFL             0x38 /* Definition label */
-#define T_DEFB             0x39 /* Definition byte */
-#define T_DEFM             0x3A /* Definition a message */
-#define T_DEFS             0x3B /* Memory reservation */
-#define T_DEFF             0x3C /* Definition real */
-#define T_EQU              0x3D /* Set value of symbol */
-#define T_0x3E             0x3E /* Unknown */
-#define T_0x3F             0x3F /* Unknown */
-#define T_EOL              0x40 /* end of line		';' */
-#define T_COLN             0x41 /* Label separator	':' */
-
-#define T_0x42             0x42 /* Unknown */
-#define T_0x43             0x43 /* Unknown */
-#define T_0x44             0x44 /* Unknown */
-#define T_0x45             0x45 /* Unknown */
-
-#define T_REG              0x46 /* Registers */
-#define T_COND             0x47 /* Condition code: */
-
-#define T_INDEXED          0x64 /* (IX / IY) */
-#define T_ADDRREF          0x65 /* (addr expression) */
-#define T_REGREF           0x66 /* (reg) */
-
-/****************************************************************
- *	Used macros
- ****************************************************************/
-
-#define bittst(var, bitno) ((var)&1 << (bitno))
-
-/****************************************************************
- *	Assigned type abbreviations
- ****************************************************************/
-#ifndef uchar
-#define uchar unsigned char
-#endif
-
-#ifndef uint
-#define uint unsigned
-#endif
-
-#ifndef ulong
-#define ulong unsigned long
-#endif
-
-#ifndef bool
-#define bool char /* int may be better */
-#define true 1
-#define false 0
-#endif
-
+    T_INDEXED = 0x64, /* 0x64  (IX / IY) */
+    T_ADDRREF,        /* 0x65  (addr expression) */
+    T_REGREF          /* 0x66  (reg) */
+};
 /****************************************************************
  *	Definitions of structures
  *
@@ -255,34 +220,7 @@
  * links between structures and are wrong.
  ****************************************************************/
 
-typedef union {
-    int *p_int;
-    char *p_char;
-    struct _term *pTerm;
-    struct _sym *pSym;
-    struct _inst *pInst;
-    struct _operand *pOperand;
-    int i;
-    unsigned int ui;
-} YYSTYPE;
-
-typedef struct _sym {
-    char *name;  /* 01	s->str */
-    YYSTYPE val; /* 23	s->i_2 */
-} sym_t;
-
-typedef struct _term {
-    int ival; /* 01	s->str */
-    union {
-        sym_t *pSym; /* 23	s->i_2 */
-        struct _operand *pOperand;
-    } u;
-} term_t;
-
-typedef struct {
-    int type; /* 01	s->str */
-    int prec; /* 23	s->i_2 */
-} op_t;
+;
 
 typedef struct {
     char *str;
@@ -294,29 +232,51 @@ typedef struct _list {
     struct _list *pNext;
 } list_t;
 
+typedef struct _term {
+    int val; /* term's numeric value */
+    union {
+        struct _sym *pSym;         /* base symbol */
+        struct _operand *pOperand; /* or rest of expression */
+    } p;
+} term_t;
+
 typedef struct _operand {
-    uchar type;
-    uchar aux;
-    term_t val;
+    uint8_t type;
+    uint8_t aux;
+    term_t term;
 } operand_t;
 
 typedef struct _inst {
-    char *str;           /* 01	s->str */
-    uchar type;          /* 2	s->i_2 */
-    int aux;             /* 34	s->aux */
-    struct _inst *pNext; /* 56	s->i_5 */
-    struct _inst *pAlt;  /* 78	s->i_7 */
+    char *opCode;
+    uint8_t type;
+    int aux;
+    struct _inst *pNext;
+    struct _inst *pAlt;
     union {
         struct {
             operand_t *lhs; /* used for operands */
-            operand_t *rhs; /* */
+            operand_t *rhs;
         } o;
         struct { /* used for symbols */
-            sym_t *pSym;
+            struct _sym *pSym;
             int symId;
         } s;
     } u;
 } inst_t;
+
+typedef struct _sym {
+    char *label;
+    union {
+        inst_t *pInst;       /* is either a pointer to the instruction associated with label */
+        operand_t *pOperand; /* or the constant associated with the label */
+    } p;
+} sym_t;
+
+typedef union {
+    char *pChar;
+    sym_t *pSym;
+    int16_t i;
+} YYSTYPE;
 
 /*
  * to avoid lots of u.o. and u.s. used some #defines to simpilfy
@@ -325,78 +285,81 @@ typedef struct _inst {
 #define iRhs      u.o.rhs
 #define iPSym     u.s.pSym
 #define iSymId    u.s.symId
-#define tPSym     u.pSym /* used in term */
-#define tPOperand u.pOperand
-#define oPSym     val.tPSym /* used in operand */
-#define oPOperand val.tPOperand
-#define oIVal     val.ival
+#define tPSym     p.pSym /* used in term*/
+#define tPInst    p.pInst
+#define sPOperand p.pOperand /* used in sym_t && term_t*/
+#define oPSym     term.tPSym /* used in operand */
+#define oPOperand term.sPOperand
+#define oVal      term.val
 
 /****************************************************************
  *	Descriptions of uninitialized variables and arrays
  ****************************************************************/
-char yyline[80];            /* 6f00	Working buffer */
-int len_inbuf;              /* 6f50	Length string in input buffer */
-char *ptr_inbuf;            /* 6f52	Pointer to input buffer */
-int yytype;                 /* 6f54 */
-char inp_buf[80];           /* 6f56	Input buffer */
-uchar key_l;                /* 6fa6	Prints additional information on each pass */
-uchar key_n;                /* 6fa7	Prints statistics */
-uchar key_f;                /* 6fa8	The action is not clear */
-uchar key_s;                /* 6fa9	Key_s = 1 Unbuffered stdout */
-int num_warn;               /* 6faa	Number of errors */
-uchar key_r;                /* 6fac */
-operator_t *tableBase;      /* 6fad	Pointer to operators[] */
-char *yytext;               /* 6faf	ok */
-YYSTYPE yylval;             /* 6fb1	Contains different types of data */
-int symbolId;               /* 6fb3	??? used only in sub_0ca2 */
-sym_t *gPs;                 /* 6fb5	??? */
-inst_t *gPi;                /* 6fb7 */
-int word_6fb9;              /* 6fb9	??? */
-bool hasChanged;            /* 6fbb */
-char usesIXorIY;            /* 6fbc */
-int optimiseCounters[0x12]; /* 6fbd	Array of counters types of optimizations */
-/*		     6fbd //  0 Redundant labels */
-/*		     6fbf //  1 Jumps to jumps */
-/*		     6fc1 //  2 Stack adjustments */
-/*		     6fc3 //  3 Temporary labels */
-/*		     6fc5 //  4 Unref'ed labels */
-/*		     6fc7 //  5 Unreachable code */
-/*		     6fc9 //  6 Jumps to .+1 */
-/*		     6fcb //  7 Skips over jumps */
-/*		     6fcd //  8 Common code seq's */
-/*		     6fcf //  9 Redundant exx's */
-/*		     6fd1 // 10 Ex (sp),hl's used */
-/*		     6fd3 // 11 Redundant operations */
-/*		     6fd5 // 12 Redundant loads/stores */
-/*		     6fd7 // 13 Simplified addresses */
-/*		     6fd9 // 14 Xor a's used */
-/*		     6fdb // 15 Redundant ex de,hl's */
-/*		     6fdd // 16 Code motions */
-/*		     6fdf // 17 Loops inverted */
+char yyline[80];                  /* 6f00	Working buffer */
+int charsLeft;                    /* 6f50	Length string in input buffer */
+char *ptr_inbuf;                  /* 6f52	Pointer to input buffer */
+int yytype;                       /* 6f54 */
+char inp_buf[80];                 /* 6f56	Input buffer */
+bool key_l;                       /* 6fa6	Prints additional information on each pass */
+bool key_n;                       /* 6fa7	Prints statistics */
+bool key_f;                       /* 6fa8	The action is not clear */
+bool key_s;                       /* 6fa9	Key_s = 1 Unbuffered stdout */
+int num_warn;                     /* 6faa	Number of errors */
+bool key_r;                       /* 6fac */
+operator_t const *tableBase;      /* 6fad	Pointer to operators[] */
+char *yytext;                     /* 6faf	ok */
+YYSTYPE yylval;                   /* 6fb1	Contains different types of data */
+int symbolId;                     /* 6fb3	??? used only in sub_0ca2 */
+sym_t *gPs;                       /* 6fb5	??? */
+inst_t *gPi;                      /* 6fb7 */
+/* moved to static in function */ /* int word_6fb9; /* 6fb9	??? */
+bool hasChanged;                  /* 6fbb */
+bool usesIXorIY;                  /* 6fbc */
+int optimiseCounters[18];         /* 6fbd	Array of counters types of optimizations */
+enum {
+    O_RED_LAB = 0,   /*	  6fbd //  0 Redundant labels */
+    O_JMP_TO_JMP,    /*	  6fbf //  1 Jumps to jumps */
+    O_STK_ADJUST,    /*	  6fc1 //  2 Stack adjustments */
+    O_TMP_LAB,       /*	  6fc3 //  3 Temporary labels */
+    O_UNREF_LAB,     /*	  6fc5 //  4 Unref'ed labels */
+    O_UNREACH_LAB,   /*	  6fc7 //  5 Unreachable code */
+    O_JMP_TO_PLUS1,  /*	  6fc9 //  6 Jumps to .+1 */
+    O_SKIP_OVER_JMP, /*	  6fcb //  7 Skips over jumps */
+    O_CMN_CODE_SEQ,  /*	  6fcd //  8 Common code seq's */
+    O_RED_EXX,       /*	  6fcf //  9 Redundant exx's */
+    O_EX_SPHL,       /*	  6fd1 // 10 Ex (sp),hl's used */
+    O_RED_OPS,       /*	  6fd3 // 11 Redundant operations */
+    O_RED_LD,        /*	  6fd5 // 12 Redundant loads/stores */
+    O_SIMPLE_ADDR,   /*	  6fd7 // 13 Simplified addresses */
+    O_XOR_A,         /*	  6fd9 // 14 Xor a's used */
+    O_RED_EX_DEHL,   /*	  6fdb // 15 Redundant ex de,hl's */
+    O_CODE_MOTIONS,  /*	  6fdd // 16 Code motions */
+    O_LOOPS_INV      /*	  6fdf // 17 Loops inverted */
+};
 
 list_t *freeOperandList; /* 6fe1	struct size 6 */
-inst_t *word_6fe3;       /* 6fe3 */
-inst_t *word_6fe5;       /* 6fe5 */
-list_t *freeInstList;    /* 6fe7 */
+inst_t *seq1;            /* 6fe3 */
+inst_t *seq2;            /* 6fe5  */
+inst_t *freeInstList;    /* 6fe7 */
 char psect;              /* 6fe9	Program section */
 int cur_psect;           /* 6fea	Current program section */
 int expectCond;          /* 6fec	ok */
 inst_t *word_6fee;       /* 6fee */
 int tokType;             /* 6ff0	Token value */
-inst_t *word_6ff2;       /* 6ff2 */
-/* static term_t termTmp; // 6ff4	[4] */
+inst_t *switchVectors;   /* 6ff2 */
+/* static item_t termTmp; // 6ff4	[4] */
 inst_t *root;            /* 6ff8 */
 int cntOperand;          /* 6ffa	??? used only in sub_39a3 */
 inst_t *word_6ffc;       /* 6ffc */
 jmp_buf jmpbuf;          /* 6ffe	[4] */
                          /* 7002	[4] */
-int word_7006;           /* 7006 */
+int hlDelta;             /* 7006 hl inc/dec from original load */
 operand_t regValues[19]; /* 7008 */
 char *alloct;            /* 707a	ok */
 char *name_fun;          /* 707c	Function name */
                          /* 707e */
                          /* 707f */
-list_t *freeSymbolList;  /* 7080 */
+list_t *freeItemList;    /* 7080 */
 char *allocs;            /* 7082	ok */
 char *programBreak;      /* 7084	ok */
 /* char       * arry_7086[311];	//7086	[622] */
@@ -417,14 +380,18 @@ int asdf;
  *	Definitions of valid characters and their types in oprtmizer
  */
 char ccClass[] = { /* 62cc */
-    _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,      _S,      _Z, _Z, _S, _S, _Z, _Z,
-    _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z, _Z, _Z, _Z, _Z, _Z,
-    _S,      _Z,      _Z,      _Z,      _L,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z, _Z, _Z, _Z, _Z, _Z,
-    _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _Z, _Z, _Z, _Z, _Z, _L,
-    _Z,      _U | _H, _U | _H, _U | _H, _U | _H, _U | _H, _U | _H, _U,      _U,      _U,      _U, _U, _U, _U, _U, _U,
-    _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U, _Z, _Z, _Z, _Z, _L,
-    _Z,      _L | _H, _L | _H, _L | _H, _L | _H, _L | _H, _L | _H, _L,      _L,      _L,      _L, _L, _L, _L, _L, _L,
-    _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L, _Z, _Z, _Z, _Z, _Z
+                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,      _S,      _Z,
+                   _Z,      _S,      _S,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
+                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,
+                   _Z,      _Z,      _Z,      _L,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
+                   _Z,      _Z,      _Z,      _Z,      _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H,
+                   _D | _H, _D | _H, _D | _H, _Z,      _Z,      _Z,      _Z,      _Z,      _L,      _Z,      _U | _H,
+                   _U | _H, _U | _H, _U | _H, _U | _H, _U | _H, _U,      _U,      _U,      _U,      _U,      _U,
+                   _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,
+                   _U,      _U,      _U,      _Z,      _Z,      _Z,      _Z,      _L,      _Z,      _L | _H, _L | _H,
+                   _L | _H, _L | _H, _L | _H, _L | _H, _L,      _L,      _L,      _L,      _L,      _L,      _L,
+                   _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,
+                   _L,      _L,      _Z,      _Z,      _Z,      _Z,      _Z
 };
 
 #define ISALPHA(c)  (ccClass[c] & (_U | _L))
@@ -463,24 +430,26 @@ char *conditions[] = {
  *	Determining register number
  *	(its offset in regs[offset] table)
  */
-#define REG_B   0x00
-#define REG_C   0x01
-#define REG_D   0x02
-#define REG_E   0x03
-#define REG_H   0x04
-#define REG_L   0x05
-#define REG_F   0x06
-#define REG_A   0x07
-#define REG_I   0x08
-#define REG_R   0x09 /* Memory Refresh Register */
-#define REG_BC  0x0A
-#define REG_DE  0x0B
-#define REG_HL  0x0C
-#define REG_SP  0x0D
-#define REG_AF  0x0E
-#define REG_AF1 0x0F
-#define REG_IX  0x10
-#define REG_IY  0x11
+
+#define REG_B       0x00
+#define REG_C       0x01
+#define REG_D       0x02
+#define REG_E       0x03
+#define REG_H       0x04
+#define REG_L       0x05
+#define REG_F       0x06
+#define REG_A       0x07
+#define REG_I       0x08
+#define REG_R       0x09 /* Memory Refresh Register */
+#define REG_BC      0x0A
+#define REG_DE      0x0B
+#define REG_HL      0x0C
+#define REG_SP      0x0D
+#define REG_AF      0x0E
+#define REG_AF1     0x0F
+#define REG_IX      0x10
+#define REG_IY      0x11
+#define REG_TRACKER 0x12
 
 char *regs[] = {
     "b",   /* 63ed  0 REG_B */
@@ -505,116 +474,116 @@ char *regs[] = {
 
 operator_t operators[] = {
     /* 6411 */
-    { "&", T_AND, P_AND1 },        /*   0   0	Bitwise AND */
+    { "&", T_AND, P_AND },         /*   0   0	Bitwise AND */
     { "(", T_OPAR, P_OPAR },       /*   1   1	Open parenthesis */
     { ")", T_CPAR, P_CPAR },       /*   2   2	Closing parenthesis */
     { "*", T_MUL, P_MUL },         /*   3   3	Multiplication */
     { "+", T_PLUS, P_ADD },        /*   4   4	Addition */
-    { ",", T_COMM, P_COMM },       /*   5   5	Comma */
-    { "-", T_MINUS, P_SUB1 },      /*   6   6	Subtraction */
-    { ".and.", T_AND, P_AND1 },    /*   7   7	Bitwise AND */
+    { ",", T_COMM, P_NA },         /*   5   5	Comma */
+    { "-", T_MINUS, P_SUB },       /*   6   6	Subtraction */
+    { ".and.", T_AND, P_AND },     /*   7   7	Bitwise AND */
     { ".high.", T_HI, P_HI },      /*   8   8	Hi byte of operand */
     { ".low.", T_LOW, P_LOW },     /*   9   9	Low byte of operand */
     { ".mod.", T_MOD, P_MOD },     /*  10   a	Modulus */
     { ".not.", T_NOT, P_NOT },     /*  11   b	Bitwise complement */
-    { ".or.", T_OR, P_OR1 },       /*  12   c	Bitwise or */
+    { ".or.", T_OR, P_OR },        /*  12   c	Bitwise or */
     { ".res.", T_RES, P_RES },     /*  13   d */
     { ".shl.", T_SHL, P_SHL },     /*  14   e	Shift left */
     { ".shr.", T_SHR, P_SHR },     /*  15   f	Shift right */
-    { ".xor.", T_XOR, P_XOR1 },    /*  16   10	Exclusive or */
+    { ".xor.", T_XOR, P_XOR },     /*  16   10	Exclusive or */
     { "/", T_DIV, P_DIV },         /*  17   11	Divison */
-    { ":", T_COLN, P_COLN },       /*  18   12	Label separator */
+    { ":", T_COLN, P_NA },         /*  18   12	Label separator */
     { "<", T_GE, P_GE },           /*  19   13	Signed less than */
     { "=", T_EQ, P_EQU },          /*  20   14	Equality */
     { ">", T_LE, P_LE },           /*  21   15	Signed greater than */
     { "\\", T_NOT, P_NOT },        /*  22   16	Bitwise complement */
-    { "^", T_OR, P_OR1 },          /*  23   17	Bitwise or */
+    { "^", T_OR, P_OR },           /*  23   17	Bitwise or */
     { "a", T_REG, REG_A },         /*  24   18	Register */
-    { "adc", T_CARR, P_ADC },      /*  25   19 Add with Carry */
-    { "add", T_CADD, P_CADD },     /*  26   1a	Add */
+    { "adc", T_CARR, I_ADC },      /*  25   19 Add with Carry */
+    { "add", T_CADD, I_ADD },      /*  26   1a	Add */
     { "af", T_REG, REG_AF },       /*  27   1b	Register */
     { "af'", T_REG, REG_AF1 },     /*  28   1c	Register */
     { "age", T_COND, COND_GE },    /*  29   1d	Condition code Arithmetic greater or equal */
     { "alt", T_COND, COND_LT },    /*  30   1e	Condition code Arithmetic less than */
-    { "and", T_3, P_AND },         /*  31   1f Logical AND */
+    { "and", T_3, I_AND },         /*  31   1f Logical AND */
     { "anz", T_COND, COND_NZ },    /*  32   20	Condition code */
     { "az", T_COND, COND_Z },      /*  33   21	Condition code */
     { "b", T_REG, REG_B },         /*  34   22	Register b */
     { "bc", T_REG, REG_BC },       /*  35   23	Register bc */
-    { "bit", T_BIT, P_BIT },       /*  36   24 Tests if the specified bit is set */
+    { "bit", T_BIT, I_BIT },       /*  36   24 Tests if the specified bit is set */
     { "c", T_REG, REG_C },         /*  37   25	Register c */
-    { "call", T_CALL, P_CALL },    /*  38   26	Call */
-    { "ccf", T_ONEBYTE, P_CCF },   /*  39   27 Complement Carry Flag */
-    { "cp", T_3, P_CP },           /*  40   28 Compare */
-    { "cpl", T_ONEBYTE, P_CPL },   /*  41   29 Complement */
+    { "call", T_CALL, P_NA },      /*  38   26	Call */
+    { "ccf", T_SIMPLE, I_CCF },    /*  39   27 Complement Carry Flag */
+    { "cp", T_3, I_CP },           /*  40   28 Compare */
+    { "cpl", T_SIMPLE, I_CPL },    /*  41   29 Complement */
     { "d", T_REG, REG_D },         /*  42   2a	Register d */
     { "de", T_REG, REG_DE },       /*  43   2b	Register de */
-    { "dec", T_INCDEC, P_DEC },    /*  44   2c Decrement */
-    { "defb", T_DEFB, P_DEFB },    /*  45   2d	Definition byte */
-    { "deff", T_DEFF, P_DEFF },    /*  46   2e	Definition real */
-    { "defl", T_DEFL, P_DEFL },    /*  47   2f	Definition label */
-    { "defm", T_DEFM, P_DEFM },    /*  48   30	Definition a message */
-    { "defs", T_DEFS, P_DEFS },    /*  49   31	memory reservation */
-    { "defw", T_DEFW, P_DEFW },    /*  50   32	Definition word */
-    { "di", T_ONEBYTE, P_DI },     /*  51   33 Disable Interrupts */
-    { "djnz", T_DJNZ, P_DJNZ },    /*  52   34	Dec., Jump Non-Zero */
+    { "dec", T_INCDEC, SI_DEC },   /*  44   2c Decrement */
+    { "defb", T_DEFB, P_NA },      /*  45   2d	Definition byte */
+    { "deff", T_DEFF, P_NA },      /*  46   2e	Definition real */
+    { "defl", T_DEFL, P_NA },      /*  47   2f	Definition label */
+    { "defm", T_DEFM, P_NA },      /*  48   30	Definition a message */
+    { "defs", T_DEFS, P_NA },      /*  49   31	memory reservation */
+    { "defw", T_DEFW, P_NA },      /*  50   32	Definition word */
+    { "di", T_SIMPLE, I_DI },      /*  51   33 Disable Interrupts */
+    { "djnz", T_DJNZ, I_DJNZ },    /*  52   34	Dec., Jump Non-Zero */
     { "e", T_REG, REG_E },         /*  53   35	Register */
-    { "ei", T_ONEBYTE, P_EI },     /*  54   36 Enable Interrupts */
-    { "equ", T_EQU, P_OEQU },      /*  55   37	set value of symbol */
-    { "ex", T_EX, P_EX },          /*  56   38	Exchange */
-    { "exx", T_ONEBYTE, P_EXX },   /*  57   39 Exchange */
+    { "ei", T_SIMPLE, I_EI },      /*  54   36 Enable Interrupts */
+    { "equ", T_EQU, P_NA },        /*  55   37	set value of symbol */
+    { "ex", T_EX, P_NA },          /*  56   38	Exchange */
+    { "exx", T_SIMPLE, I_EXX },    /*  57   39 Exchange */
     { "fge", T_COND, COND_GE },    /*  58   3a	Condition code ge */
     { "flt", T_COND, COND_LT },    /*  59   3b	Condition code lt */
     { "fnz", T_COND, COND_NZ },    /*  60   3c	Condition code nz */
     { "fz", T_COND, COND_Z },      /*  61   3d	Condition code z */
-    { "global", T_GLB, P_GLB },    /*  62   3e	Global */
+    { "global", T_GLB, P_NA },     /*  62   3e	Global */
     { "h", T_REG, REG_H },         /*  63   3f	Register h */
     { "hl", T_REG, REG_HL },       /*  64   40	Register hl */
-    { "inc", T_INCDEC, P_INC },    /*  65   41 Increment */
+    { "inc", T_INCDEC, SI_INC },   /*  65   41 Increment */
     { "ix", T_REG, REG_IX },       /*  66   42	Register ix */
     { "iy", T_REG, REG_IY },       /*  67   43	Register iy */
-    { "jp", T_JP, P_JP },          /*  68   44	Absolute jumps to the address */
-    { "jr", T_JR, P_JR },          /*  69   45	Relative jumps to the address */
+    { "jp", T_JP, P_NA },          /*  68   44	Absolute jumps to the address */
+    { "jr", T_JR, I_JR },          /*  69   45	Relative jumps to the address */
     { "l", T_REG, REG_L },         /*  70   46	Register l */
-    { "ld", T_LD, P_LD },          /*  71   47	Load */
-    { "ldir", T_TWOBYTE, P_LDIR }, /*  72   48 Load, Inc., Repeat */
+    { "ld", T_LD, P_NA },          /*  71   47	Load */
+    { "ldir", T_TWOBYTE, I_LDIR }, /*  72   48 Load, Inc., Repeat */
     { "lge", T_COND, COND_LGE },   /*  73   49	Condition code Logical greater or equal */
     { "llt", T_COND, COND_LLT },   /*  74   4a	Condition code Logical less than */
     { "lnz", T_COND, COND_NZ },    /*  75   4b	Condition code nz */
     { "lz", T_COND, COND_Z },      /*  76   4c	Condition code z */
     { "m", T_COND, COND_LT },      /*  77   4d	Condition code Arithmetic less than */
     { "nc", T_COND, COND_LGE },    /*  78   4e	Condition code lge */
-    { "neg", T_ONEBYTE, P_NEG },   /*  79   4f Negates the accumulator */
-    { "nop", T_ONEBYTE, P_NOP },   /*  80   50 No operation */
+    { "neg", T_SIMPLE, I_NEG },    /*  79   4f Negates the accumulator */
+    { "nop", T_SIMPLE, I_NOP },    /*  80   50 No operation */
     { "nz", T_COND, COND_NZ },     /*  81   51	Condition code */
-    { "or", T_3, P_OR },           /*  82   52 Logical inclusive OR */
+    { "or", T_3, I_OR },           /*  82   52 Logical inclusive OR */
     { "p", T_COND, COND_GE },      /*  83   53	Condition code Arithmetic greater or equal */
-    { "pop", T_STK, P_POP },       /*  84   54	Stack operation pop */
-    { "psect", T_PSCT, P_PSCT },   /*  85   55	Psect */
-    { "push", T_STK, P_PUSH },     /*  86   56	Stack operation push */
+    { "pop", T_STK, I_POP },       /*  84   54	Stack operation pop */
+    { "psect", T_PSCT, P_NA },     /*  85   55	Psect */
+    { "push", T_STK, I_PUSH },     /*  86   56	Stack operation push */
     { "r", T_REG, REG_R },         /*  87   57	Register r */
-    { "res", T_BIT, P_RESB },      /*  88   58 Reset bit */
-    { "rl", T_6, P_RL },           /*  89   59 06 */
-    { "rla", T_ONEBYTE, P_RLA },   /*  90   5a 01 */
-    { "rlc", T_6, P_RLC },         /*  91   5b 06 */
-    { "rlca", T_ONEBYTE, P_RLCA }, /*  92   5c 01 */
-    { "rld", T_TWOBYTE, P_RLD },   /*  93   5d 02 */
-    { "rr", T_6, P_RR },           /*  94   5e 06 */
-    { "rra", T_ONEBYTE, P_RRA },   /*  95   5f 01 */
-    { "rrc", T_6, P_RRC },         /*  96   60 06 */
-    { "rrca", T_ONEBYTE, P_RRCA }, /*  97   61 01 */
-    { "rrd", T_TWOBYTE, P_RRD },   /*  98   62 02 */
-    { "rst", T_RST, P_RST },       /*  99   63	Restart Commands */
-    { "sbc", T_CARR, P_SBC },      /* 100   64 Subtract with Carry */
-    { "scf", T_ONEBYTE, P_SCF },   /* 101   65 Set Carry Flag */
-    { "set", T_BIT, P_SETB },      /* 102   66 Set bit */
-    { "sla", T_6, P_SLA },         /* 103   67 06 */
-    { "sll", T_6, P_SLL },         /* 104   68 06 */
+    { "res", T_BIT, I_RESB },      /*  88   58 Reset bit */
+    { "rl", T_SHIFT, I_RL },       /*  89   59 06 */
+    { "rla", T_SIMPLE, I_RLA },    /*  90   5a 01 */
+    { "rlc", T_SHIFT, I_RLC },     /*  91   5b 06 */
+    { "rlca", T_SIMPLE, I_RLCA },  /*  92   5c 01 */
+    { "rld", T_TWOBYTE, I_RLD },   /*  93   5d 02 */
+    { "rr", T_SHIFT, I_RR },       /*  94   5e 06 */
+    { "rra", T_SIMPLE, I_RRA },    /*  95   5f 01 */
+    { "rrc", T_SHIFT, I_RRC },     /*  96   60 06 */
+    { "rrca", T_SIMPLE, I_RRCA },  /*  97   61 01 */
+    { "rrd", T_TWOBYTE, I_RRD },   /*  98   62 02 */
+    { "rst", T_RST, I_RST },       /*  99   63	Restart Commands */
+    { "sbc", T_CARR, I_SBC },      /* 100   64 Subtract with Carry */
+    { "scf", T_SIMPLE, I_SCF },    /* 101   65 Set Carry Flag */
+    { "set", T_BIT, I_SETB },      /* 102   66 Set bit */
+    { "sla", T_SHIFT, I_SLA },     /* 103   67 06 */
+    { "sll", T_SHIFT, I_SLL },     /* 104   68 06 */
     { "sp", T_REG, REG_SP },       /* 105   69	Register sp */
-    { "sra", T_6, P_SRA },         /* 106   6a 06 */
-    { "srl", T_6, P_SRL },         /* 107   6b 06 */
-    { "sub", T_3, P_SUB },         /* 108   6c 03 */
-    { "xor", T_3, P_XOR },         /* 109   6d 03 */
+    { "sra", T_SHIFT, I_SRA },     /* 106   6a 06 */
+    { "srl", T_SHIFT, I_SRL },     /* 107   6b 06 */
+    { "sub", T_3, I_SUB },         /* 108   6c 03 */
+    { "xor", T_3, I_XOR },         /* 109   6d 03 */
     { "z", T_COND, COND_Z }        /* 110   6e	Condition code */
 };
 
@@ -645,7 +614,7 @@ char *opt_msg[] = {
 #define NOPTIM (sizeof(opt_msg) / sizeof(opt_msg[0]))
 
 int ccSwap[] = { /* 68c7 */
-    0, 2, 1, 4, 3, 6, 5, 8, 7
+                 0, 2, 1, 4, 3, 6, 5, 8, 7
 };
 
 /*
@@ -666,76 +635,69 @@ char *psectNames[] = {
 };
 
 struct {
-    char c0;
-    char c1;
-} l6c50h[] = {
-    { 0, 0 }, /* 6c50	 0 */
-    { 0, 0 }, /* 6c52	 1 */
-    { 0, 0 }, /* 6c54	 2 */
-    { 0, 0 }, /* 6c56	 3 */
-    { 0, 0 }, /* 6c58	 4 */
-    { 0, 0 }, /* 6c5a	 5 */
-    { 0, 0 }, /* 6c5c	 6 */
-    { 0, 0 }, /* 6c5e	 7 */
-    { 0, 0 }, /* 6c60	 8 */
-    { 0, 0 }, /* 6c62	 9 */
-    { 0, 1 }, /* 6c64	10 */
-    { 2, 3 }, /* 6c66	11 */
-    { 4, 5 }, /* 6c68	12 */
+    char hiReg;
+    char loReg;
+} regHiLoMap[] = {
+    { 0, 0 },         /* 6c50	REG_B */
+    { 0, 0 },         /* 6c52	REG_C */
+    { 0, 0 },         /* 6c54	REG_D */
+    { 0, 0 },         /* 6c56	REG_E */
+    { 0, 0 },         /* 6c58	REG_H */
+    { 0, 0 },         /* 6c5a	REG_L */
+    { 0, 0 },         /* 6c5c	REG_F */
+    { 0, 0 },         /* 6c5e	REG_A */
+    { 0, 0 },         /* 6c60	REG_I */
+    { 0, 0 },         /* 6c62	REG_R */
+    { REG_B, REG_C }, /* 6c64	REG_BC */
+    { REG_D, REG_E }, /* 6c66	REG_DE */
+    { REG_H, REG_L }, /* 6c68	REG_HL */
 };
 
 struct {
-    operand_t *lhs;
-    operand_t *rhs;
-} arry_6c6a[] = {
+    operand_t *pHiRegVal;
+    operand_t *pLoRegVal;
+} regHiLoValMap[] = {
     /*		;6c6a */
-    { &regValues[10], NULL },         /* 0x0744 0x0000	;6c6a	  0 */
-    { &regValues[10], NULL },         /* 0x7044 0x0000	;6c6e	  1 */
-    { &regValues[11], NULL },         /* 0x704a 0x0000	;6c72	  2 */
-    { &regValues[11], NULL },         /* 0x704a 0x0000	;6c76	  3 */
-    { &regValues[12], NULL },         /* 0x7050 0x0000	;6c7a	  4 */
-    { &regValues[12], NULL },         /* 0x7050 0x0000	;6c7e	  5 */
-    { &regValues[14], NULL },         /* 0x705c 0x0000	;6c82	  6 */
-    { &regValues[14], NULL },         /* 0x705c 0x0000	;6c86	  7 */
-    { NULL, NULL },                   /* 0x0000 0x0000	;6c8a	  8 */
-    { NULL, NULL },                   /* 0x0000 0x0000	;6c8e	  9 */
-    { &regValues[0], &regValues[0] }, /* 0x7008 0x700e	;6c92	 10 */
-    { &regValues[2], &regValues[3] }, /* 0x7014 0x701a	;6c96	 11 */
-    { &regValues[4], &regValues[5] }, /* 0x7020 0x7026	;6c9a	 12 */
-    { NULL, NULL },                   /* 0x0000 0x0000	;6c9e	 13 */
-    { &regValues[7], &regValues[6] }, /* 0x7032 0x702c	;6ca2	 14 */
-    { NULL, NULL },                   /* 0x0000 0x0000	;6ca6	 15 */
-    { NULL, NULL },                   /* 0x0000 0x0000	;6caa	 16 */
-    { NULL, NULL }                    /* 0x0000 0x0000	;6cae	 17 */
+    { &regValues[REG_BC], NULL },             /* 0x0744 0x0000	;6c6a REG_B */
+    { &regValues[REG_BC], NULL },             /* 0x7044 0x0000	;6c6e REG_C */
+    { &regValues[REG_DE], NULL },             /* 0x704a 0x0000	;6c72 REG_D */
+    { &regValues[REG_DE], NULL },             /* 0x704a 0x0000	;6c76 REG_E */
+    { &regValues[REG_HL], NULL },             /* 0x7050 0x0000	;6c7a REG_H */
+    { &regValues[REG_HL], NULL },             /* 0x7050 0x0000	;6c7e REG_L */
+    { &regValues[REG_AF], NULL },             /* 0x705c 0x0000	;6c82 REG_F */
+    { &regValues[REG_AF], NULL },             /* 0x705c 0x0000	;6c86 REG_A */
+    { NULL, NULL },                           /* 0x0000 0x0000	;6c8a REG_I */
+    { NULL, NULL },                           /* 0x0000 0x0000	;6c8e REG_R */
+    { &regValues[REG_B], &regValues[REG_C] }, /* 0x7008 0x700e	;6c92 REG_BC */
+    { &regValues[REG_D], &regValues[REG_E] }, /* 0x7014 0x701a	;6c96 REG_DE */
+    { &regValues[REG_H], &regValues[REG_L] }, /* 0x7020 0x7026	;6c9a REG_HL */
+    { NULL, NULL },                           /* 0x0000 0x0000	;6c9e REG_SP */
+    { &regValues[REG_A], &regValues[REG_F] }, /* 0x7032 0x702c	;6ca2 REG_AF */
+    { NULL, NULL },                           /* 0x0000 0x0000	;6ca6 REG_AF1 */
+    { NULL, NULL },                           /* 0x0000 0x0000	;6caa REG_IX */
+    { NULL, NULL }                            /* 0x0000 0x0000	;6cae REG_IY */
 };
 
 int regTestMasks[] = {
-    0x01, /* 6cb2  0 */
-    0x02, /* 6cb4  1 */
-    0x04, /* 6cb6  2 */
-    0x08, /* 6cb8  3 */
-    0x10, /* 6cba  4 */
-    0x20, /* 6cbc  5 */
-    0x40, /* 6cbe  6 */
-    0x80, /* 6cc0  7 */
-    0x00, /* 6cc2  8 */
-    0x00, /* 6cc4  9 */
-    0x03, /* 6cc6 10 */
-    0x0C  /* 6cc8 11 */
+    0x01,  /* 6cb2 REG_B */
+    0x02,  /* 6cb4 REG_C */
+    0x04,  /* 6cb6 REG_D */
+    0x08,  /* 6cb8 REG_E */
+    0x10,  /* 6cba REG_H */
+    0x20,  /* 6cbc REG_L */
+    0x40,  /* 6cbe REG_F */
+    0x80,  /* 6cc0 REG_A */
+    0x00,  /* 6cc2 REG_I */
+    0x00,  /* 6cc4 REG_R */
+    0x03,  /* 6cc6 REG_BC */
+    0x0C,  /* 6cc8 REG_DE */
+    0x30,  /* 6cca REG_HL */
+    0x00,  /* 6ccc REG_SP */
+    0xC0,  /* 6cce REG_AF */
+    0x00,  /* 6cd0 REG_AF1 */
+    0x100, /* 6cd2 REG_IX */
+    0x200, /* 6cd4 REG_IY */
 };
-
-int arry_6cca[] = {
-    0x30,  /* 6cca 0 */
-    0x00,  /* 6ccc 1 */
-    0xC0,  /* 6cce 2 */
-    0x00,  /* 6cd0 3 */
-    0x100, /* 6cd2 4 */
-    0x200, /* 6cd4 5 */
-};
-
-/* common code sequences */
-#define PEEKCH() (len_inbuf > 0 ? *ptr_inbuf : '\n')
-#define GETCH()  (--len_inbuf >= 0 ? *ptr_inbuf++ : get_line())
 
 /****************************************************************
  * Prototype functions are located in sequence of being in
@@ -745,45 +707,45 @@ int arry_6cca[] = {
  * ok+  - Code generated during compilation differs slightly,
  *        but is logically correct;
  ****************************************************************/
-int strtoi(char *fmt, int p2); /*  1 sub_013d ok++ */
-char *ptr_token();             /*  2 sub-020f ok++ */
-int const_value();             /*  3 sub_0289 ok+ */
-int get_token();               /*  4 sub_03c7 ok+ */
-int get_line();                /*  5 sub_0758 ok+ */
-void clr_len_inbuf();          /*  6 sub_07aa ok++ */
-int main(int, char **);        /*  7 sub_07b1 ok+ */
+int strtoi(char const *fmt, int p2); /*  1 sub_013d ok++ */
+char *ptr_token();                   /*  2 sub-020f ok++ */
+int const_value();                   /*  3 sub_0289 ok+ */
+int get_token();                     /*  4 sub_03c7 ok+ */
+int get_line();                      /*  5 sub_0758 ok+ */
+void clr_len_inbuf();                /*  6 sub_07aa ok++ */
+int main(int, char **);              /*  7 sub_07b1 ok+ */
 #if defined(__STDC__) || defined(__STDC_VERSION__)
-void pr_error(char *fmt, ...);
-void pr_warning(char *fmt, ...);
-void pr_message(char *fmt, va_list args);
+void _Noreturn pr_error(char const *fmt, ...);
+void pr_warning(char const *fmt, ...);
+void pr_message(char const *fmt, va_list args);
 #else
 void pr_error();   /*  8 sub_0941 ok++ */
 void pr_warning(); /*  9 sub_096f ok++ */
 void pr_message(); /* 10 sub_0994 ok++ */
 #endif
-int find_token(char *, operator_t *, int);   /* 11 sub_09d0 ok++ */
-int num_token(char *);                       /* 12 sub_0a97 ok++ */
-void pr_token(inst_t *);                     /* 13 sub_0ab2 ok++ */
-operand_t *allocOperand();                   /* 16 sub_0ba7 ok++ */
-inst_t *allocInst(inst_t *);                 /* 17 sub_0be2 ok++ */
-inst_t *allocSymbol(inst_t *);               /* 18 sub_0ca2 ok++ */
-void optimise();                             /* 19 sub_0ce4 ok++ */
-void chkIXYUsage();                          /* 20 sub_0e67 ok++ */
-void sub_0ed1();                             /* 21 sub_0ed1 ok++ */
-bool sub_1071(inst_t *);                     /* 22 sub_1071 ok++ */
-void sub_122f();                             /* 23 sub_122f		-- */
-bool sub_1369(operand_t *);                  /* 24 sub_1369 ok++ */
-void removeInstruction(inst_t *);            /* 25 sub_1397 ok++ */
-inst_t *getNextRealInst(inst_t *);           /* 26 sub_140b ok++ */
-bool operandsSame(operand_t *, operand_t *); /* 27 sub_142f ok++ */
-bool instructionsSame(inst_t *, inst_t *);   /* 28 sub_14ac ok++ */
-void removeLabelRef(sym_t *);                /* 29 sub_153d ok++ */
-void sub_15ad();                             /* 30 sub_15ad ok++ */
-bool sub_1795();                             /* 31 sub_1795 ok++ */
-bool sub_1aec();                             /* 32 sub_1aec ok++ */
-bool sub_1b86();                             /* 33 sub_1b86 ok++ */
-bool sub_1c67();                             /* 34 sub_1c67 ok++ */
-bool sub_1d94();                             /* 35 sub_1d94 ok++ */
+int find_token(char const *, operator_t const *, int);   /* 11 sub_09d0 ok++ */
+int num_token(char const *);                             /* 12 sub_0a97 ok++ */
+void pr_token(inst_t const *);                           /* 13 sub_0ab2 ok++ */
+operand_t *allocOperand();                               /* 16 sub_0ba7 ok++ */
+inst_t *allocInst(inst_t *);                             /* 17 sub_0be2 ok++ */
+inst_t *syntheticLabel(inst_t *);                        /* 18 sub_0ca2 ok++ */
+void optimise();                                         /* 19 sub_0ce4 ok++ */
+void chkIXYUsage();                                      /* 20 sub_0e67 ok++ */
+void sub_0ed1();                                         /* 21 sub_0ed1 ok++ */
+bool sub_1071(inst_t *);                                 /* 22 sub_1071 ok++ */
+void sub_122f();                                         /* 23 sub_122f		-- */
+bool sub_1369(operand_t const *);                        /* 24 sub_1369 ok++ */
+void removeInstruction(inst_t *);                        /* 25 sub_1397 ok++ */
+inst_t *getNextRealInst(inst_t *);                       /* 26 sub_140b ok++ */
+bool operandsSame(operand_t const *, operand_t const *); /* 27 sub_142f ok++ */
+bool instructionsSame(inst_t const *, inst_t const *);   /* 28 sub_14ac ok++ */
+void removeLabelRef(sym_t *);                            /* 29 sub_153d ok++ */
+void sub_15ad();                                         /* 30 sub_15ad ok++ */
+bool sub_1795();                                         /* 31 sub_1795 ok++ */
+bool sub_1aec();                                         /* 32 sub_1aec ok++ */
+bool sub_1b86();                                         /* 33 sub_1b86 ok++ */
+bool sub_1c67();                                         /* 34 sub_1c67 ok++ */
+bool sub_1d94();                                         /* 35 sub_1d94 ok++ */
 
 void sub_1ec1(); /* 36 sub_1ec1 */
 bool sub_23c1(); /* 37 sub_23c1 */
@@ -794,53 +756,67 @@ bool sub_2d3b(); /* 41 sub_2d3b */
 bool sub_2ef8(); /* 42 sub_2ef8 ok++ */
 bool sub_3053(); /* 42asub_3053 strange code */
 
-void swapHLDE();                        /* 43 sub_31ee ok++ */
-void pr_psect(int psect);               /* 44 sub_328a ok++ */
-int num_psect(char *);                  /* 45 sub_32bf ok++ */
-term_t *evalExpr();                     /* 46 sub_3313 ok++ */
-void exp_err();                         /* 47 sub_3595 ok++ */
-void uconv(int, term_t *);              /* 48 sub_359e ok+ */
-void bconv(int, term_t *, term_t *);    /* 49 sub_3630 ok++ */
-void rel_err();                         /* 50 sub_384d ok++ */
-operand_t *evalOperand();               /* 51 sub_3856 ok+ */
-void oper_err();                        /* 52 sub_398e ok++ */
-void getOperands(inst_t *);             /* 53 sub_39a3 ok++ */
-void loadFunction();                    /* 54 sub_3a15 ok	-+ */
-bool sub_4000(inst_t *);                /* 55 sub_4000 ok+ */
-void sub_404d();                        /* 56 sub_404d ok++ */
-void pr_instruction(inst_t *);          /* 57 sub_420a ok	-- */
-void sub_436e(operand_t *);             /* 58 sub_436e ok++ */
-void sub_44b2(operand_t *);             /* 59 sub_44b2 ok+ */
-void sub_4544(int);                     /* 60 sub_4544 ok+ */
-void sub_4601();                        /* 61 sub_4601 ok+ */
-bool sub_4625(inst_t *);                /* 62 sub_4625 ok+ */
-bool sub_4682(operand_t *);             /* 63 sub_4682 ok++ */
-int sub_46b1(operand_t *, int);         /* 64 sub_46b1 ok++ */
-bool sub_475c(operand_t *, int);        /* 65 sub_475c ok++ */
-bool sub_47a2(operand_t *, int);        /* 66 sub_47a2 ok++ */
-bool sub_47e0(int, inst_t *, inst_t *); /* 67 sub_47e0 ok+ */
-sym_t *allocSym();                      /* 68 sub_4c33 ok+ */
-void freeSymbol(sym_t *);               /* 69 sub_4c6b ok+ */
-int hash_index(uchar *, int);           /* 70 sub_4cab ok++ */
-sym_t *lookupSym(char *);               /* 71 sub_4cf0 ok	-- */
-sym_t *allocBlankSym();                 /* 72 sub_4da7 ok++ */
-void resetHeap();                       /* 73 sub_4dbf ok++ */
-void sub_4e20();                        /* 74 sub_4e20 ok++ */
-void *alloc_mem(int);                   /* 75 sub_4e2d ok+ */
+void swapHLDE();                                    /* 43 sub_31ee ok++ */
+void pr_psect(int psect);                           /* 44 sub_328a ok++ */
+int num_psect(char const *);                        /* 45 sub_32bf ok++ */
+term_t *evalExpr();                                 /* 46 sub_3313 ok++ */
+void exp_err();                                     /* 47 sub_3595 ok++ */
+void uconv(int, term_t *);                          /* 48 sub_359e ok+ */
+void bconv(int, term_t *, term_t const *);          /* 49 sub_3630 ok++ */
+void rel_err();                                     /* 50 sub_384d ok++ */
+operand_t *evalOperand();                           /* 51 sub_3856 ok+ */
+void oper_err();                                    /* 52 sub_398e ok++ */
+void getOperands(inst_t *);                         /* 53 sub_39a3 ok++ */
+void loadFunction();                                /* 54 sub_3a15 ok	-+ */
+bool sub_4000(inst_t const *);                      /* 55 sub_4000 ok+ */
+void sub_404d();                                    /* 56 sub_404d ok++ */
+void pr_instruction(inst_t *);                      /* 57 sub_420a ok	-- */
+void sub_436e(operand_t const *);                   /* 58 sub_436e ok++ */
+void sub_44b2(operand_t const *);                   /* 59 sub_44b2 ok+ */
+void sub_4544(int);                                 /* 60 sub_4544 ok+ */
+void sub_4601();                                    /* 61 sub_4601 ok+ */
+bool sub_4625(inst_t const *);                      /* 62 sub_4625 ok+ */
+bool sub_4682(operand_t const *);                   /* 63 sub_4682 ok++ */
+int sub_46b1(operand_t const *, int);               /* 64 sub_46b1 ok++ */
+int sub_475c(operand_t const *, int);               /* 65 sub_475c ok++ */
+int sub_47a2(operand_t const *, int);               /* 66 sub_47a2 ok++ */
+bool sub_47e0(int, inst_t const *, inst_t const *); /* 67 sub_47e0 ok+ */
+sym_t *allocItem();                                 /* 68 sub_4c33 ok+ */
+void freeSymbol(sym_t *);                           /* 69 sub_4c6b ok+ */
+int hash_index(char const *, int);                  /* 70 sub_4cab ok++ */
+sym_t *lookupSym(char const *);                     /* 71 sub_4cf0 ok	-- */
+sym_t *allocBlankSym();                             /* 72 sub_4da7 ok++ */
+void resetHeap();                                   /* 73 sub_4dbf ok++ */
+void freeHashtab();                                 /* 74 sub_4e20 ok++ */
+void *alloc_mem(int);                               /* 75 sub_4e2d ok+ */
 
-char *sbrk(int);
+void *sbrk(int);
 int brk(void *);
+void heapchk(void const *p);
+#ifdef _DEBUG
+#define HEAP(p) heapchk(p)
+#else
+#define HEAP(p)
+#endif
+
+/* common code sequences */
+
+#define PEEKCH()       (charsLeft > 0 ? *ptr_inbuf : '\n')
+#define GETCH()        (--charsLeft >= 0 ? *ptr_inbuf++ : get_line())
+
+#define logOptimise(n) (optimiseCounters[n]++, hasChanged = true)
 
 /**************************************************************************
- 1	strtoi	sub_013d	ok++	Used in const_value
+ 1	strtoi	sub_013d	ok++ (PMO)	Used in const_value
  *	Converts a numeric string, in various bases, to a integer
  **************************************************************************/
-int strtoi(char *s, int base) {
+
+int strtoi(char const *s, int base) {
     int val;   /* number */
     int digit; /* digit */
 
     val = 0;
-    while (*s != 0) {
+    while (*s) {
         val *= base;
         if (ISDIGIT(*s)) {
             digit = *(s++) - '0';
@@ -849,6 +825,7 @@ int strtoi(char *s, int base) {
                 digit = (ISUPPER(*s) ? (char)(*s | 0x20) : (char)*s) - ('a' - 10);
             }
         }
+        /* #pragma warning(suppress : 6001) /* function only called after verified there is a digit */
         if (digit >= base) {
             pr_warning("Digit out of range");
             return 0;
@@ -859,7 +836,7 @@ int strtoi(char *s, int base) {
 }
 
 /**************************************************************************
- 2	ptr_token	sub_020f	ok++
+ 2	ptr_token	sub_020f	ok++ (PMO)
  *	Returns a pointer to a token.
  **************************************************************************/
 char *ptr_token() {
@@ -869,30 +846,30 @@ char *ptr_token() {
     while (PEEKCH() != 0 && PEEKCH() != '\n')
         *s++ = GETCH();
 
-    *s        = 0;
-    len_inbuf = 0;
+    *s        = '\0';
+    charsLeft = 0;
     return yyline;
 }
 
 /**************************************************************************
- 3	const_value	sub_0289	ok+
+ 3	const_value	sub_0289	ok++ (PMO)
  *	Rerurn integer value numeric string in various bases
  *
- *	Generates correct code, but in a different sequence
  **************************************************************************/
 int const_value() {
-    register char *pi;
-    uchar base;
+    register char *pc;
+    uint8_t base;
 
-    pi   = yyline + 1;
+    pc   = yyline + 1;
     base = 0;
     while (ISXDIGIT(PEEKCH()))
-        *pi++ = GETCH();
+        *pc++ = GETCH();
 
     switch (PEEKCH()) { /* m17: */
     case 'H':
     case 'h':
         base = 16;
+        /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
         GETCH();
         break;
 
@@ -901,38 +878,39 @@ int const_value() {
     case 'Q':
     case 'q':
         base = 8;
+        /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
         GETCH();
         break;
     default:
-        if (pi[-1] != 'f' && pi[-1] != 'b') {
-            if (pi[-1] == 'B') {
-                pi--;
-                base = 2;
-            }
-            break;
+        if (pc[-1] == 'f' || pc[-1] == 'b') {
+            yytype   = *--pc == 'f' ? T_FWD : T_BWD;
+            *pc      = '\0';
+            yylval.i = (int16_t)strtoi(yyline, 10);
+            return yytype;
         }
-        yytype    = *--pi != 'f' ? T_JBWD : T_JFWD;
-        *pi       = 0;
-        yylval.ui = strtoi(yyline, 10);
-        return yytype;
+        if (pc[-1] == 'B') {
+            pc--;
+            base = 2;
+        }
+        break;
     }
 
-    *pi = 0;
+    *pc = '\0';
     if (base == 0)
         base = 10;
-    yylval.ui = strtoi(yyline, base);
+    yylval.i = (int16_t)strtoi(yyline, base);
     return T_CONST;
 }
 
 /**************************************************************************
- 4	get_token	sub_03c7	ok+
+ 4	get_token	sub_03c7	ok++ (PMO)
  **************************************************************************/
 int get_token() {
     int c;
-    register char *pi;
+    register char *pc;
 
     for (;;) {
-        pi = yyline;
+        pc = yyline;
 
         switch (c = GETCH()) {
         case -1:
@@ -945,22 +923,23 @@ int get_token() {
         case ';':
             return T_EOL;
         case '\'': /* Single quote (apostrophe) */
-            while (PEEKCH() != 0 && PEEKCH() != '\'')
-                *pi++ = GETCH();
+            while (PEEKCH() && PEEKCH() != '\'')
+                *pc++ = GETCH();
             if (PEEKCH() == '\'')
+                /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
                 GETCH();
             else
                 pr_warning("Unterminated string");
-            *pi           = 0;
-            yylval.p_char = yyline;
+            *pc          = '\0';
+            yylval.pChar = yyline;
             return T_STRING;
 
         case '.':
-            *pi++ = c;
+            *pc++ = c;
             while (ISALPHA(PEEKCH()))
-                *pi++ = GETCH();
+                *pc++ = GETCH();
             if (PEEKCH() == '.') /* m27: */
-                *pi++ = GETCH();
+                *pc++ = GETCH();
             break;
         case ',':
             return T_COMM; /* ","						//m31: */
@@ -981,33 +960,34 @@ int get_token() {
             return T_PLUS;    /* "+" */
 
         case '-':
-            yylval.i = P_SUB1; /* m36: */
-            return T_MINUS;    /* "-" */
+            yylval.i = P_SUB; /* m36: */
+            return T_MINUS;   /* "-" */
 
         case '*':
             if (ptr_inbuf == inp_buf + 1) {
                 printf("%s\n", inp_buf);
-                len_inbuf = 0;
+                charsLeft = 0;
                 continue;
             }
         default:
-            *pi++ = c;                    /* m50: */
+            *pc++ = c;                    /* m50: */
             if (ISALPHA(c)) {             /* goto m46; */
                 while (ISALNUM(PEEKCH())) /* m41: */
-                    *pi++ = GETCH();
-                if (pi == yyline + 2) {
+                    *pc++ = GETCH();
+                if (pc == yyline + 2) {
                     if (PEEKCH() == '\'')
-                        *pi++ = GETCH();
+                        *pc++ = GETCH();
                 }
-            } else if (ISDIGIT(c) != 0)
+            } else if (ISDIGIT(c))
                 return const_value();
             break;
         }
         while (ISSPACE(PEEKCH()))
+            /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
             GETCH();
 
-        *pi = 0;
-        if (yyline[0] == '_' || ISDIGIT(pi[-1]) || ((yytype = num_token(yyline)) == -1)) {
+        *pc = '\0';
+        if (yyline[0] == '_' || ISDIGIT(pc[-1]) || ((yytype = num_token(yyline)) == -1)) {
             if (ISALPHA(yyline[0])) { /* m57: */
                 yylval.pSym = lookupSym(yyline);
                 return T_SYMBOL;
@@ -1019,80 +999,108 @@ int get_token() {
 }
 
 /**************************************************************************
- 5	get_line	sub_0758	ok+
- *	Generated code is not significantly different from original binary
+ 5	get_line	sub_0758	ok++ (PMO)
+ *	Optimiser eliminates a jump otherwise code is identical
  **************************************************************************/
 /* PMO this code contains a bug. If strlen returns a 0 it accesses inp_buf[-1]
- * and could overwrite with a 0
+ * and could overwrite with a 0, this could occur if there is a '\0' in the input stream
  * it is also not clear whether a blank line i.e. one with just a '\n' should
  * return with a '\0' as it currently does or try another line
  *
  * Note needs fixing for linux as '\r' will not be removed on input
+ *
+ * The compiler can generate comment lines > 80 chars, this causes this function
+ * to split the line which may cause the optimiser to get confused
+ * a simple option would be to extend the size of inp_buf alternatively as the only
+ * long lines appear to be comment ones. A better option would be to detect for a missing '\n'
+ * and junk the rest of the line
+ *
+ * WARNING: The Hitech fgets contains a bug in that if line read has length >= size
+ * it will write a 0 at buf[size], for optim this is the -l option flag
+ *
  */
+#ifdef CPM
 int get_line() {
-
-    do {
+    for (;;) {
         if (fgets(inp_buf, sizeof(inp_buf), stdin) == NULL)
             return -1;
-        len_inbuf = (int)strlen(ptr_inbuf = inp_buf);
-        if (inp_buf[len_inbuf - 1] == '\n') /* If penultimate character is */
-            inp_buf[len_inbuf - 1] = 0;     /* '\n' then replace it with 0 */
-    } while (--len_inbuf < 0);              /* If the line is empty then repeat reading */
-    return *ptr_inbuf++;                    /* otherwise, return first character of string */
+        charsLeft = (int)strlen(ptr_inbuf = inp_buf);
+        if (inp_buf[charsLeft - 1] == '\n') /* If penultimate character is */
+            inp_buf[charsLeft - 1] = '\0';  /* '\n' then replace it with 0 */
+        if (--charsLeft >= 0) {             /* got something */
+            return *ptr_inbuf++;            /* otherwise, return first character of string */
+        }
+    }
 }
 
+#else
+#define CPMEOF 0x1A
+int get_line() {
+    int c;
+
+    charsLeft = 0;
+    while ((c = getchar()) != '\n' && c != EOF && c != CPMEOF)
+        if (charsLeft < sizeof(inp_buf) - 1 && c != '\r')
+            inp_buf[charsLeft++] = c;
+    inp_buf[charsLeft] = '\0';
+    ptr_inbuf          = inp_buf;
+    return charsLeft || (c != EOF && c != CPMEOF) ? *ptr_inbuf++ : EOF;
+}
+#endif
 /**************************************************************************
- 6	clr_len_inbuf	sub_0758	ok++
+ 6	clr_len_inbuf	sub_0758	ok++ (PMO)
  **************************************************************************/
 void clr_len_inbuf() {
-
-    len_inbuf = 0;
+    charsLeft = 0;
 }
 
 /**************************************************************************
- 7	main	sub_07b1	ok+
+ 7	main	sub_07b1	ok++ (PMO)
+ in the switch statement the location of the code blocks for 's' and default
+ are swapped by the optimiser, otherwise the code is identical
  **************************************************************************/
 int main(int argc, char **argv) {
 
-    for (--argc, ++argv; 0 < argc; ++argv, --argc) {
-        if (argv[0][0] != '-')
-            break;
+    --argc, ++argv; /* would be cleaner as a for loop */
+    while (0 < argc && argv[0][0] == '-') {
         switch (argv[0][1]) {
         case 'N':
         case 'n':
-            key_n = 1;
+            key_n = true;
             break; /* Enables statistics printing */
 
         case 'L':
         case 'l':
-            key_l = 1;
+            key_l = true;
             break; /* Enables printing of additional information */
 
         case 'R':
         case 'r':
-            key_r = 1;
+            key_r = true;
             break; /* */
 
         case 'F':
         case 'f':
-            key_f = 1;
+            key_f = true;
             break; /* */
 
         case 's':
-            key_s = 1;
+            key_s = true;
             break; /* Unbuffered stdout */
         default:
             pr_error("Illegal switch %c", argv[0][1]);
             break;
         }
+        ++argv, --argc;
     }
-    if (argc < 0) {
-        if (freopen(*argv, "r", stdin) == 0)
+    if (argc > 0) {
+        if (!freopen(*argv, "r", stdin))
             pr_error("Can't open %s", *argv);
-        if (1 < argc && freopen(*(argv + 1), "w", stdout) == 0)
+
+        if (argc > 1 && !freopen(*(argv + 1), "w", stdout))
             pr_error("Can't create %s", *(argv + 1));
     }
-    if (key_s != 0)
+    if (key_s)
         setbuf(stdout, 0); /* Unbuffered stdout (Turns off buffering) */
 
     optimise();
@@ -1105,7 +1113,7 @@ int main(int argc, char **argv) {
 }
 
 /**************************************************************************
- 8	pr_error	sub-0941	ok++
+ 8	pr_error	sub-0941	ok++ (PMO)
  **************************************************************************/
 #ifdef CPM
 void pr_error(fmt, p2, p3) char *fmt;
@@ -1117,16 +1125,16 @@ void pr_error(fmt, p2, p3) char *fmt;
 }
 
 /**************************************************************************
- 9	pr_warning	sub_096f	ok++
+ 9	pr_warning	sub_096f	ok++ (PMO)
  **************************************************************************/
-void pr_warning(fmt p2, p3) char *fmt;
+void pr_warning(fmt, p2, p3) char *fmt;
 {
     pr_message(fmt, p2, p3);
     ++num_warn;
 }
 
 /**************************************************************************
- 10	pr_message	sub_0994	ok++
+ 10	pr_message	sub_0994	ok++ (PMO)
  **************************************************************************/
 void pr_message(fmt, p2, p3) char *fmt;
 {
@@ -1137,7 +1145,7 @@ void pr_message(fmt, p2, p3) char *fmt;
 }
 
 #else
-void pr_error(char *fmt, ...) {
+void pr_error(char const *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     pr_message(fmt, args);
@@ -1145,7 +1153,7 @@ void pr_error(char *fmt, ...) {
     exit(1);
 }
 
-void pr_warning(char *fmt, ...) {
+void pr_warning(char const *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     pr_message(fmt, args);
@@ -1153,7 +1161,7 @@ void pr_warning(char *fmt, ...) {
     ++num_warn;
 }
 
-void pr_message(char *fmt, va_list args) {
+void pr_message(char const *fmt, va_list args) {
 
     fprintf(stderr, "optim: ");
     vfprintf(stderr, fmt, args);
@@ -1163,11 +1171,15 @@ void pr_message(char *fmt, va_list args) {
 #endif
 
 /**************************************************************************
- 11	find_token	sub_09d0	ok++	Used in num_token
+ 11	find_token	sub_09d0	ok++ (PMO)	Used in num_token
+ Minor difference after strcmp. the code sequence
+ original           new
+ ld (ix-1),l        ld a,l
+ ld a,l             ld (ix-1),a
  **************************************************************************/
-int find_token(register char *str, operator_t *p2, int p3) {
+int find_token(register char const *str, operator_t const *p2, int p3) {
     char cmp;
-    uchar high, low, mid;
+    uint8_t high, low, mid;
 
     tableBase = p2;
     low       = 0;
@@ -1189,21 +1201,23 @@ int find_token(register char *str, operator_t *p2, int p3) {
 }
 
 /**************************************************************************
- 12	num_token	sub_0a97	ok++	Used in
+ 12	num_token	sub_0a97	ok++ (PMO)	Used in
  **************************************************************************/
-int num_token(char *fmt) {
+int num_token(char const *fmt) {
 
     return find_token(fmt, operators, NOPERATORS);
 }
 
 /**************************************************************************
- 13	pr_token	sub_0ab2	ok++
+ 13	pr_token	sub_0ab2	ok++ (PMO)
+ Only difference is the new code jumps to a location that cleans up
+ stack after a call before jumping to cret. The direct jp cret also works
  **************************************************************************/
-void pr_token(register inst_t *pi) {
-    operator_t *po;
+void pr_token(register inst_t const *pi) {
+    operator_t const *po;
 
-    if (pi->str) {
-        printf("%s", pi->str);
+    if (pi->opCode) {
+        printf("%s", pi->opCode);
         return; /* m1: */
     }
 
@@ -1232,78 +1246,83 @@ void pr_token(register inst_t *pi) {
 }
 
 /**************************************************************************
- 14	sub_0b6a	ok++
+ 14	sub_0b6a	ok++ (PMO)
  **************************************************************************/
-void freeOperand(register operand_t *pi) {
+void freeOperand(register operand_t *po) {
 
-    if (pi == 0)
+    if (!po)
         return;
-    ((list_t *)pi)->pNext = freeOperandList;
-    freeOperandList       = (list_t *)pi;
+    ((list_t *)po)->pNext = freeOperandList;
+    freeOperandList       = (list_t *)po;
 }
 
 /**************************************************************************
- 15	sub_0b8b	ok++
+ 15	sub_0b8b	ok++ (PMO)
  **************************************************************************/
 void freeInst(register inst_t *pi) {
 
-    ((list_t *)pi)->pNext = freeInstList;
-    freeInstList          = (list_t *)pi;
+    pi->pAlt     = freeInstList;
+    freeInstList = pi;
 }
 /**************************************************************************
- 16	sub_0ba7	ok+
+ 16	sub_0ba7	ok++ (PMO)
  **************************************************************************/
 operand_t *allocOperand() {
     register operand_t *pi;
 
     if (freeOperandList) {
-        pi              = (operand_t *)freeOperandList;
+        pi = (operand_t *)freeOperandList;
+        HEAP(pi);
         freeOperandList = ((list_t *)pi)->pNext;
         pi->type = pi->aux = 0;
-        pi->oIVal          = 0;
-        pi->oPSym          = 0;
+        pi->oVal           = 0;
+        pi->oPSym          = NULL;
         return pi;
     }
     return (operand_t *)alloc_mem(sizeof(operand_t));
 }
 
 /**************************************************************************
- 17	sub_0be2	ok++
+ 17	sub_0be2	ok++ (PMO)
  **************************************************************************/
 inst_t *allocInst(register inst_t *pi) {
     inst_t *l1;
-
-    if ((l1 = (inst_t *)freeInstList)) {
-        freeInstList = (list_t *)l1->pAlt;
+    HEAP(pi->pNext);
+    if ((l1 = freeInstList)) {
+        HEAP(l1);
+        freeInstList = l1->pAlt;
         l1->type = l1->aux = 0;
-        l1->iLhs = l1->iRhs = 0;
-        l1->str             = 0;
+        l1->iLhs = l1->iRhs = NULL;
+        l1->opCode          = NULL;
     } else {
-        l1 = (inst_t *)alloc_mem(sizeof(inst_t));
+        l1 = alloc_mem(sizeof(inst_t));
     }
     l1->pNext = pi->pNext;
     l1->pAlt  = pi;
-    if (pi->pNext != 0)
+    if (pi->pNext) {
+        HEAP(pi->pNext);
         pi->pNext->pAlt = l1;
+    }
+    HEAP(l1);
     return pi->pNext = l1;
 }
 
 /**************************************************************************
- 18	sub_0ca2	ok++
+ 18	sub_0ca2	ok++ (PMO)
  **************************************************************************/
-inst_t *allocSymbol(register inst_t *pi) {
-
-    pi                   = allocInst(pi);
-    pi->iPSym            = allocBlankSym();
-    pi->iSymId           = ++symbolId;
-    pi->iPSym->val.pInst = pi;
-    pi->type             = T_SYMBOL;
+inst_t *syntheticLabel(register inst_t *pi) {
+    pi                = allocInst(pi);
+    pi->iPSym         = allocBlankSym();
+    pi->iSymId        = ++symbolId;
+    pi->iPSym->tPInst = pi;
+    pi->type          = T_SYMBOL;
     return pi;
 }
 
 /**************************************************************************
- 19	optimise	sub-0ce4	ok++
- **************************************************************************/
+19	optimise	sub-0ce4	ok++ (PMO)
+Apart from bug fix change, the code is the same
+**************************************************************************/
 void optimise() {
     int l1;
     int l2;
@@ -1312,13 +1331,14 @@ void optimise() {
     bool l5;
     char *l6;
 
-    l4        = sbrk(0);
+    l6 = l4   = sbrk(0); /* PMO bug fix set l6 */
     iteration = 0;
     while (!feof(stdin)) { /* not eof */
-        freeOperandList = freeInstList = 0;
+        freeInstList    = NULL;
+        freeOperandList = NULL;
         resetHeap();    /* fun_73 */
         loadFunction(); /* fun_54 */
-        sub_4e20();     /* fun_74 */
+        freeHashtab();  /* fun_74 */
         sub_0ed1();     /* fun_21 */
         chkIXYUsage();  /* fun_20 */
         sub_122f();     /* fun_23 */
@@ -1328,36 +1348,34 @@ void optimise() {
             if (iteration < ++l2)
                 iteration = l2;
 
-            if (key_l != 0) {
+            if (key_l) {
                 printf("***** Pass %d\n", l2);
                 sub_404d();
             }
-
-            l5 = 0;
+            l5 = false;
             do {
-                hasChanged = 0; /* m5: */
+                hasChanged = false; /* m5: */
                 sub_15ad();
                 l5 |= hasChanged;
-            } while (hasChanged != 0);
-
+            } while (hasChanged);
             do {
-                hasChanged = 0; /* m6: */
+                hasChanged = false; /* m6: */
                 sub_1ec1();
-            } while (hasChanged != 0);
+            } while (hasChanged);
 
-        } while ((l5 |= hasChanged) != 0);
+        } while ((l5 |= hasChanged));
 
         sub_404d();
 
-        if (l6 < sbrk(0))
+        if (l6 < (char *)sbrk(0))
             l6 = sbrk(0);
     } /* end while */
-    if (key_n == 0)
+    if (!key_n)
         return;
 
     fclose(stdout); /* This statement results in an error when you close */
                     /* stdout again in main program. It can be removed. */
-    fprintf(stderr, "%dK, %d iterations\n", ((int)(l6 - l4) + 0x400) / 0x3ff, iteration);
+    fprintf(stderr, "%dK, %d iterations\n", ((int)(l6 - l4) + 0x3ff) / 0x400, iteration);
 
     for (l1 = 0; l1 < NOPTIM; l1++)
         if (optimiseCounters[l1] != 0)
@@ -1365,15 +1383,16 @@ void optimise() {
 }
 
 /**************************************************************************
- 20	sub_0e67	ok++	used in optimise
+ 20	sub_0e67	ok++ (PMO)	used in optimise
  **************************************************************************/
 void chkIXYUsage() {
-    register inst_t *pi;
+    register inst_t const *pi;
 
     usesIXorIY = false;
     for (pi = root; pi; pi = pi->pNext) {
-        if ((pi->iLhs && pi->iLhs->type == T_INDEXED) || (pi->iRhs && pi->iRhs->type == T_INDEXED) ||
-            (pi->iLhs && pi->iLhs->type == T_REG && pi->iLhs->aux >= REG_IX)) {
+        if (pi->type != T_SYMBOL &&
+            ((pi->iLhs && pi->iLhs->type == T_INDEXED) || (pi->iRhs && pi->iRhs->type == T_INDEXED) ||
+             (pi->iLhs && pi->iLhs->type == T_REG && pi->iLhs->aux >= REG_IX))) {
             usesIXorIY = true;
             return;
         }
@@ -1381,7 +1400,7 @@ void chkIXYUsage() {
 }
 
 /**************************************************************************
- 21	sub_0ed1	ok++	used in optimise
+ 21	sub_0ed1	ok++ (PMO)	used in optimise
  **************************************************************************/
 void sub_0ed1() {
     inst_t *pi2;
@@ -1392,39 +1411,40 @@ void sub_0ed1() {
     for (pi1 = word_6ffc; pi1; pi1 = pi1->pAlt) {
         if (pi1->type == T_CONST) {
             newLabel = false;
-            optimiseCounters[3]++; /* 6fc3 opt_msg[3] = "Temporary labels" */
-            hasChanged = true;
-            for (pi2 = pi1->pAlt; pi2 && pi2->type != T_CONST && pi2->aux != pi1->aux; pi2 = pi2->pAlt) {
-                if ((po = pi2->iLhs) && po->type == T_JBWD && po->oIVal == pi1->aux) {
+            logOptimise(O_TMP_LAB); /* 6fc3 opt_msg[3] = "Temporary labels" */
+            for (pi2 = pi1->pAlt; pi2; pi2 = pi2->pAlt) {
+                if (pi2->type == T_CONST && pi2->aux == pi1->aux)
+                    break;
+                if ((po = pi2->iLhs) && po->type == T_FWD && po->oVal == pi1->aux) {
                     if (!newLabel) {
-                        allocSymbol(pi1);
+                        syntheticLabel(pi1);
                         newLabel = true;
                     }
                     po->type      = T_CONST;
                     po->oPOperand = pi1->pNext->iLhs;
-                    po->oIVal     = 0;
+                    po->oVal      = 0;
                 }
             }
             if (pi1->aux < REG_BC) { /* m7: */
                 if (!newLabel)
-                    allocSymbol(pi1);
+                    syntheticLabel(pi1);
                 for (pi2 = pi1->pNext; pi2; pi2 = pi2->pNext) {
-                    if ((po = pi2->iLhs) && po->type == T_JFWD && po->oIVal == pi1->aux) {
+                    if ((po = pi2->iLhs) && po->type == T_BWD && po->oVal == pi1->aux) {
                         po->type      = T_CONST;
                         po->oPOperand = pi1->pNext->iLhs;
-                        po->oIVal     = 0;
+                        po->oVal      = 0;
                         break;
                     }
                 }
             }
+            pi1 = pi1->pNext; /* m12: */
+            removeInstruction(pi1->pAlt);
         }
-        pi1 = pi1->pNext; /* m12: */
-        removeInstruction(pi1->pAlt);
     }
 }
 
 /**************************************************************************
- 22	sub_1071	ok++	used in sub_15ad
+ 22	sub_1071	ok++ (PMO)	used in sub_15ad
  **************************************************************************/
 bool sub_1071(register inst_t *pi) {
 
@@ -1435,24 +1455,22 @@ bool sub_1071(register inst_t *pi) {
     if (pi->type != T_JP || pi->aux != 0 || pi->iLhs->type != T_CONST)
         return false;
 
-    pi1 = pi->iLhs->oPSym->val.pInst;
-    while (pi1->type != T_SYMBOL) {
+    pi1 = pi->iLhs->oPSym->p.pInst;
+    while (pi1->type == T_SYMBOL)
         pi1 = pi1->pAlt;
-    }
+
     if (pi1 == pi) {
         removeInstruction(pi);
-        ++optimiseCounters[6]; /* 6fc9 opt_msg[6] = "Jumps to .+1" */
-        hasChanged = true;
+        logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
         return false;
     }
     if (pi1->type != T_JP || pi1->aux != 0)
         return false;
 
-    for (pi3 = pi1->pNext; pi3->type; pi3 = pi3->pNext)
-        if (pi3->type == T_JP && pi3->aux == 0)
-            break;
+    for (pi3 = pi1->pNext; pi3->type && (pi3->type != T_JP || pi3->aux != 0); pi3 = pi3->pNext)
+        ;
 
-    if (pi3 == pi1->pNext || pi3->type == 0 || pi3 == pi)
+    if (pi3 == pi1->pNext || pi3->type == T_INVALID || pi3 == pi)
         return false;
 
     pi->pNext->pAlt  = pi3;
@@ -1464,15 +1482,13 @@ bool sub_1071(register inst_t *pi) {
     pi1->pNext       = pi3->pNext;
     pi3->pNext       = pi->pNext;
     pi->pNext        = pi2;
-    ++optimiseCounters[16]; /* 6fdd opt_msg[16] = "Code motions" */
-    hasChanged = true;
+    logOptimise(O_CODE_MOTIONS); /* 6fdd opt_msg[16] = "Code motions" */
     removeInstruction(pi);
-    ++optimiseCounters[6]; /* 6fc9 opt_msg[6] = "Jumps to .+1" */
-    return hasChanged = true;
+    return logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
 }
 
 /**************************************************************************
- 23	sub_122f	ok--	Used in: optimise
+ 23	sub_122f	ok++ (PMO)	Used in: optimise
  **************************************************************************/
 void sub_122f() {
     operand_t *po;
@@ -1480,18 +1496,21 @@ void sub_122f() {
 
     for (pi = root->pNext; pi; pi = pi->pNext) /* set initial values for symbols */
         if (pi->type == T_SYMBOL)
-            pi->aux = pi->iPSym->name[0] == '_' ? INT_MAX : 0; /* check for public name */
+            if (pi->iPSym->label[0] == '_') /* check for public name */
+                pi->aux = INT_MAX;
+            else
+                pi->aux = 0;
 
     for (pi = root->pNext; pi; pi = pi->pNext) { /* update reference counts */
         if (pi->type == T_JP || pi->type == T_DJNZ) {
-            if ((po = pi->iLhs) && po->type == T_CONST && po->oPSym && po->oPSym->val.i)
-                po->oPSym->val.i++;
+            if ((po = pi->iLhs) && po->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
+                po->oPSym->p.pInst->aux++;
         }
     }
-    for (pi = word_6ff2; pi; pi = pi->pNext) { /* do the same for the jump tables */
+    for (pi = switchVectors; pi; pi = pi->pNext) { /* do the same for the jump tables */
         if (pi->type == T_DEFW) {
-            if (pi->iLhs && (po = pi->iLhs)->type == T_CONST && po->oPSym->val.i)
-                po->oPSym->val.i++;
+            if (pi->iLhs && (po = pi->iLhs)->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
+                po->oPSym->p.pInst->aux++;
         }
     }
 }
@@ -1499,14 +1518,17 @@ void sub_122f() {
 /**************************************************************************
  24	sub_1369	ok++ (PMO)
  **************************************************************************/
-bool sub_1369(register operand_t *pi) {
+bool sub_1369(register operand_t const *pi) {
 
-    return pi->type == T_CONST || pi->type == T_INDEXED || (pi->type == T_REGREF && pi->aux != REG_HL);
+    return pi->type == T_CONST || pi->type == T_INDEXED || (pi->type == T_REGREF && pi->aux == REG_HL);
 }
 
 /**************************************************************************
  25	sub_1397	ok++ (PMO)
  **************************************************************************/
+/* note there are occasions when pi is accessed after this is called so
+ *  freeInst has to preserve at least pi->pNext
+ */
 void removeInstruction(register inst_t *pi) {
 
     if (pi->type == T_JP && pi->iLhs->type == T_CONST && pi->iLhs->oPSym)
@@ -1522,7 +1544,7 @@ void removeInstruction(register inst_t *pi) {
 }
 
 /**************************************************************************
- 26	sub_140b	ok++
+ 26	sub_140b	ok++ (PMO)
  **************************************************************************/
 inst_t *getNextRealInst(register inst_t *pi) {
 
@@ -1532,24 +1554,27 @@ inst_t *getNextRealInst(register inst_t *pi) {
 }
 
 /**************************************************************************
- 27	sub_142f	ok++
+ 27	sub_142f	ok++ (PMO)
  **************************************************************************/
-bool operandsSame(register operand_t *po1, operand_t *po2) {
+bool operandsSame(register operand_t const *po1, operand_t const *po2) {
 
-    if (po1 == 0 && po2 == 0)
+    if (!po1 && !po2)
         return true;
-    if (po1 == 0 || po2 == 0 || po1->type != po2->type || po1->aux != po2->aux || po1->type == 0)
+    if (!po1 || !po2)
         return false;
 
-    return po1->oPSym == po2->oPSym && po1->oIVal == po2->oIVal;
+    if (po1->type != po2->type || po1->aux != po2->aux || po1->type == T_INVALID)
+        return false;
+
+    return po1->oPSym == po2->oPSym && po1->oVal == po2->oVal;
 }
 
 /**************************************************************************
- 28	sub_14ac	ok++
+ 28	sub_14ac	ok++ (PMO)
  **************************************************************************/
-bool instructionsSame(register inst_t *pi1, inst_t *pi2) {
+bool instructionsSame(register inst_t const *pi1, inst_t const *pi2) {
 
-    if (pi1->type == 0 || pi1->type == T_SYMBOL || pi2->type == 0 || pi2->type == T_SYMBOL)
+    if (pi1->type == T_INVALID || pi1->type == T_SYMBOL || pi2->type == T_INVALID || pi2->type == T_SYMBOL)
         return false;
 
     if (pi1->type != pi2->type || pi1->aux != pi2->aux)
@@ -1559,66 +1584,62 @@ bool instructionsSame(register inst_t *pi1, inst_t *pi2) {
 }
 
 /**************************************************************************
- 29	sub_153d	ok++
+ 29	sub_153d	ok++ (PMO)
  **************************************************************************/
 void removeLabelRef(register sym_t *ps) {
     inst_t *pi;
 
-    if ((pi = ps->val.pInst) == 0)
+    if (!(pi = ps->p.pInst))
         return;
     if (pi->aux == 0)
         pr_error("Refc == 0");
     if (--pi->aux != 0)
         return;
     removeInstruction(pi);
-    ps->val.pInst = 0;
+    ps->p.pInst = NULL;
     freeSymbol(ps);
-    optimiseCounters[4]++; /* 6fc5 opt_msg[4] = "Unref'ed labels" */
-    hasChanged = true;
+    logOptimise(O_UNREF_LAB); /* 6fc5 opt_msg[4] = "Unref'ed labels" */
 }
 
 /**************************************************************************
- 30	sub_15ad	ok++	Used in optimize
+ 30	sub_15ad	ok++	(PMO) Used in optimize
+ * code optimised over original as noted below, otherwise identical
+ * 1) for loop iteration expression moved
+ * 2) code to increment an optiminse counter & set hasChanged = true shared
+ * 3) sub_1d94() == 0, test removed as code falls through in either case
  **************************************************************************/
 void sub_15ad() {
-    register inst_t *pi;
-
     for (gPi = root; gPi; gPi = gPi->pNext) {
-        if (sub_1795() == 0 && gPi->type == T_JP && sub_1aec() == 0 && sub_1b86() == 0) { /* 162E / 1632 */
-            if (gPi->iLhs->type != T_CONST || gPi->iLhs->oPSym->val.pInst != gPi->pNext) {
+        if (!sub_1795() && gPi->type == T_JP && !sub_1aec() && !sub_1b86()) {
+            if (gPi->iLhs->type == T_CONST && gPi->iLhs->oPSym->p.pInst == gPi->pNext) {
+                removeInstruction(gPi);
+                logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
+            } else {
                 if (gPi->aux == 0) { /* 1648 / 164B */
-                    while (gPi->pNext->type && gPi->pNext->type != T_SYMBOL) {
-                        pi = gPi->pNext;
-                        removeInstruction(pi);
-                        optimiseCounters[5]++; /* 6fc7 opt_msg[5] = "Unreachable code" */
-                        hasChanged = 1;
+                    while (gPi->pNext->type != T_INVALID && gPi->pNext->type != T_SYMBOL) {
+                        removeInstruction(gPi->pNext);
+                        logOptimise(O_UNREACH_LAB); /* 6fc7 opt_msg[5] = "Unreachable code" */
                     }
-                    /* 1696 */
-                    if (gPi->iLhs->type != T_REGREF && gPi->iLhs->oPSym->val.pInst != 0 && sub_1071(gPi) != 0)
+                    if (gPi->iLhs->type != T_REGREF && gPi->iLhs->oPSym->p.pInst && sub_1071(gPi))
                         continue;
                 }
-                /* 16CA / 16D1 */
                 if (gPi->iLhs->type == T_CONST && (gPi->pNext->type == T_CALL || gPi->pNext->type == T_JP) &&
-                    gPi->pNext->aux == 0 && gPi->iLhs->oPSym->val.pInst == gPi->pNext->pNext) {
+                    gPi->pNext->aux == 0 && gPi->iLhs->oPSym->p.pInst == gPi->pNext->pNext) {
                     gPi->pNext->aux = ccSwap[gPi->aux]; /* swap condition code */
                     removeInstruction(gPi);
-                    optimiseCounters[7]++; /* 6fcb opt_msg[7] = "Skips over jumps" */
-                    hasChanged = 1;
-                } else if (sub_1c67() != 0 || sub_1d94() == 0)
+                    logOptimise(O_SKIP_OVER_JMP); /* 6fcb opt_msg[7] = "Skips over jumps" */
+                } else if (sub_1c67() || !sub_1d94())
                     ;
-            } else {
-                removeInstruction(gPi);
-                optimiseCounters[6]++; /* 6fc9 opt_msg[6] = "Jumps to .+1" */
-                hasChanged = true;
             }
         }
     }
 }
 /**************************************************************************
- 31	sub_1795	ok++
+ 31	sub_1795	ok++ (PMO)
  **************************************************************************/
 bool sub_1795() {
     register inst_t *pi;
+    static int stackAdjust;
 
     if (gPi->type != T_LD)
         return false;
@@ -1630,65 +1651,61 @@ bool sub_1795() {
         return false;
     if (pi->iRhs->oPOperand)
         pr_error("Funny stack adjustment");
-    word_6fb9 = pi->iRhs->oIVal;
-    pi        = gPi->pNext;
-    if (pi->type == T_ONEBYTE && pi->aux == P_EXX)
+    stackAdjust = pi->iRhs->oVal;
+    pi          = gPi->pNext;
+    if (pi->type == T_SIMPLE && pi->aux == I_EXX)
         pi = pi->pNext;
+    for (; pi->type != T_CALL && pi->type != T_JP && pi->type != T_STK && (pi->type != T_EX || pi->iLhs->aux != REG_SP);
+         pi = pi->pNext)
+        ;
 
-    for (; pi->type != T_CALL && pi->type != T_JP && pi->type != T_STK; pi = pi->pNext)
-        if (pi->type == T_EX && pi->type == REG_SP)
-            break;
-
-    if (word_6fb9 > 0 && usesIXorIY != 0 && pi->aux == 0 && sub_4000(pi) != 0) {
+    if (stackAdjust > 0 && usesIXorIY && pi->aux == 0 && sub_4000(pi)) {
         removeInstruction(gPi->pAlt->pAlt);
         removeInstruction(gPi->pAlt);
         gPi = gPi->pAlt;
         removeInstruction(gPi->pNext);
-        if (gPi->pNext->type == T_ONEBYTE && gPi->pNext->aux == P_EXX && gPi->type == T_ONEBYTE &&
-            gPi->aux == P_EXX) { /* exx */
+        if (gPi->pNext->type == T_SIMPLE && gPi->pNext->aux == I_EXX && gPi->type == T_SIMPLE &&
+            gPi->aux == I_EXX) { /* exx */
             removeInstruction(gPi->pNext);
             removeInstruction(gPi);
         }
-        ++optimiseCounters[2]; /* 6fc1 opt_msg[2] = "Stack adjustments" m7: */
-        hasChanged = 1;
-        return true;
+        return logOptimise(O_STK_ADJUST); /* 6fc1 opt_msg[2] = "Stack adjustments" m7: */
     }
     pi = gPi->pAlt->pAlt;
-    if (word_6fb9 < 0)
-        word_6fb9 = -word_6fb9;
-    if (pi->pAlt->type == T_ONEBYTE && pi->pAlt->aux == P_EXX)
-        word_6fb9 -= 2;
+    if (stackAdjust < 0)
+        stackAdjust = -stackAdjust;
+    if (pi->pAlt->type == T_SIMPLE && pi->pAlt->aux == I_EXX)
+        stackAdjust -= 2;
 
-    if (word_6fb9 > 8 || pi->iRhs->oIVal < 0)
+    if (stackAdjust > 8 || pi->iRhs->oVal < 0)
         return false;
 
-    optimiseCounters[2]++; /* 6fc1 opt_msg[2] = "Stack adjustments" */
-    hasChanged = 1;
+    logOptimise(O_STK_ADJUST); /* 6fc1 opt_msg[2] = "Stack adjustments" */
 
-    word_6fb9  = pi->iRhs->oIVal;
-    pi         = pi->pAlt;
+    stackAdjust = pi->iRhs->oVal;
+    pi          = pi->pAlt;
     removeInstruction(pi->pNext->pNext);
     removeInstruction(pi->pNext);
     removeInstruction(gPi);
     gPi = pi;
 
-    while (word_6fb9 != 0) {
+    while (stackAdjust != 0) {
         gPi             = allocInst(gPi);
         gPi->iLhs       = allocOperand();
         gPi->iLhs->type = T_REG;
-        if (1 < word_6fb9) {
+        if (1 < stackAdjust) {
             gPi->iLhs->aux = REG_BC;
             gPi->type      = T_STK;
-            word_6fb9 -= 2;
-            gPi->aux = P_POP; /* "pop" */
+            stackAdjust -= 2;
+            gPi->aux = I_POP; /* "pop" */
         } else {
             gPi->iLhs->aux = REG_SP;
             gPi->type      = T_INCDEC; /* Decrement, Increment */
-            --word_6fb9;
-            gPi->aux = P_INC;
+            --stackAdjust;
+            gPi->aux = SI_INC;
         }
     }
-    if (gPi->pNext->type == T_ONEBYTE && gPi->pNext->aux == P_EXX && pi->type == T_ONEBYTE && pi->aux == P_EXX) {
+    if (gPi->pNext->type == T_SIMPLE && gPi->pNext->aux == I_EXX && pi->type == T_SIMPLE && pi->aux == I_EXX) {
         removeInstruction(gPi->pNext);
         removeInstruction(pi);
     }
@@ -1696,21 +1713,20 @@ bool sub_1795() {
 }
 
 /**************************************************************************
- 32	sub_1aec	ok++
+ 32	sub_1aec	ok++ (PMO)
  **************************************************************************/
 bool sub_1aec() {
     register inst_t *pi;
 
     if (gPi->iLhs->type != T_REGREF) {
-        if ((gPs = gPi->iLhs->oPSym)->val.pInst != 0) {
-            pi = getNextRealInst(gPs->val.pInst);
+        if ((gPs = gPi->iLhs->oPSym)->p.pInst) {
+            pi = getNextRealInst(gPs->p.pInst);
             pi = pi->pAlt;
-            if (gPs->val.pInst != pi /*->i_7*/) {
+            if (gPs->p.pInst != pi /*->i_7*/) {
                 gPi->iLhs->oPOperand = pi->iLhs;
                 removeLabelRef(gPs);
-                ++pi->aux;
-                optimiseCounters[0]++; /* 6fbd opt_msg[0] = "Redundant labels" */
-                return (hasChanged = true);
+                ++pi->aux;                     /* safe const change */
+                return logOptimise(O_RED_LAB); /* 6fbd opt_msg[0] = "Redundant labels" */
             }
         }
     }
@@ -1718,22 +1734,21 @@ bool sub_1aec() {
 }
 
 /**************************************************************************
- 33	sub_1b86	ok++
+ 33	sub_1b86	ok++ (PMO)
  **************************************************************************/
 bool sub_1b86() {
     register inst_t *pi;
 
     if (gPi->type == T_JP || gPi->type == T_CALL) {
-        if ((gPs = gPi->iLhs->oPSym) && (pi = gPs->val.pInst)) {
+        if ((gPs = gPi->iLhs->oPSym) && (pi = gPs->p.pInst)) {
             pi = getNextRealInst(pi);
             if (pi->type == T_JP && (pi->aux == 0 || pi->aux == gPi->aux) && pi->iLhs->oPSym != gPs) {
                 removeLabelRef(gPs);
                 gPs              = pi->iLhs->oPSym;
                 gPi->iLhs->oPSym = gPs;
-                if (gPs->val.pInst != 0)
-                    ++gPs->val.pInst->aux;
-                ++optimiseCounters[1]; /* 6fbf opt_msg[1] = "Jumps to jumps" */
-                return hasChanged = true;
+                if (gPs->p.pInst)
+                    ++gPs->p.pInst->aux;
+                return logOptimise(O_JMP_TO_JMP); /* 6fbf opt_msg[1] = "Jumps to jumps" */
             }
         }
     }
@@ -1741,252 +1756,220 @@ bool sub_1b86() {
     return false;
 }
 /**************************************************************************
- 34	sub_1c67	ok++
+ 34	sub_1c67	ok++ (PMO)
  **************************************************************************/
 bool sub_1c67() {
     register inst_t *pi;
-
     if (gPi->aux == 0) {
-        pi = gPi->pNext;
-        while (pi != 0) {
-            if (instructionsSame(pi, gPi) != 0) {
-                word_6fe3 = gPi;
-                word_6fe5 = pi;
-                while (instructionsSame(word_6fe5->pAlt, word_6fe3->pAlt) != 0) {
-                    word_6fe3 = word_6fe3->pAlt;
-                    word_6fe5 = word_6fe5->pAlt;
+        for (pi = gPi->pNext; pi; pi = pi->pNext) {
+            if (instructionsSame(pi, gPi)) {
+                seq1 = gPi;
+                seq2 = pi;
+                /* match chains of instructions */
+                while (instructionsSame(seq2->pAlt, seq1->pAlt)) {
+                    seq1 = seq1->pAlt;
+                    seq2 = seq2->pAlt;
                 }
-                if (word_6fe3 != gPi) {
-                    word_6fe3                  = allocSymbol(word_6fe3->pAlt);
-                    word_6fe5                  = allocSymbol(word_6fe5->pAlt);
-                    word_6fe5->iLhs            = allocOperand();
-                    word_6fe5->type            = 8;
-                    word_6fe5->iLhs->type      = 0x32;
-                    word_6fe5->iLhs->oPOperand = word_6fe3->iLhs;
-                    ++word_6fe3->aux;
+                if (seq1 != gPi) { /* we matched some common code */
+                    seq1              = syntheticLabel(seq1->pAlt);
+                    seq2              = allocInst(seq2->pAlt);
+                    seq2->iLhs        = allocOperand();
+                    seq2->type        = T_JP;
+                    seq2->iLhs->type  = T_CONST;
+                    seq2->iLhs->oPSym = seq1->iPSym;
+                    ++seq1->aux;
                     removeInstruction(pi);
-                    ++optimiseCounters[8]; /* 6fcd opt_msg[8] = "Common code seq's" */
-                    return hasChanged = true;
+                    return logOptimise(O_CMN_CODE_SEQ); /* 6fcd opt_msg[8] = "Common code seq's" */
                 }
             }
-            pi = pi->pNext;
         }
     }
     return false;
 }
 
 /**************************************************************************
- 35	sub_1d94	ok++
+ 35	sub_1d94	ok++ (PMO)
  **************************************************************************/
 bool sub_1d94() {
     register inst_t *pi;
 
-    if (gPi->aux != 0 && (pi = gPi->iLhs->oPSym->val.pInst)) {
-        for (word_6fe3 = gPi; sub_4625(pi->pNext) && instructionsSame(word_6fe3->pNext, pi->pNext); pi = pi->pNext)
-            word_6fe3 = word_6fe3->pNext;
-
-        if (word_6fe3 != gPi) {
+    if (gPi->aux != 0 && (pi = gPi->iLhs->oPSym->p.pInst)) {
+        for (seq1 = gPi; sub_4625(pi->pNext) && instructionsSame(seq1->pNext, pi->pNext); pi = pi->pNext) {
+            HEAP(pi->pNext);
+            HEAP(seq1->pNext);
+            seq1 = seq1->pNext;
+        }
+        if (seq1 != gPi) {
             if (pi->pNext->type == T_SYMBOL)
                 pi = pi->pNext;
             else
-                pi = allocSymbol(pi);
-            word_6fe3                      = allocInst(word_6fe3);
-            word_6fe3->iLhs                = allocOperand();
-            word_6fe3->iLhs->type          = T_CONST;
-            word_6fe3->iPSym->val.pOperand = pi->iLhs;
-            word_6fe3->type                = gPi->type;
-            word_6fe3->aux                 = gPi->aux;
+                pi = syntheticLabel(pi);
+            seq1                  = allocInst(seq1);
+            seq1->iLhs            = allocOperand();
+            seq1->iLhs->type      = T_CONST;
+            seq1->iLhs->oPOperand = pi->iLhs;
+            seq1->type            = gPi->type;
+            seq1->aux             = gPi->aux;
             ++pi->aux;
             removeInstruction(gPi);
-            ++optimiseCounters[8]; /* 6fcd opt_msg[8] = "Common code seq's" */
-            return hasChanged = true;
+            return logOptimise(O_CMN_CODE_SEQ); /* 6fcd opt_msg[8] = "Common code seq's" */
         }
     }
     return false;
 }
 
 /**************************************************************************
- 36	sub_1ec1	ok	Used in optimize
+ 36	sub_1ec1	ok++ (PMO)
  **************************************************************************/
 void sub_1ec1() {
     int l1;
-    register inst_t *pi;
-
     sub_4601();
-    for (gPi = root; gPi; gPi = pi->pNext) {
-        switch ((pi = gPi)->type) {
+    for (gPi = root; gPi; gPi = gPi->pNext) {
+        switch (gPi->type) {
         case T_LD:
             if (!key_r) {
                 if (sub_24c0())
                     continue;
-                if ((pi = gPi)->iLhs->type == T_REG && pi->iLhs->aux == REG_A && sub_4682(pi->iRhs) &&
-                    !sub_47e0(REG_F, (pi = gPi)->pNext, gPi)) {
-                    pi       = gPi;
-                    pi->iRhs = 0;
-                    pi->type = T_3;
-                    pi->aux  = 0xA8; /* xor */
-                    gPi->str = 0;
-                    ++optimiseCounters[1]; /* 6fbf opt_msg[1] = "Jumps to jumps" */
-                    hasChanged = true;
+                if (gPi->iLhs->type == T_REG && gPi->iLhs->aux == REG_A && sub_4682(gPi->iRhs) &&
+                    !sub_47e0(REG_F, gPi->pNext, gPi)) {
+                    gPi->iRhs   = NULL;
+                    gPi->type   = T_3;
+                    gPi->aux    = I_XOR; /* xor */
+                    gPi->opCode = NULL;
+                    logOptimise(O_XOR_A); /* 6fbf opt_msg[14] = "xor a's used" */
                 }
             }
-            sub_2bdb();
             break;
         case T_SYMBOL:
-            for (; (pi = gPi)->type == T_SYMBOL && pi->aux == 0; gPi = (pi = gPi)->pNext) {
+            for (; gPi->type == T_SYMBOL && gPi->aux == 0; gPi = gPi->pNext) {
                 removeInstruction(gPi);
-                optimiseCounters[4]++; /* 6fc5 opt_msg[4] = "Unref'ed labels" */
-                hasChanged = true;
+                logOptimise(O_UNREF_LAB); /* 6fc5 opt_msg[4] = "Unref'ed labels" */
             }
             /* fall through */
         case T_TWOBYTE:
         case T_CALL:
             sub_4601();
-            sub_2bdb();
             break;
         case T_EX:
-            if ((pi = gPi)->iLhs->type == T_REG) {
+            if (gPi->iLhs->type == T_REG) {
                 if (sub_23c1())
-                    break;
+                    continue;
                 swapHLDE();
             } else
-                sub_4544((pi = gPi)->iRhs->type);
-            sub_2bdb();
+                sub_4544(gPi->iRhs->aux);
             break;
-        case T_ONEBYTE:
-            switch ((pi = gPi)->aux) {
-            case P_NOP:
-            case P_SCF:
-            case P_CCF:
-            case P_HALT:
-            case P_DI:
-            case P_EI:
+        case T_SIMPLE:
+            switch (gPi->aux) {
+            case I_NOP:
+            case I_SCF:
+            case I_CCF:
+            case I_HALT:
+            case I_DI:
+            case I_EI:
                 break;
-            case P_EXX:
+            case I_EXX:
                 sub_4601();
                 break;
             default:
                 sub_4544(REG_AF);
                 break;
             }
-            sub_2bdb();
             break;
         case T_BIT:
-            if ((pi = gPi)->aux != 0x40)
-                if (pi->iRhs->type == T_REG)
-                    sub_4544(pi->iRhs->aux);
-                else if ((l1 = sub_46b1((pi = gPi)->iRhs, 0)) != -1)
+            if (gPi->aux != 0x40)
+                if (gPi->iRhs->type == T_REG)
+                    sub_4544(gPi->iRhs->aux);
+                else if ((l1 = sub_46b1(gPi->iRhs, 0)) != -1)
                     sub_4544(l1);
-            sub_2bdb();
             break;
-        case T_CARR:
         caseCommon:
-            if ((pi = gPi)->iLhs->type == T_REG) {
-                if (sub_47e0(pi->iLhs->aux, (pi = gPi)->pNext, gPi)) {
-                    if ((pi = gPi)->iLhs->type == T_REG)
-                        sub_4544(pi->iLhs->type);
-                    else
-                        sub_44b2(pi->iLhs);
-                    sub_2bdb();
-                    break;
-                } else if (((pi = gPi)->type != T_INCDEC || pi->iLhs->aux >= REG_BC) &&
-                           !sub_47e0(REG_F, (pi = gPi)->pNext, gPi)) {
+        case T_CARR:
+            if (gPi->iLhs->type == T_REG && !sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
+                if ((gPi->type == T_INCDEC && gPi->iLhs->aux >= REG_BC) || !sub_47e0(REG_F, gPi->pNext, gPi)) {
                     removeInstruction(gPi);
-                    optimiseCounters[11]++; /* 6fd3 opt_msg[11] = "Redundant operations" */
-                    hasChanged = true;
-                    break;
+                    logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
+                    continue;
                 }
             }
+
             /* fall through */ /* m25 */
-        case T_6:
+        case T_SHIFT:
         case T_0xE:
-            pi = gPi;
-            if (pi->iLhs->type == T_REG)
-                sub_4544(pi->iLhs->aux);
+            if (gPi->iLhs->type == T_REG)
+                sub_4544(gPi->iLhs->aux);
             else
-                sub_44b2(pi->iLhs);
-            sub_2bdb();
+                sub_44b2(gPi->iLhs);
             break;
         case T_CADD:
-            if (!sub_47e0(pi->iLhs->aux, (pi = gPi)->pNext, gPi)) {
+            if (!sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
                 removeInstruction(gPi);
-                optimiseCounters[11]++; /* 6fd3 opt_msg[11] = "Redundant operations" */
-                hasChanged = true;
-            } else if ((pi = gPi)->iRhs->type != T_CONST || abs(pi->iRhs->oIVal) != 1 || (pi = gPi)->iRhs->oPOperand)
+                logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
+                continue;
+            } else if (gPi->iRhs->type == T_CONST && abs(gPi->iRhs->oVal) == 1 && !gPi->iRhs->oPOperand) {
+                gPi->type   = T_INCDEC;
+                gPi->aux    = gPi->iRhs->oVal != 1 ? SI_DEC : SI_INC;
+                gPi->opCode = NULL;
+                freeOperand(gPi->iRhs);
+                gPi->iRhs = NULL;
+                logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
+            } else
                 goto caseCommon;
-            else {
-                pi->type        = T_INCDEC;
-                (pi = gPi)->aux = pi->iRhs->oIVal == 1 ? REG_L : REG_H;
-                gPi->str        = 0;
-                freeOperand(pi->iRhs);
-                (pi = gPi)->iRhs = 0;
-                optimiseCounters[13]++; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-                hasChanged = 1;
-            }
             /* fall through */
         case T_INCDEC:
-            if ((pi = gPi)->iLhs->type != T_REG)
+            if (gPi->iLhs->type != T_REG)
                 goto caseCommon;
-            if (pi->iLhs->aux != REG_HL)
+            if (gPi->iLhs->aux != REG_HL)
                 goto caseCommon;
 
-            if (!sub_2ef8())
-                sub_2bdb();
+            if (sub_2ef8())
+                continue;
             break;
         case T_DJNZ:
             sub_4544(0);
-            sub_2bdb();
             break;
         case T_STK:
-            if ((pi = gPi)->aux == P_PUSH) { /* push */
-                if (pi->iLhs->aux == REG_IY && (l1 = sub_46b1(&regValues[17], REG_IY)) != -1 && l1 != REG_IY) {
-                    (pi = gPi)->iLhs->aux = pi->type;
-                    optimiseCounters[13]++; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-                    hasChanged = true;
+            if (gPi->aux == I_PUSH) { /* push */
+                if (gPi->iLhs->aux == REG_IY && (l1 = sub_46b1(&regValues[17], REG_IY)) != -1 && l1 != REG_IY) {
+                    gPi->iLhs->aux = l1;
+                    logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
                 }
                 /* check for pop */
-                if ((pi = gPi)->pNext->type == T_STK && pi->pNext->aux == P_POP &&
-                    pi->iLhs->aux == pi->pNext->iLhs->aux) {
-                    removeInstruction(pi->pNext);
+                /* OTIMISER: fails to optimise the gPi->pNext-aux below */
+                if (gPi->pNext->type == T_STK && gPi->pNext->aux == I_POP && gPi->iLhs->aux == gPi->pNext->iLhs->aux) {
+                    removeInstruction(gPi->pNext);
                     removeInstruction(gPi);
-                    hasChanged = true;
+                    logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
+                } else
                     break;
-                }
             } else {
-                sub_4544(pi->iLhs->type); /* m39: */
-                if ((pi = gPi)->pAlt->type == T_STK && pi->pAlt->aux == P_PUSH) {
-
-                    /* ambiguious code - pi could be modified on rhs before using on lhs
-                     * on hitech generated code gets lhs before rhs
-                     */
-                    regValues[(pi = gPi)->iLhs->aux] = regValues[pi->pAlt->iLhs->aux];
-                    if ((pi = gPi)->iLhs->aux == REG_IY && pi->pNext->type == T_STK && pi->pNext->iLhs->aux == REG_IY) {
-                        pi->pNext->iLhs->aux = pi->pAlt->iLhs->aux;
-                        ++optimiseCounters[13]; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-                        hasChanged = 1;
+                sub_4544(gPi->iLhs->aux); /* m39: */
+                if (gPi->pAlt->type == T_STK && gPi->pAlt->aux == I_PUSH) {
+                    regValues[gPi->iLhs->aux] = regValues[gPi->pAlt->iLhs->aux];
+                    if (gPi->iLhs->aux == REG_IY && gPi->pNext->type == T_STK && gPi->pNext->iLhs->aux == REG_IY) {
+                        gPi->pNext->iLhs->aux = gPi->pAlt->iLhs->aux;
+                        logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
                     }
                 }
+                break;
             }
-            sub_2bdb();
-            break;
+            continue;
         case T_3:
-            if (!sub_2d3b())
-                sub_2bdb();
+            if (sub_2d3b())
+                continue;
             break;
         }
-        pi = gPi;
+        sub_2bdb();
     }
 }
 
 /**************************************************************************
- 37	sub_23c1	ok--
+ 37	sub_23c1	ok++ (PMO)
  **************************************************************************/
 bool sub_23c1() {
     register inst_t *pi;
 
-    pi = gPi->pNext;
-    if (pi->type == T_STK && pi->aux == P_PUSH && !sub_47e0(gPi->iLhs->aux, pi->pNext, gPi) &&
-        !sub_47e0(gPi->iRhs->aux, pi->pNext, gPi)) {
+    if ((pi = gPi->pNext)->type == T_STK && pi->aux == I_PUSH && pi->iLhs->aux == gPi->iLhs->aux &&
+        !sub_47e0(gPi->iLhs->aux, pi->pNext, gPi) && !sub_47e0(gPi->iRhs->aux, pi, gPi)) {
         pi->iLhs->aux = gPi->iRhs->aux;
         removeInstruction(gPi);
         gPi = pi;
@@ -1995,189 +1978,167 @@ bool sub_23c1() {
         removeInstruction(gPi);
     } else
         return false;
-    ++optimiseCounters[15]; /* 6fdb opt_msg[15] = "Redundant ex de,hl's" */
-    hasChanged = 1;
-    return hasChanged;
+    return logOptimise(O_RED_EX_DEHL); /* 6fdb opt_msg[15] = "Redundant ex de,hl's" */
 }
 
 /**************************************************************************
- 38	sub_24c0	ok++
+ 38	sub_24c0	ok++ (PMO)
  **************************************************************************/
 bool sub_24c0() {
-    inst_t *l1;
+    inst_t const *l1;
     operand_t *l2;
     int reg;
-    register inst_t *pi;
 
     if (sub_3053())
         return true;
-    for (;;) { /* trick to remove need for gotos */
-        if ((pi = gPi)->iLhs->type == T_REG &&
-            (pi->iRhs->type == T_INDEXED || pi->iRhs->type == T_ADDRREF || pi->iRhs->type == T_CONST)) {
-            if (sub_29c3())
-                return true;
-        } else if ((pi = gPi)->iRhs->type == T_CONST && (pi = gPi)->iLhs->type == T_INDEXED) {
-            if ((reg = sub_46b1(pi->iRhs, REG_A)) != -1) {
-                (pi = gPi)->iRhs->type = T_REG; /* m6: */
-                pi->iRhs->aux          = reg;
-                ++optimiseCounters[13]; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-                hasChanged = true;
-                return true;
-            }
-            sub_44b2((pi = gPi)->iLhs);
-        } else if ((pi = gPi)->iRhs->type == T_REG &&
-                   ((pi = gPi)->iLhs->type == T_INDEXED || pi->iLhs->type == T_ADDRREF)) {
-            if (operandsSame((pi = gPi)->iLhs, &regValues[(pi = gPi)->iRhs->aux]))
-                break;
-            sub_44b2((pi = gPi)->iLhs);
-            if (regValues[(pi = gPi)->iRhs->aux].type == 0) {
-                sub_4544((pi = gPi)->iRhs->aux);
-                regValues[(pi = gPi)->iRhs->aux] = *(pi = gPi)->iLhs;
-            }
-
-        } else if ((pi = gPi)->iLhs->type == T_REG && (pi = gPi)->iRhs->type != T_REG) { /* 2824 */
-            if (pi->iLhs->aux == pi->iRhs->aux ||
-                operandsSame(&regValues[(pi = gPi)->iLhs->aux], &regValues[pi->iRhs->aux])) {
-                break;
-            }
-            word_6fe5 = (pi = gPi)->pNext;
-            if (word_6fe5->type == T_LD && operandsSame((pi = word_6fe5)->iLhs, pi->iRhs) &&
-                operandsSame((pi = word_6fe5)->iRhs, (pi = gPi)->iLhs) != 0) {
-                removeInstruction(word_6fe5);
-                optimiseCounters[12]++; /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
-                hasChanged = true;
-            }
-            if (!sub_47e0(pi->iLhs->aux, (pi = gPi)->pNext, gPi))
-                break;
-            if ((pi = gPi)->iLhs->aux == REG_E && pi->iRhs->aux == REG_L && (word_6fe5 = pi->pNext)->type == T_LD &&
-                (pi = word_6fe5)->iLhs->type == T_REG && pi->iLhs->aux == REG_D && pi->iRhs->type == T_REG &&
-                pi->iRhs->aux == REG_H && !sub_47e0(REG_HL, pi->pNext, gPi)) {
-                removeInstruction((pi = gPi)->pNext);
-                pi            = gPi;
-                pi->type      = T_EX;
-                gPi->str      = 0;
-                pi->iLhs->aux = REG_DE;
-                pi->iRhs->aux = REG_HL;
-                swapHLDE();
-                ++optimiseCounters[13]; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-                hasChanged = true;
-                return true;
-            }
-            sub_4544((pi = gPi)->iLhs->aux);
-            regValues[(pi = gPi)->iLhs->aux] = regValues[(pi = gPi)->iRhs->aux];
-        } else if ((pi = gPi)->iLhs->type == T_REG)
-            sub_4544((pi = gPi)->iLhs->aux);
-
-        if ((pi = gPi)->iLhs->type == T_REG && (pi = gPi)->iRhs->type == T_REG) {
-            if ((l1 = pi->pAlt)->type == T_LD && (l2 = l1->iLhs)->type == T_REG && l2->aux == pi->iRhs->aux &&
-                !sub_47e0(l2->aux, pi->pNext, l1) && sub_1369(l1->iRhs)) {
-                sub_4544(l2->aux);
-                regValues[l2->aux = (pi = gPi)->iLhs->aux] = *l1->iRhs;
-                break;
-            }
-            if ((l1 = (pi = gPi)->pNext)->type == T_LD && (l2 = l1->iRhs)->type == T_REG && l2->aux == pi->iLhs->aux &&
-                !sub_47e0(l2->aux, l1->pNext, gPi) && sub_1369(l1->iLhs)) {
-                sub_4544(l2->aux);
-                l2->aux = (pi = gPi)->iRhs->aux;
-                break;
-            }
+    if (gPi->iLhs->type == T_REG &&
+        (gPi->iRhs->type == T_INDEXED || gPi->iRhs->type == T_ADDRREF || gPi->iRhs->type == T_CONST)) {
+        if (sub_29c3())
+            return true;
+    } else if (gPi->iRhs->type == T_CONST && gPi->iLhs->type == T_INDEXED) {
+        if ((reg = sub_46b1(gPi->iRhs, REG_A)) != -1) {
+            gPi->iRhs->type = T_REG; /* m6: */
+            gPi->iRhs->aux  = reg;
+            return logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
         }
-        return false; /* m26: */
-    }
+        sub_44b2(gPi->iLhs);
+    } else if (gPi->iRhs->type == T_REG && (gPi->iLhs->type == T_INDEXED || gPi->iLhs->type == T_ADDRREF)) {
+        if (operandsSame(gPi->iLhs, &regValues[gPi->iRhs->aux])) {
+        kill:
+            removeInstruction(gPi);
+            return logOptimise(O_RED_LD); /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
+        }
+        sub_44b2(gPi->iLhs);
+        if (regValues[gPi->iRhs->aux].type == T_INVALID) {
+            sub_4544(gPi->iRhs->aux);
+            regValues[gPi->iRhs->aux] = *gPi->iLhs;
+        }
 
-    removeInstruction(gPi);
-    ++optimiseCounters[12]; /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
-    hasChanged = true;
-    return true;
+    } else if (gPi->iLhs->type == T_REG && gPi->iRhs->type == T_REG) { /* 2824 */
+        if (gPi->iLhs->aux == gPi->iRhs->aux || operandsSame(&regValues[gPi->iLhs->aux], &regValues[gPi->iRhs->aux])) {
+            goto kill;
+        }
+
+        if ((seq2 = gPi->pNext)->type == T_LD && operandsSame(seq2->iLhs, gPi->iRhs) &&
+            operandsSame(seq2->iRhs, gPi->iLhs)) {
+            removeInstruction(seq2);
+            logOptimise(O_RED_LD); /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
+        }
+        if (!sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi))
+            goto kill;
+        if (gPi->iLhs->aux == REG_E && gPi->iRhs->aux == REG_L && (seq2 = gPi->pNext)->type == T_LD &&
+            seq2->iLhs->type == T_REG && seq2->iLhs->aux == REG_D && seq2->iRhs->type == T_REG &&
+            seq2->iRhs->aux == REG_H && !sub_47e0(REG_HL, seq2->pNext, gPi)) {
+            removeInstruction(gPi->pNext);
+            gPi->type      = T_EX;
+            gPi->opCode    = NULL;
+            gPi->iLhs->aux = REG_DE;
+            gPi->iRhs->aux = REG_HL;
+            swapHLDE();
+            return logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
+        }
+        sub_4544(gPi->iLhs->aux);
+        regValues[gPi->iLhs->aux] = regValues[gPi->iRhs->aux];
+    } else if (gPi->iLhs->type == T_REG)
+        sub_4544(gPi->iLhs->aux);
+
+    if (gPi->iLhs->type == T_REG && gPi->iRhs->type == T_REG) {
+        if ((l1 = gPi->pAlt)->type == T_LD && (l2 = l1->iLhs)->type == T_REG && l2->aux == gPi->iRhs->aux &&
+            !sub_47e0(l2->aux, gPi->pNext, l1) && sub_1369(l1->iRhs)) {
+            sub_4544(l2->aux);
+            regValues[l2->aux = gPi->iLhs->aux] = *l1->iRhs;
+            goto kill;
+        }
+        if ((l1 = gPi->pNext)->type == T_LD && (l2 = l1->iRhs)->type == T_REG && l2->aux == gPi->iLhs->aux &&
+            !sub_47e0(l2->aux, l1->pNext, gPi) && sub_1369(l1->iLhs)) {
+            sub_4544(l2->aux);
+            l2->aux = gPi->iRhs->aux;
+            goto kill;
+        }
+    }
+    return false; /* m26: */
 }
 
 /**************************************************************************
- 39	sub_29c3	ok+
+ 39	sub_29c3	ok++ (PMO)
+ Code is identical, except that the optimiser moves the code in the first if block
+ to a different location. The jp conditions are changed to reflect this)
  **************************************************************************/
 bool sub_29c3() {
     int l1;
     inst_t *pi1;
-    register inst_t *pi;
 
-    if (operandsSame((pi = gPi)->iRhs, &regValues[(pi = gPi)->iLhs->aux]) ||
-        !sub_47e0(pi->iLhs->aux, (pi = gPi)->pNext, gPi)) {
+    if (operandsSame(gPi->iRhs, &regValues[gPi->iLhs->aux]) || !sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
+        /* OPTIMISER: this block is located differently */
         removeInstruction(gPi);
-        ++optimiseCounters[12]; /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
-        return hasChanged = true;
+        return logOptimise(O_RED_LD); /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
     }
-
-    sub_4544((pi = gPi)->iLhs->aux);
-    if ((pi = gPi)->iLhs->aux <= REG_HL) {
-        pi = gPi;
-        if ((l1 = sub_46b1(pi->iRhs, pi->iLhs->aux)) != -1) {
-            /* code hikes (pi = gPi)->iLhs->aux before test !!! */
-            regValues[(pi = gPi)->iLhs->aux] = *(pi = gPi)->iRhs;
-            pi                               = gPi;
-            pi->iRhs->type                   = T_REG;
-            pi->iRhs->aux                    = l1;
-            if (pi->iLhs->aux >= REG_BC) { /* goto m5; */
+    sub_4544(gPi->iLhs->aux);
+    if (gPi->iLhs->aux <= REG_HL) {
+        if ((l1 = sub_46b1(gPi->iRhs, gPi->iLhs->aux)) != -1) {
+            /* code hikes gPi->iLhs->aux before test !!! */
+            regValues[gPi->iLhs->aux] = *gPi->iRhs;
+            gPi                       = gPi;
+            gPi->iRhs->type           = T_REG;
+            gPi->iRhs->aux            = l1;
+            if (gPi->iLhs->aux >= REG_BC) { /* goto m5; */
                 pi1             = allocInst(gPi);
                 pi1->iLhs       = allocOperand();
                 pi1->iRhs       = allocOperand();
                 pi1->iLhs->type = T_REG;
                 pi1->iRhs->type = T_REG;
-                pi1->iLhs->aux  = l6c50h[(pi = gPi)->iLhs->aux].c0;
-                pi1->iRhs->aux  = l6c50h[pi->iRhs->aux].c0;
-                pi1->iLhs->aux  = l6c50h[pi->iLhs->aux].c1;
-                pi1->iRhs->aux  = l6c50h[pi->iRhs->aux].c1;
+                pi1->iLhs->aux  = regHiLoMap[gPi->iLhs->aux].hiReg;
+                pi1->iRhs->aux  = regHiLoMap[gPi->iRhs->aux].hiReg;
+                gPi->iLhs->aux  = regHiLoMap[gPi->iLhs->aux].loReg;
+                gPi->iRhs->aux  = regHiLoMap[gPi->iRhs->aux].loReg;
                 pi1->type       = T_LD; /* OP_LD */
                 gPi             = pi1;
             }
-            ++optimiseCounters[13]; /* 6fd7 opt_msg[13] = "Simplified addresses" */
-            return hasChanged = true;
+            return logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
         }
     }
-    regValues[(pi = gPi)->iLhs->aux] = *(pi = gPi)->iRhs;
+    regValues[gPi->iLhs->aux] = *gPi->iRhs;
     return false;
 }
 
 /**************************************************************************
- 40	sub_2bdb	ok--
+ 40	sub_2bdb	ok++ (PMO)
  **************************************************************************/
 
 bool sub_2bdb() {
     register inst_t *pi;
-
-    if (gPi->type == T_STK && gPi->iLhs->aux == REG_BC && gPi->aux == P_POP && !sub_47e0(REG_BC, gPi->pNext, gPi)) {
-        pi = gPi;
-        do {
-            pi = pi->pNext;
-            if (pi == 0 || pi->type == T_JP || pi->type == T_CALL || pi->type == T_SYMBOL)
+    if (gPi->type == T_STK && gPi->iLhs->aux == REG_BC && gPi->aux == I_POP && !sub_47e0(REG_BC, gPi->pNext, gPi)) {
+        for (pi = gPi->pNext; pi; pi = pi->pNext) {
+            if (pi->type == T_JP || pi->type == T_CALL || pi->type == T_SYMBOL)
                 break;
-
-            if (pi->type == T_STK) {
-                if (pi->aux != P_PUSH || pi->pNext->type != T_STK || pi->pNext->aux != P_POP)
+            if (pi->type == T_STK)
+                if (pi->aux != I_PUSH || pi->pNext->type != T_STK || pi->pNext->aux != I_POP)
                     break;
-                pi = pi->pNext;
-            }
+                else
+                    pi = pi->pNext;
             if (pi->type == T_EX || (pi->type == T_LD && pi->iLhs->type == T_REG))
                 if (pi->iLhs->aux == REG_SP)
                     break;
-        } while (pi->type != T_LD || pi->iLhs->type != T_REG);
-
-        if (pi->type == T_STK && pi->aux == P_PUSH && pi->iLhs->aux == REG_HL && !sub_47e0(REG_HL, pi->pNext, pi)) {
+        }
+        if (pi->type == T_STK && pi->aux == I_PUSH && pi->iLhs->aux == REG_HL && !sub_47e0(REG_HL, pi->pNext, pi)) {
             removeInstruction(gPi);
-            pi->str        = 0;
+            pi->opCode     = NULL;
             pi->type       = T_EX;
             pi->aux        = 0;
             pi->iRhs       = pi->iLhs;
             pi->iLhs       = allocOperand();
             pi->iLhs->type = T_REGREF;
             pi->iLhs->aux  = REG_SP;
-            ++optimiseCounters[10]; /* 6fd1 opt_msg[10] = "Ex (sp),hl'pi used" */
-            return hasChanged = true;
+            return logOptimise(O_EX_SPHL); /* 6fd1 opt_msg[10] = "Ex (sp),hl'pi used" */
         }
     }
     return false;
 }
 
 /**************************************************************************
- 41	sub_2d3b	ok
+ 41	sub_2d3b	ok++ (PMO)
+ six of the basic blocks are in different positions but the code in the blocks
+ is the same and the logic flow is maintained.
  **************************************************************************/
 
 bool sub_2d3b() {
@@ -2185,173 +2146,167 @@ bool sub_2d3b() {
 
     switch (gPi->aux) {
     default:
-        if (sub_4682(gPi->iLhs) == 0) {
-            if ((po = gPi->iLhs)->type != T_REG || (gPi->aux & 0x80)) {
-                sub_4544(REG_AF);
-                return false;
-            }
+        if (sub_4682(gPi->iLhs))
+            gPi->aux = I_OR;
+        else if ((po = gPi->iLhs)->type != T_REG || po->aux != REG_A) {
+            sub_4544(REG_AF);
+            return false;
+        } else
             break;
-        }
-        gPi->aux = P_OR;
         /* fall through */
-    case P_OR:
+    case I_OR:
         po = gPi->iLhs; /* case 0xB0 */
-        if (sub_4682(po) != 0) {
+        if (sub_4682(po)) {
             po->type = T_REG;
             po->aux  = REG_A;
         }
         /* fall through */
-    case P_SUB:
+    case I_SUB:
     caseP_SUB: /* common */
-        if (gPi->iLhs->type != T_REG || gPi->iLhs->aux != REG_A) {
-            sub_4544(REG_AF);
-            return 0;
+        if (gPi->iLhs->type == T_REG && gPi->iLhs->aux == REG_A) {
+            if (gPi->aux == I_SUB)
+                break;
+            else if (!sub_47e0(REG_F, gPi->pNext, gPi)) {
+                removeInstruction(gPi);
+                return logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
+            }
+            return false;
         }
-        if (gPi->aux != P_SUB) {
-            if (sub_47e0(REG_F, gPi->pNext, gPi))
-                return false;
-            goto remove;
-        }
-        break;
-    case P_AND:
+        sub_4544(REG_AF);
+        return false;
+    case I_AND:
         po = gPi->iLhs;
         if (sub_4682(po))
             break;
-        if (po->type == T_CONST && po->oPOperand == 0 && po->aux == 255 /* -1 */) {
-            gPi->aux = P_OR;
+        if (po->type == T_CONST && !po->oPOperand && (po->oVal & 0xff) == 255 /* -1 */) {
+            gPi->aux = I_OR;
             po->type = T_REG;
             po->aux  = REG_A;
         }
         goto caseP_SUB;
-    case P_CP:
-        return 0; /* case 0xB8 */
+
+    case I_CP:
+        return false; /* case 0xB8 */
     }
 
-    if (sub_47e0(REG_F, gPi->pNext, gPi) || sub_4682(&regValues[REG_A]) == 0) {
-        gPi->aux                   = P_XOR;
-        gPi->str                   = 0;
-        gPi->iLhs->type            = T_REG;
-        gPi->iLhs->aux             = REG_A;
-        regValues[REG_A].type      = T_CONST;
-        regValues[REG_A].oPOperand = 0;
-        regValues[REG_A].oIVal     = 0;
-        return false;
+    if (!sub_47e0(REG_F, gPi->pNext, gPi) && sub_4682(&regValues[REG_A])) {
+        removeInstruction(gPi);
+        return logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
     }
-remove:
-    removeInstruction(gPi);
-    ++optimiseCounters[11]; /* 6fd3 opt_msg[11] = "Redundant operations" */
-    return hasChanged = true;
+    gPi->aux                   = I_XOR;
+    gPi->opCode                = NULL;
+    gPi->iLhs->type            = T_REG;
+    gPi->iLhs->aux             = REG_A;
+    regValues[REG_A].type      = T_CONST;
+    regValues[REG_A].oPOperand = NULL;
+    regValues[REG_A].oVal      = 0;
+    return false;
 }
 
 /**************************************************************************
- 42	sub_2ef8	ok++
+ 42	sub_2ef8	ok++ (PMO)
  **************************************************************************/
 bool sub_2ef8() {
     operand_t tmp;
     int l2;
-    register inst_t *pi;
 
-    if ((pi = gPi)->pNext->type == T_INCDEC && operandsSame(pi->iLhs, pi->pNext->iLhs)) {
-        if (pi->pNext->aux != (pi = gPi)->aux)
-            removeInstruction(pi->pNext);
+    if (gPi->pNext->type == T_INCDEC && operandsSame(gPi->iLhs, gPi->pNext->iLhs) && gPi->pNext->aux != gPi->aux)
+        removeInstruction(gPi->pNext);
 
-    } else if (sub_47e0(REG_HL, (pi = gPi)->pNext, gPi)) {
-        tmp = regValues[18];
-        l2  = word_7006;
-        if (regValues[REG_HL].type != 0 ||
+    else if (sub_47e0(REG_HL, gPi->pNext, gPi)) {
+        tmp = regValues[REG_TRACKER];
+        l2  = hlDelta;
+        if (regValues[REG_HL].type != T_INVALID ||
             (regValues[REG_L].type == T_INDEXED && regValues[REG_H].type == T_INDEXED &&
-             regValues[REG_L].aux == regValues[REG_H].aux && regValues[REG_L].oIVal + 1 == regValues[REG_H].oIVal)) {
-            if (regValues[REG_HL].type != 0)
+             regValues[REG_L].aux == regValues[REG_H].aux && regValues[REG_L].oVal + 1 == regValues[REG_H].oVal)) {
+            if (regValues[REG_HL].type != T_INVALID)
                 tmp = regValues[REG_HL];
             else
                 tmp = regValues[REG_L];
-            l2  = 0;
+            l2 = 0;
         }
         sub_4544(REG_HL);
-        regValues[18] = tmp;
-        word_7006     = l2;
-        if ((pi = gPi)->aux == REG_H)
-            ++word_7006;
+        regValues[REG_TRACKER] = tmp;
+        hlDelta                = l2;
+        if (gPi->aux == SI_INC)
+            ++hlDelta;
         else
-            --word_7006;
+            --hlDelta;
         return false;
     }
     removeInstruction(gPi);
-    ++optimiseCounters[11]; /* 6fd3 opt_msg[11] = "Redundant operations" */
-    return hasChanged = true;
+    return logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
 }
 
 /**************************************************************************
- 42a	sub_3053	ok+-
+ 42a	sub_3053	ok++ (PMO)
  **************************************************************************/
 bool sub_3053() {
     int l1;
     int l2;
-    register inst_t *pi;
 
-    if ((pi = gPi)->iLhs->type != T_REG || ((l1 = pi->iLhs->aux) != REG_HL && l1 != REG_L))
+    if (gPi->iLhs->type != T_REG || ((l1 = gPi->iLhs->aux) != REG_HL && l1 != REG_L))
         return false;
 
-    if (!operandsSame((pi = gPi)->iRhs, &regValues[18]))
+    if (!operandsSame(gPi->iRhs, &regValues[REG_TRACKER]))
         return false;
 
-    l2 = word_7006;
-    if ((pi = gPi)->iLhs->aux == REG_L) {
-        if ((word_6fe5 = pi->pNext)->type != T_LD || (pi = word_6fe5)->iLhs->type != T_REG || pi->iLhs->aux != REG_H ||
-            pi->iRhs->oIVal != (pi = gPi)->iRhs->oIVal + 1) /* note last test order might be swapped */
+    l2 = hlDelta;
+    if (gPi->iLhs->aux == REG_L) {
+        if ((seq2 = gPi->pNext)->type != T_LD || seq2->iLhs->type != T_REG || seq2->iLhs->aux != REG_H ||
+            seq2->iRhs->oVal != gPi->iRhs->oVal + 1)
             return false;
 
         sub_4544(REG_HL);
-        regValues[REG_L] = *(pi = gPi)->iLhs;
-        regValues[REG_H] = *(pi = word_6fe5)->iLhs;
-        removeInstruction(word_6fe5);
+        regValues[REG_L] = *gPi->iLhs;
+        regValues[REG_H] = *seq2->iLhs;
+        removeInstruction(seq2);
     } else {
         sub_4544(REG_HL);
-        regValues[REG_HL] = *(pi = gPi)->iLhs;
+        regValues[REG_HL] = *gPi->iLhs;
     }
-    gPi = (pi = gPi)->pAlt; /* m4: */
-    removeInstruction((pi = gPi)->pNext);
+    gPi = gPi->pAlt; /* m4: */
+    removeInstruction(gPi->pNext);
     while (l2 != 0) {
-        gPi              = allocInst(gPi);
-        (pi = gPi)->type = T_INCDEC;
-        (pi = gPi)->iLhs = allocOperand();
-        pi->iLhs->type   = T_REG;
-        pi->iLhs->aux    = REG_HL;
+        gPi             = allocInst(gPi);
+        gPi->type       = T_INCDEC;
+        gPi->iLhs       = allocOperand();
+        gPi->iLhs->type = T_REG;
+        gPi->iLhs->aux  = REG_HL;
         if (l2 < 0) {
             ++l2;
-            pi->aux = REG_H;
+            gPi->aux = SI_INC;
         } else {
             --l2;
-            (pi = gPi)->aux = REG_L;
+            gPi->aux = SI_DEC;
         }
     }
-    ++optimiseCounters[12]; /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
-    return hasChanged = true;
+    return logOptimise(O_RED_LD); /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
 }
 
 /**************************************************************************
- 43	sub_31ee	ok++
+ 43	sub_31ee	ok++ (PMO)
  **************************************************************************/
 void swapHLDE() {
     operand_t pi;
 
-    pi                 = regValues[REG_HL];
-    regValues[REG_HL]  = regValues[REG_DE];
-    regValues[REG_DE]  = pi;
+    pi                          = regValues[REG_HL];
+    regValues[REG_HL]           = regValues[REG_DE];
+    regValues[REG_DE]           = pi;
 
-    pi                 = regValues[REG_H];
-    regValues[REG_H]   = regValues[REG_D];
-    regValues[REG_D]   = pi;
+    pi                          = regValues[REG_H];
+    regValues[REG_H]            = regValues[REG_D];
+    regValues[REG_D]            = pi;
 
-    pi                 = regValues[REG_L];
-    regValues[REG_L]   = regValues[REG_C];
-    regValues[REG_C]   = pi;
-    regValues[18].type = 0;
+    pi                          = regValues[REG_L];
+    regValues[REG_L]            = regValues[REG_E];
+    regValues[REG_E]            = pi;
+    regValues[REG_TRACKER].type = T_INVALID;
     ;
 };
 
 /**************************************************************************
- 44	pr_psect	sub_328a	ok++
+ 44	pr_psect	sub_328a	ok++ (PMO)
  **************************************************************************/
 void pr_psect(int psect) {
 
@@ -2362,9 +2317,9 @@ void pr_psect(int psect) {
 }
 
 /**************************************************************************
- 45	num_psect	sub_32bf	ok++
+ 45	num_psect	sub_32bf	ok++ (PMO)
  **************************************************************************/
-int num_psect(char *fmt) {
+int num_psect(char const *fmt) {
     int l1;
 
     for (l1 = 0; l1 < 4; ++l1) {
@@ -2375,8 +2330,17 @@ int num_psect(char *fmt) {
 }
 
 /**************************************************************************
- 46	sub_3313	ok+ (PMO) optimiser moves code blocks differently
+ 46	sub_3313	ok++ (PMO) apart from optimiser changes
+ 1) one code optimisation to remove jp, putting condition code on call
+ 2) code block moved with optimisation on shared code
+ 3) two further code block group moves
+ Note the other code is identical and overall the logic is the same
  **************************************************************************/
+typedef struct {
+    int type; /* 01	s->str */
+    int prec; /* 23	s->i_2 */
+} op_t;
+
 term_t *evalExpr() {
     char expectOp;
     op_t *pOp;
@@ -2389,40 +2353,41 @@ term_t *evalExpr() {
     pOp       = &opStack[29];
     pOp->type = T_MARKER;
     pOp->prec = 0;
-    expectOp  = 0;
-    do {                               /* REDUCE loop */
-        for (;;) {                     /* SHIFT loop */
-            if (tokType == T_STRING) { /* in expressions "A" is treated as ascii value of A */
-                if (strlen(yylval.p_char) != 1)
+    expectOp  = false;
+    do {                                 /* REDUCE loop */
+        for (;; tokType = get_token()) { /* SHIFT loop */
+            if (tokType == T_STRING) {   /* in expressions "A" is treated as ascii value of A */
+                if (strlen(yylval.pChar) != 1)
                     pr_warning("Bad character const");
-                yylval.i = *yylval.p_char;
+                yylval.i = *yylval.pChar;
                 tokType  = T_CONST;
             }
-            if (T_JBWD <= tokType && tokType <= T_CONST) { /* get the term, note two terms together is an error */
-                if (expectOp != 0)
+            if (T_FWD <= tokType && tokType <= T_CONST) { /* get the term, note two terms together is an error */
+                if (expectOp)
                     exp_err();
-                expectOp = 1; /* flag as expect operator next */
-                --pTerm;      /* where to push the term */
+                expectOp = true; /* flag as expect operator next */
+                --pTerm;         /* where to push the term */
                 switch (tokType) {
                 case T_SYMBOL: /* its reocatable */
-                    pTerm->u.pSym = yylval.pSym;
-                    pTerm->ival   = 0;
+                    pTerm->tPSym = yylval.pSym;
+                    pTerm->val   = 0;
                     break;
                 case T_CONST: /* its a constant */
-                    pTerm->ival  = yylval.i;
-                    pTerm->tPSym = 0;
+                    pTerm->val   = yylval.i;
+                    pTerm->tPSym = NULL;
                     break;
                 }
-            } else if (T_UPLUS <= tokType && tokType <= T_0x2D) {                 /* get the operator */
-                if (expectOp == 0 && (tokType == T_PLUS || tokType == T_MINUS)) { /* map unary +/- */
+                continue;
+            } else if (T_UPLUS <= tokType && tokType <= T_LASTOP) {           /* get the operator */
+                if (!expectOp && (tokType == T_PLUS || tokType == T_MINUS)) { /* map unary +/- */
                     tokType  = tokType - 7;
                     yylval.i = 8; /* set its precedence */
                 }
-                if (tokType <= T_MARKER) { /* unary operator only allowed when not expecting op*/
+                if (tokType <= T_MARKER) {
                     if (expectOp)
                         exp_err();
                 } else {
-                    if (expectOp == 0 && tokType != T_OPAR) /* binary op only when expecting op*/
+                    if (!expectOp && tokType != T_OPAR) /* binary op only when expecting op*/
                         exp_err();
                     if (pOp->prec >= yylval.i) /* pick up precedence */
                         break;
@@ -2432,14 +2397,14 @@ term_t *evalExpr() {
                     pOp->type = tokType;   /* push its type */
                     if (tokType == T_OPAR) /* if it was a ( then set prec to 1 */
                         yylval.i = 1;
-                    else
-                        expectOp = 0;             /* now expecting a term */
-                    pOp->prec = yylval.i;         /* set the prec */
-                } else if (pOp->type == T_MARKER) /* ) with nothing on stack */
+                    else                                     /* OPTIMISER[2]: code moved to here */
+                        expectOp = false;                    /* now expecting a term */
+                    pOp->prec = yylval.i; /* set the prec */ /* OPTIMISER[3] code block moved / shared */
+                } else if (pOp->type ==
+                           T_MARKER) /* ) with nothing on stack */ /* OPTIMISER[4]: test code block moved */
                     break;
             } else
                 break;
-            tokType = get_token(); /* keep going */
         }
 
         /* REDUCE phase */
@@ -2460,8 +2425,7 @@ term_t *evalExpr() {
     if (&termStack[29] != pTerm) /* oops outstanding term */
         exp_err();
     return &exprResult;
-}
-/**************************************************************************
+} /**************************************************************************
  47	exp_err		sub_32bf	ok++ (PMO)
  **************************************************************************/
 void exp_err() {
@@ -2473,29 +2437,29 @@ void exp_err() {
  48	sub_359e	ok++ (PMO)
  *	Unary Operators
  **************************************************************************/
-void uconv(int opCode, term_t *lhs) {
+void uconv(int op, term_t *lhs) {
 
-    switch (opCode) {
+    switch (op) {
     case T_UMINUS:
-        lhs->ival = -lhs->ival;
+        lhs->val = -lhs->val;
         break;
     case T_NOT:
-        lhs->ival = ~lhs->ival;
+        lhs->val = ~lhs->val;
         break;
     case T_HI:
-        lhs->ival = (lhs->ival >> 8) & 0xff;
+        lhs->val = (lhs->val >> 8) & 0xff;
         break;
     case T_LOW:
-        lhs->ival &= 0xff;
+        lhs->val &= 0xff;
         break;
     case T_UPLUS:
         return;
-    case 0x1B:
+    case T_MARKER:
         return;
     default:
         pr_error("uconv - bad op");
     }
-    if (lhs->tPSym != 0)
+    if (lhs->tPSym)
         rel_err();
     return;
 }
@@ -2504,71 +2468,71 @@ void uconv(int opCode, term_t *lhs) {
  49	sub_3630	ok++ (PMO)
  *	Binary Operators
  **************************************************************************/
-void bconv(int op, term_t *lhs, term_t *rhs) {
+void bconv(int op, term_t *lhs, term_t const *rhs) {
 
     switch (op) {
     case T_PLUS:
-        if (lhs->u.pSym != 0 && rhs->u.pSym != 0)
+        if (lhs->tPSym && rhs->tPSym)
             rel_err();
-        lhs->ival += rhs->ival;
-        if (lhs->u.pSym == 0)
-            lhs->u.pSym = rhs->u.pSym;
+        lhs->val += rhs->val;
+        if (!lhs->tPSym)
+            lhs->tPSym = rhs->tPSym;
         return;
     case T_MINUS:
-        if (rhs->u.pSym != 0)
+        if (rhs->tPSym)
             rel_err();
-        lhs->ival -= rhs->ival;
+        lhs->val -= rhs->val;
         return;
     case T_MUL:
-        lhs->ival *= rhs->ival;
+        lhs->val *= rhs->val;
         break;
     case T_DIV:
-        lhs->ival /= rhs->ival;
+        lhs->val /= rhs->val;
         break;
     case T_MOD:
-        lhs->ival %= rhs->ival;
+        lhs->val %= rhs->val;
         break;
     case T_SHR:
-        lhs->ival >>= rhs->ival;
+        lhs->val >>= rhs->val;
         break;
     case T_SHL:
-        lhs->ival <<= rhs->ival;
+        lhs->val <<= rhs->val;
         break;
     case T_AND:
-        lhs->ival &= rhs->ival;
+        lhs->val &= rhs->val;
         break;
     case T_OR:
-        lhs->ival |= rhs->ival;
+        lhs->val |= rhs->val;
         break;
     case T_XOR:
-        lhs->ival ^= rhs->ival;
+        lhs->val ^= rhs->val;
         break;
     case T_EQ:
-        lhs->ival = lhs->ival == rhs->ival;
+        lhs->val = lhs->val == rhs->val;
         break;
     case T_LE:
-        lhs->ival = rhs->ival < lhs->ival;
+        lhs->val = rhs->val < lhs->val;
         break;
     case T_GE:
-        lhs->ival = lhs->ival < rhs->ival;
+        lhs->val = lhs->val < rhs->val;
         break;
     case T_ULE:
-        lhs->ival = (uint)rhs->ival < (uint)lhs->ival;
+        lhs->val = (uint16_t)rhs->val < (uint16_t)lhs->val;
         break;
     case T_UGE:
-        lhs->ival = (uint)lhs->ival < (uint)rhs->ival;
+        lhs->val = (uint16_t)lhs->val < (uint16_t)rhs->val;
         break;
     default:
         pr_error("Bconv - bad op");
         break;
     }
 
-    if (lhs->u.pSym != 0 || rhs->u.pSym != 0)
+    if (lhs->tPSym || rhs->tPSym)
         rel_err();
 }
 
 /**************************************************************************
- 50	rel_err		ok++
+ 50	rel_err		ok++ (PMO)
  **************************************************************************/
 void rel_err() {
 
@@ -2585,7 +2549,7 @@ operand_t *evalOperand() {
 
     switch (tokType) {
     case T_EOL:
-        oper->aux = 0;
+        oper->type = T_INVALID;
         break;
 
     case T_REG:
@@ -2596,7 +2560,7 @@ operand_t *evalOperand() {
         /* fall through */
     case T_COND:
         oper->type = tokType; /* save type, value and prep for next token */
-        oper->aux  = yylval.i;
+        oper->aux  = (uint8_t)yylval.i;
         tokType    = get_token();
         break;
 
@@ -2605,7 +2569,7 @@ operand_t *evalOperand() {
             if (yylval.i != REG_C && yylval.i < REG_BC) /* only (C) and (BC) onwards are valid */
                 oper_err();
             oper->type = T_REGREF;
-            oper->aux  = yylval.i;                   /* save reg id */
+            oper->aux  = (uint8_t)yylval.i;          /* save reg id */
             if ((tokType = get_token()) == T_CPAR) { /* simple (reg) so prep for next token */
                 tokType = get_token();
                 break;
@@ -2616,48 +2580,48 @@ operand_t *evalOperand() {
         } else
             oper->type = T_ADDRREF; /* is a (addr) operand */
 
-        oper->val = *evalExpr(); /* get the expression */
+        oper->term = *evalExpr(); /* get the expression */
 
         if (tokType != T_CPAR) /* should now be the closing ) */
             oper_err();
         tokType = get_token(); /* prep for next token */
         /* IX & IY are only allowed displacements -128 to 127 */
-        if (oper->type == T_INDEXED && (oper->oIVal < -128 || oper->oIVal >= 128))
+        if (oper->type == T_INDEXED && (oper->oVal < -128 || oper->oVal >= 128))
             pr_warning("Index offset too large");
         break;
     /*
         the operands below are only valid as the last operand on a line
         so there is no preping for the next token
     */
-    case T_JBWD:
-    case T_JFWD:
-        oper->type  = tokType;
-        oper->oIVal = yylval.i; /* save the label reference number */
+    case T_FWD:
+    case T_BWD:
+        oper->type = tokType;
+        oper->oVal = yylval.i; /* save the label reference number */
         break;
     default:
         oper->type = T_CONST;
-        oper->val  = *evalExpr(); /* allow for more complex expression */
+        oper->term = *evalExpr(); /* allow for more complex expression */
     }
     return oper;
 }
 /**************************************************************************
- 52	oper_err	ok
+ 52	oper_err	ok++ (PMO) but note jmpbuf not set
  **************************************************************************/
 void oper_err() {
 
     pr_warning("Operand error");
-    longjmp(jmpbuf, 1);
+    longjmp(jmpbuf, 1); /* BUG: jmpbuf not set */
 }
 
 /**************************************************************************
- 53	sub_39a3	ok++
+ 53	sub_39a3	ok++ (PMO)
  **************************************************************************/
 void getOperands(register inst_t *pi) {
 
     tokType    = get_token();
     cntOperand = 0;
-    pi->iLhs   = 0;
-    pi->iRhs   = 0;
+    pi->iLhs   = NULL;
+    pi->iRhs   = NULL;
     if (tokType == T_COMM)
         oper_err();         /* cannot start with a comma */
     if (tokType != T_EOL) { /* no operands */
@@ -2673,7 +2637,7 @@ void getOperands(register inst_t *pi) {
 }
 
 /**************************************************************************
- 54	sub_3a15	ok??
+ 54	sub_3a15	ok++ (PMO)
  **************************************************************************/
 
 void loadFunction() {
@@ -2683,23 +2647,25 @@ void loadFunction() {
     int fpBase;          /* ??? */
     register inst_t *pi; /* ok */
 
-    pi = root       = (inst_t *)alloc_mem(sizeof(inst_t));
-    pi->pNext       = (inst_t *)alloc_mem(sizeof(inst_t));
+    pi = root = (inst_t *)alloc_mem(sizeof(inst_t));
+    pi->pNext = (inst_t *)alloc_mem(sizeof(inst_t));
+    HEAP(pi->pNext);
     pi->pNext->pAlt = pi;
     pi              = pi->pNext;
-    l2 = word_6ff2 = word_6fee = (inst_t *)alloc_mem(sizeof(inst_t));
+    l2 = switchVectors = word_6fee = (inst_t *)alloc_mem(sizeof(inst_t));
 
-    for (;;) {
+    for (;; HEAP(pi->iRhs)) {
         tokType = get_token();
-        for (;;) {
+        HEAP(pi->iRhs);
+        for (;; HEAP(pi->pNext)) {
             if (tokType == T_EOL) {
                 clr_len_inbuf();
                 break;
             }
-            if (pi->type != 0)
-                pi = allocInst(pi); /* m3: */
 
-            if (tokType == -1) { /* m4: */
+            if (pi->type != T_INVALID)
+                pi = allocInst(pi); /* m3: */
+            if (tokType == -1) {    /* m4: */
                 word_6ffc = pi;
                 word_6fee = l2;
                 return;
@@ -2707,11 +2673,11 @@ void loadFunction() {
             pi->type = tokType; /* m5: */
             if (psect == SWDATA) {
                 if (tokType == T_DEFW) { /* collect the switch table */
-                    pi->str = yytext;
+                    pi->opCode = yytext;
                     getOperands(pi);
                     l2->pNext       = pi;
                     pi              = pi->pAlt;
-                    pi->pNext       = 0;
+                    pi->pNext       = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                     break;
@@ -2721,13 +2687,13 @@ void loadFunction() {
             switch (pi->type = tokType) { /* m7: */
             case T_CONST:
                 if ((psect == DATA) || (psect == BSS)) {
-                    pi->type = 0;
+                    pi->type = T_INVALID;
                     pr_psect(psect);
                     printf("%d:\n", yylval.i);
                 } else {
                     pi->aux = yylval.i; /* m10: */
                     l3      = pi->pAlt;
-                    if (pi->pAlt->type == T_JP && l3->iLhs->type == T_JBWD && l3->iLhs->oIVal == pi->aux)
+                    if (pi->pAlt->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == pi->aux)
                         removeInstruction(l3);
                 }
                 tokType = get_token(); /* m11: */
@@ -2740,17 +2706,17 @@ void loadFunction() {
                 pi->aux = 0;
                 tokType = get_token();
                 if (tokType == T_EQU) {
-                    if (ps->name[0] != 'f') /* compiler generated equ names begin with f */
+                    if (ps->label[0] != 'f') /* compiler generated equ names begin with f */
                         pr_error("Unknown EQU");
 
-                    pi->type = 0;
+                    pi->type = T_INVALID;
                     tokType  = get_token();
                     pi->iLhs = evalOperand();
                     /* check is constant with no unresolved symbol ref */
                     if (pi->iLhs->type != T_CONST || pi->iLhs->oPSym)
                         pr_error("Bad arg to EQU");
 
-                    fpBase    = pi->iLhs->oIVal; /* the frame pointer offset to lowest local (will be 0 or -ve) */
+                    fpBase    = pi->iLhs->oVal; /* the frame pointer offset to lowest local (will be 0 or -ve) */
 
                     word_6ffc = pi;
                     word_6fee = l2;
@@ -2758,44 +2724,44 @@ void loadFunction() {
 
                     do { /* update any references to the frame size */
                         if (pi->iRhs && pi->iRhs->type == T_CONST && pi->iRhs->oPSym == ps) {
-                            pi->iRhs->oIVal += fpBase;
-                            pi->iRhs->oPSym = 0;
+                            pi->iRhs->oVal += fpBase;
+                            pi->iRhs->oPSym = NULL;
                         }
                         if (pi->iLhs && pi->iLhs->type == T_CONST && pi->iLhs->oPSym == ps) {
-                            pi->iLhs->oIVal += fpBase;
-                            pi->iLhs->oPSym = 0;
+                            pi->iLhs->oVal += fpBase;
+                            pi->iLhs->oPSym = NULL;
                         }
                     } while (pi = pi->pNext);
                     return;
                 }
-                pi->iPSym     = ps;
+                pi->iPSym   = ps;
 
-                ps->val.pInst = pi;
+                ps->p.pInst = pi;
 
-                pi->aux       = INT_MAX;
-                if (psect == DATA && ps->name[0] == 'S') { /* compiler generated switch tables start with S */
+                pi->aux     = INT_MAX;
+                if (psect == DATA && ps->label[0] == 'S') { /* compiler generated switch tables start with S */
                     psect           = SWDATA;
                     l2->pNext       = pi;
                     pi              = pi->pAlt;
-                    pi->pNext       = 0;
+                    pi->pNext       = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                 }
                 if (psect == DATA || psect == BSS) {
-                    pi->type      = 0;
-                    pi->iLhs      = 0;
-                    ps->val.pInst = 0; /*??? */
+                    pi->type    = T_INVALID;
+                    pi->iLhs    = NULL;
+                    ps->p.pInst = NULL;
                     pr_psect(psect);
-                    printf("%s:\n", ps->name);
-                } else if (ps->name[0] == '_')
-                    name_fun = ps->name;
+                    printf("%s:\n", ps->label);
+                } else if (ps->label[0] == '_') /* external name */
+                    name_fun = ps->label;
 
                 if (tokType == T_COLN)
                     break;
                 continue; /* inner loop */
 
             case 255: /* -1 */
-                pi->type  = 0;
+                pi->type  = T_INVALID;
                 word_6ffc = pi;
                 return;
 
@@ -2812,12 +2778,12 @@ void loadFunction() {
                 /* fall through */
             case T_GLB:
                 printf("%s\t%s\n", yytext, ptr_token());
-                pi->type = 0;
+                pi->type = T_INVALID;
                 break;
 
             case T_PSCT:
                 psect    = num_psect(ptr_token()); /* m30: */
-                pi->type = 0;
+                pi->type = T_INVALID;
                 break;
 
             case T_JR:
@@ -2826,31 +2792,34 @@ void loadFunction() {
                 /* fall through */
             default:
             case_default:
-                pi->str    = yytext;
+                pi->opCode = yytext;
                 pi->aux    = yylval.i;
-                expectCond = tokType == T_JP || tokType == T_CALL; /* set if can have conditional */
+                if (tokType == T_JP || tokType == T_CALL) /* set if can have conditional */
+                    expectCond = true;
+                else
+                    expectCond = false;
                 getOperands(pi);
                 if ((pi->type == T_JP) || (pi->type == T_CALL)) {
                     if (pi->iLhs->type == T_COND) { /* if cond then hoist condition and remove lhs */
                         pi->aux  = pi->iLhs->aux;
                         pi->iLhs = pi->iRhs;
-                        pi->iRhs = 0;
+                        pi->iRhs = NULL;
                     }
                 }
                 if (pi->type == T_JP && pi->aux == 0 && pi->iLhs->type != T_REGREF &&
                     (l3 = pi->pAlt)->type == T_CONST && l3->pAlt->type == T_JP && l3->pAlt->aux == 0) {
 
                     while (l3 = l3->pAlt) {
-                        if (l3->type == T_JP && l3->iLhs->type == T_JBWD && l3->iLhs->oIVal == pi->pAlt->aux)
+                        if (l3->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == pi->pAlt->aux)
                             *l3->iLhs = *pi->iLhs;
                         else if (l3->type == T_CONST && l3->aux == pi->pAlt->aux)
                             break;
                     }
                     removeInstruction(pi->pAlt);
                     freeOperand(pi->iLhs);
-                    pi->type = 0;
-                    pi->iLhs = 0;
-                    pi->str  = 0;
+                    pi->type   = T_INVALID;
+                    pi->iLhs   = NULL;
+                    pi->opCode = NULL;
                 }
                 break;
             }
@@ -2861,75 +2830,79 @@ void loadFunction() {
 }
 
 /**************************************************************************
- 55	sub_4000	ok+
+ 55	sub_4000	ok++ (PMO)
  **************************************************************************/
-bool sub_4000(register inst_t *pi) {
+bool sub_4000(register inst_t const *pi) {
 
-    return pi->type == T_JP && pi->iLhs->oPSym && strcmp(pi->iLhs->oPSym->name, "cret") == 0;
+    return pi->type == T_JP && pi->iLhs->oPSym && strcmp(pi->iLhs->oPSym->label, "cret") == 0;
 }
 
 /**************************************************************************
- 56	sub_404d	ok++	Used in: optimise
+ 56	sub_404d	ok++ (PMO)	Used in: optimise
  **************************************************************************/
 void sub_404d() {
 
     register inst_t *pi;
 
-    if (root->pNext != 0) {
+    if (root->pNext) {
         pr_psect(TEXT);
         for (pi = root->pNext; pi; pi = pi->pNext) {
-            if (pi->type == T_CALL && strcmp(pi->iLhs->oPSym->name, "ncsv") == 0) {
+            if (pi->type == T_CALL && strcmp(pi->iLhs->oPSym->label, "ncsv") == 0) {
                 pi = pi->pNext;
                 if (pi->type != T_DEFW) /* "defw" */
                     pr_error("Expecting defw after call ncsv");
-                if (pi->iLhs->oPSym != 0) {
+                if (pi->iLhs->oVal == 0) {
                     if (usesIXorIY)
                         printf("global csv\ncall csv\n");
                 } else {
                     usesIXorIY = true;
-                    if (pi->iLhs->oIVal >= -4) {
+                    if (pi->iLhs->oVal >= -4) {
                         printf("global csv\ncall csv\npush hl\n");
-                        printf("push hl\n"); /* */
+                        if (pi->iLhs->oVal < -2)
+                            printf("push hl\n");
                     } else
-                        printf("call ncsv\ndefw %d\n", pi->iLhs->oIVal);
+                        printf("call ncsv\ndefw %d\n", pi->iLhs->oVal);
                 }
-            } else if (usesIXorIY == 0 && sub_4000(pi)) {
-                pi->type = T_RET;
-                pi->str  = 0;
+            } else if (!usesIXorIY && sub_4000(pi)) {
+                pi->type   = T_RET;
+                pi->opCode = NULL;
                 pr_instruction(pi);
-            } else if (usesIXorIY == 0 && pi->type == T_CALL && pi->aux == 0 && pi->pNext->aux == 0 &&
-                       sub_4000(pi->pNext) && pi->iLhs->oPSym->name[0] == '_') {
-                pi->type = T_JP; /* "jp" */
-                pi->str  = 0;
+            } else if (!usesIXorIY && pi->type == T_CALL && pi->aux == 0 && pi->pNext->aux == 0 &&
+                       sub_4000(pi->pNext) && pi->iLhs->oPSym->label[0] == '_') {
+                pi->type   = T_JP; /* "jp" */
+                pi->opCode = NULL;
                 pr_instruction(pi);
                 pi = pi->pNext;
             } else
                 pr_instruction(pi);
         }
     }
-    if (word_6ff2->pNext) {
+    if (switchVectors->pNext) {
         pr_psect(DATA);
-        for (pi = word_6ff2->pNext; pi; pi = pi->pNext)
+        for (pi = switchVectors->pNext; pi; pi = pi->pNext)
             pr_instruction(pi);
     }
 }
 
 /**************************************************************************
- 57	sub_420a	ok--
+ 57	sub_420a	ok++ (PMO)
+ benign differences
+ 1) printf call/return code is shared
+ 2) fputc('\n', stdout) is located differently
  **************************************************************************/
 
 void pr_instruction(register inst_t *pi) {
 
-    if (pi->type == 0)
+    if (pi->type == T_INVALID)
         ;
     else if (pi->type == T_SYMBOL) {
-        if ((pi->iPSym->name[0]))
-            printf("%s:\n", pi->iPSym->name);
+        if ((pi->iPSym->label[0]))
+            printf("%s:\n", pi->iPSym->label);
         else
             printf("L%d:\n", pi->iSymId);
     } else if (pi->type == T_CONST) { /* m4: */
-        printf("%d:\n", pi->aux);
-    } else if (key_f && pi->type == T_CALL && strcmp(pi->iLhs->oPSym->name, "csv") == 0) {
+        printf("%d:\n", pi->aux);     /* OPTIMISER[1]: shares printf call with above*/
+    } else if (key_f && pi->type == T_CALL && strcmp(pi->iLhs->oPSym->label, "csv") == 0) {
         printf("push\tiy\npush\tix\nld\tix,0\nadd\tix,sp\n");
     } else {
         if (key_n)
@@ -2954,15 +2927,16 @@ void pr_instruction(register inst_t *pi) {
                 sub_436e(pi->iRhs);
             }
         }
-        fputc('\n', stdout);
+        fputc('\n', stdout); /* OPTIMISER: minor movement in where this is located also optimises return */
     }
 }
 
 /**************************************************************************
- 58	sub_436e	ok++
+ 58	sub_436e	ok++ (PMO)
+ Same except optimiser misses the optimisation of fputc(')', stdout)
  **************************************************************************/
-void sub_436e(register operand_t *pi) {
-
+void sub_436e(register operand_t const *pi) {
+    HEAP(pi);
     switch (pi->type) {
     case T_INDEXED:
     case T_ADDRREF:
@@ -2976,15 +2950,15 @@ void sub_436e(register operand_t *pi) {
         }
     case T_CONST:
         if (pi->oPSym) {
-            if (pi->oPSym->name[0])
-                printf("%s", pi->oPSym->name);
+            if (pi->oPSym->label[0])
+                printf("%s", pi->oPSym->label);
             else
-                printf("L%d", pi->oPSym->val.pInst->iSymId);
-            if (0 < pi->oIVal)
+                printf("L%d", pi->oPSym->p.pInst->iSymId);
+            if (0 < pi->oVal)
                 fputc('+', stdout);
         }
-        if (pi->oIVal != 0 || (pi->oPSym == 0))
-            printf("%d", pi->oIVal);
+        if (pi->oVal != 0 || !pi->oPSym)
+            printf("%d", pi->oVal);
         if (pi->type != T_CONST)
             fputc(')', stdout);
         break;
@@ -2992,89 +2966,99 @@ void sub_436e(register operand_t *pi) {
         fputc('(', stdout);
     case T_REG:
         printf("%s", regs[pi->aux]);
-        if (pi->type != T_REGREF)
-            return;
-        fputc(')', stdout);
+        if (pi->type == T_REGREF)
+            fputc(')', stdout); /* OPTIMISER[1]: misses optimising htis with same fputc above */
         break;
-    case T_JBWD:
-        printf("%df", pi->oIVal);
+    case T_FWD:
+        printf("%df", pi->oVal);
         break;
     default:
         pr_error("Bad operand");
         break;
     }
+    HEAP(pi);
 }
 
 /**************************************************************************
- 59	sub_44b2	ok+
- *	Generates correct code, but different from original
+ 59	sub_44b2	ok++ (PMO)
+ Optimiser saves some code with minor changes to code for regValues[REG_TRACKER]
+
+ original                   replacement
+ ld a,(regValues + 6ch)     ld  hl,regvalues + 6ch  ; test regValues[REG_TRACKER].type
+ or a                       ld  a,(hl)
+ jp z,cret                  or  a
+ push   iy                  jp  z,cret
+ ld hl,regVales + 6ch       push    iy
+ push   hl                  push    hl              ; &regValues[REG_TRACKER]
+
+ The replacement code is slightly short
  **************************************************************************/
-void sub_44b2(register operand_t *po) {
+void sub_44b2(register operand_t const *po) {
     int n;
 
-    while ((n = sub_46b1(po, 0)) != -1)
+    while ((n = sub_46b1(po, REG_B)) != -1)
         sub_4544(n);
-    while ((n = sub_46b1(po, 10)) != -1)
+    while ((n = sub_46b1(po, REG_BC)) != -1)
         sub_4544(n);
 
     if (regValues[17].type && operandsSame(po, &regValues[17]))
         sub_4544(17);
 
-    if (regValues[18].type && !operandsSame(&regValues[18], po))
-        regValues[18].type = 0;
+    if (regValues[REG_TRACKER].type && operandsSame(&regValues[REG_TRACKER], po))
+        regValues[REG_TRACKER].type = T_INVALID;
 }
 
 /**************************************************************************
- 60	sub_4544	ok+
- *	Generates correct code, but different from original
+ 60	sub_4544	ok++ (PMO)
+ *	Optimiser generates marginally less efficient code for regValues[REG_TRACKER] access
+ * it chooses to use hl and (hl) rather than the load directly to/from a
+ * code functionally is the same
  **************************************************************************/
 void sub_4544(int reg) {
     register operand_t *pi;
 
-    regValues[reg].type = 0;
-    if (arry_6cca[0] & regTestMasks[reg]) {
-        word_7006          = 0;
-        regValues[18].type = 0;
+    regValues[reg].type = T_INVALID;
+    if (regTestMasks[REG_HL] & regTestMasks[reg]) {
+        hlDelta                     = 0;
+        regValues[REG_TRACKER].type = T_INVALID;
     }
-    if (pi = arry_6c6a[reg].lhs) {
-        pi->type = 0;
-        if (pi = arry_6c6a[reg].rhs)
-            pi->type = 0;
+    if (pi = regHiLoValMap[reg].pHiRegVal) {
+        pi->type = T_INVALID;
+        if (pi = regHiLoValMap[reg].pLoRegVal)
+            pi->type = T_INVALID;
     }
     if (reg != 17)
         return;
-    for (pi = regValues; pi < &regValues[18]; ++pi)
+    for (pi = regValues; pi < &regValues[REG_TRACKER]; ++pi)
         if (pi->type == T_INDEXED && pi->aux == REG_IY)
-            pi->type = 0;
+            pi->type = T_INVALID;
 
-    if (regValues[18].type == T_INDEXED && regValues[18].aux == REG_IY)
-        regValues[18].type = 0;
+    if (regValues[REG_TRACKER].type == T_INDEXED && regValues[REG_TRACKER].aux == REG_IY)
+        regValues[REG_TRACKER].type = T_INVALID;
 }
 
 /**************************************************************************
- 61	sub_4601	ok+
- *	Generates correct code, but different from original
+ 61	sub_4601	ok+ (PMO)
  **************************************************************************/
 void sub_4601() {
     register operand_t *po;
 
-    for (po = regValues; po < &regValues[18]; ++po)
-        po->type = 0;
-    regValues[18].type = 0;
+    for (po = regValues; po < &regValues[REG_TRACKER]; ++po)
+        po->type = T_INVALID;
+    regValues[REG_TRACKER].type = T_INVALID;
 }
 
 /**************************************************************************
- 62	sub_4625	ok+
- *	Generates correct code, but in a sequence different from original
+ 62	sub_4625	ok++ (PMO)
  **************************************************************************/
-bool sub_4625(register inst_t *pi) {
+bool sub_4625(register inst_t const *pi) {
 
     switch (pi->type) {
-    case T_STK:
     case T_LD:
+    case T_STK:
         return true;
     case T_INCDEC:
-        return pi->iLhs->type == T_REG && pi->iLhs->aux < REG_BC;
+        return pi->iLhs->type == T_REG && pi->iLhs->aux >= REG_BC;
     case T_EX:
         return pi->iLhs->aux != REG_AF;
     }
@@ -3082,17 +3066,17 @@ bool sub_4625(register inst_t *pi) {
 }
 
 /**************************************************************************
- 63	sub_4682	ok++
+ 63	sub_4682	ok++ (PMO)
  **************************************************************************/
-bool sub_4682(register operand_t *pi) {
+bool sub_4682(register operand_t const *pi) {
 
-    return pi->type == T_CONST && pi->oPSym == 0 && pi->oIVal == 0;
+    return pi->type == T_CONST && !pi->oPSym && pi->oVal == 0;
 }
 
 /**************************************************************************
- 64	sub_46b1	ok++
+ 64	sub_46b1	ok++ (PMO)
  **************************************************************************/
-int sub_46b1(register operand_t *opr, int reg) {
+int sub_46b1(register operand_t const *opr, int reg) {
     operand_t *po;
     int i;
 
@@ -3102,7 +3086,7 @@ int sub_46b1(register operand_t *opr, int reg) {
             if (operandsSame(po, opr)) {
                 i = (int)(po - regValues);
                 if (i >= REG_BC && reg < REG_BC)
-                    return l6c50h[i].c1;
+                    return regHiLoMap[i].loReg;
                 return i;
             }
         }
@@ -3111,27 +3095,41 @@ int sub_46b1(register operand_t *opr, int reg) {
 }
 
 /**************************************************************************
- 65	sub_475c	ok++
+ 65	sub_475c	ok++ (PMO)
  **************************************************************************/
-bool sub_475c(register operand_t *pi, int p2) {
-
-    return pi && (pi->type == T_REG || pi->type == T_INDEXED || pi->type == T_REGREF) && (p2 & regTestMasks[pi->aux]);
+int sub_475c(register operand_t const *po, int p2) {
+    if (!po)
+        return false;
+    if (po->type != T_REG && po->type != T_INDEXED && po->type != T_REGREF)
+        return false;
+    if (p2 & regTestMasks[po->aux])
+        return true;
+    return false;
 }
 
 /**************************************************************************
  66	sub_47a2	ok++
  **************************************************************************/
-bool sub_47a2(register operand_t *pi, int p2) {
-
-    return pi && pi->type == T_REG && (p2 & regTestMasks[pi->aux]);
+int sub_47a2(register operand_t const *po, int p2) {
+    if (!po)
+        return false;
+    if (po->type != T_REG)
+        return false;
+    if (p2 & regTestMasks[po->aux])
+        return true;
+    return false;
 }
 
 /**************************************************************************
- 67	sub_47e0	ok++
- *	Generated code is different from the original
+ 67	sub_47e0	ok++ (PMO)
+ *	Optimiser differences
+ * 1) the code for case 0 is detected as the same as the code in case T_JP
+ *    and reused
+ * 2) there are two instances where the test cases are reversed along with
+ *    the associated jumps. Leaving the logic the same
  **************************************************************************/
-bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
-    uint msk;
+bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
+    uint16_t msk;
     sym_t *ps;
     inst_t *l3;
     int n; /* number of iterations */
@@ -3140,10 +3138,13 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
         return true;
 
     if (REG_BC <= reg && reg <= REG_HL) {
-        if (sub_47e0(l6c50h[reg].c0, pi1, pi2))
+        if (sub_47e0(regHiLoMap[reg].hiReg, pi1, pi2))
             return true;
-        reg = l6c50h[reg].c1;
+        reg = regHiLoMap[reg].loReg;
     }
+    if (reg >= sizeof(regTestMasks) / sizeof(regTestMasks[0]))
+        fprintf(stderr, "%d\n", reg);
+    /* #pragma warning(suppress : 6385) /* reg has limited values */
     msk = regTestMasks[reg]; /* m3: */
     n   = 40;
 
@@ -3156,35 +3157,43 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
 
             if (reg == REG_IY)
                 break;
-            if (pi1->iLhs->oPSym == 0 || pi1->iLhs->oPSym->name[0] == '_')
+            if (!pi1->iLhs->oPSym || pi1->iLhs->oPSym->label[0] == '_')
                 return false;
 
-            return (msk & 0xBF) != 0;
+            if (!(msk & 0xBF))
+                return false;
+            else
+                return true;
 
         case T_JP: /* "jp" */
-            if (pi1->aux != 0 || pi1->iLhs->type == T_REGREF || (ps = pi1->iLhs->oPSym) == 0)
+            if (pi1->aux != 0 || pi1->iLhs->type == T_REGREF || !(ps = pi1->iLhs->oPSym))
                 return true;
-            if ((l3 = ps->val.pInst) == 0)
-                return strcmp(ps->name, "cret") != 0 || (msk & 0x3C);
+            if (!(l3 = ps->p.pInst))
+                if (strcmp(ps->label, "cret") != 0)
+                    return true;
+                else if (msk & 0x3C) /* code reused */
+                    return true;
+                else
+                    return false;
             pi1 = l3;
             break;
 
-        case T_ONEBYTE:         /* 0x1 */
+        case T_SIMPLE:          /* 0x1 */
             switch (pi1->aux) { /* m14: */
             case 0:             /* "nop" */
-            case P_CPL:         /* "cpl" */
-            case P_SCF:         /* "scf" */
-            case P_CCF:         /* "ccf" */
-            case P_NEG:         /* "neg" */
-            case P_HALT:
-            case P_DI: /* "di" */
-            case P_EI:
+            case I_CPL:         /* "cpl" */
+            case I_SCF:         /* "scf" */
+            case I_CCF:         /* "ccf" */
+            case I_NEG:         /* "neg" */
+            case I_HALT:
+            case I_DI: /* "di" */
+            case I_EI:
                 break;
-            case P_EXX:
-                while ((pi1 = pi1->pNext) && (pi1->type != T_ONEBYTE || pi1->aux != P_EXX))
+            case I_EXX:
+                while ((pi1 = pi1->pNext) && (pi1->type != T_SIMPLE || pi1->aux != I_EXX))
                     if (pi1->type != T_LD && pi1->type != T_STK && pi1->type != T_CADD)
                         return false;
-                if (pi1 == 0)
+                if (!pi1)
                     return false;
                 break;
             default:
@@ -3199,18 +3208,18 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
             break;
 
         case T_3:
-            if (pi1->aux == P_XOR) /* "xor"				//m22: */
+            if (pi1->aux == I_XOR) /* "xor"				//m22: */
                 if (pi1->iLhs->type == T_REG && pi1->iLhs->aux == REG_A && reg == REG_A)
                     return false;
             if (msk & 0x80)
                 return true; /* m23: */
             if (msk & 0x40)
                 return false;
-            if (sub_475c(pi1->iLhs, msk))
+            if (sub_475c(pi1->iLhs, msk)) /* OPTIMISER[1]: see below */
                 return true;
             break;
 
-        case T_6:
+        case T_SHIFT:
             if ((pi1->aux & 0xFFE7) != 0x20 && (msk & 0x40))
                 return true;
 
@@ -3235,8 +3244,8 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
 
         case T_DJNZ: /* "djnz" */
             if (msk & 1)
-                break;
-            return true;
+                return true;
+            break;
 
         case T_0xE: /* 0xE */
             if (sub_475c(pi1->iRhs, msk))
@@ -3246,7 +3255,7 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
             break;
 
         case T_STK:
-            if (pi1->aux == P_PUSH && (msk & regTestMasks[pi1->iLhs->aux]))
+            if (pi1->aux == I_PUSH && (msk & regTestMasks[pi1->iLhs->aux]))
                 return true;
             if (msk & regTestMasks[pi1->iLhs->aux])
                 return false;
@@ -3271,11 +3280,19 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
             break;
         case T_LD: /* load */
             if (!operandsSame(pi1->iLhs, pi1->iRhs))
-                return sub_475c(pi1->iRhs, msk) || (!sub_47a2(pi1->iLhs, msk) && sub_475c(pi1->iLhs, msk));
+                if (sub_475c(pi1->iRhs, msk))
+                    return true;
+                else if (sub_47a2(pi1->iLhs, msk))
+                    return false;
+                else if (sub_475c(pi1->iLhs, msk))
+                    return true;
             break;
 
-        case 0: /* 0x00 */
-            return ((msk & 0x3C) != 0);
+        case 0: /* OPTIMISER[2]: optimised to reuse code in T_JP */
+            if (msk & 0x3C)
+                return true;
+            else
+                return false;
         case T_JR: /* 0x9 "jr" */
         case T_RET:
         case T_RST: /* 0xD "rst" */
@@ -3292,43 +3309,43 @@ bool sub_47e0(int reg, register inst_t *pi1, inst_t *pi2) {
 sym_t *hashtab[HASHSIZE]; /* 7086	[622] */
 
 /**************************************************************************
- 68	sub_4c33	ok+	Used in: sub_4cf0, sub_4da7
+ 68	sub_4c33	ok++ (PMO)	Used in: sub_4cf0, sub_4da7
  **************************************************************************/
-sym_t *allocSym() {
-    register sym_t *pi;
+sym_t *allocItem() {
+    register sym_t *ps;
 
-    pi = (sym_t *)freeSymbolList; /* check the free list*/
-    if (pi) {                     /* if there is an entry release it*/
-        freeSymbolList = ((list_t *)pi)->pNext;
-        pi->name       = 0;
-        pi->val.pSym   = 0;
-        return pi;
+    ps = (sym_t *)freeItemList; /* check the free list*/
+    if (ps) {                   /* if there is an entry release it*/
+        freeItemList = ((list_t *)ps)->pNext;
+        ps->label    = NULL;
+        ps->p.pInst  = NULL;
+        return ps;
     }
-    return (sym_t *)alloc_mem(sizeof(sym_t)); /* else allocate a new one */
+    return alloc_mem(sizeof(sym_t)); /* else allocate a new one */
 }
 
 /**************************************************************************
- 69	sub_4c6b	ok+
+ 69	sub_4c6b	ok++ (PMO)
  **************************************************************************/
 
-void freeSymbol(register sym_t *pi) {
+void freeSymbol(register sym_t *ps) {
 
-    if (strlen(pi->name) >= sizeof(sym_t)) { /* if string could be reused as a symbol at it to the free list*/
-        ((list_t *)(pi->name))->pNext = freeSymbolList;
-        freeSymbolList                = (list_t *)(pi->name);
+    if (strlen(ps->label) >= sizeof(sym_t)) { /* if string could be reused as a symbol at it to the free list*/
+        ((list_t *)(ps->label))->pNext = freeItemList;
+        freeItemList                   = (list_t *)(ps->label);
     }
-    ((list_t *)pi)->pNext = freeSymbolList; /* add the symbol to the free list */
-    freeSymbolList        = (list_t *)pi;
+    ((list_t *)ps)->pNext = freeItemList; /* add the symbol to the free list */
+    freeItemList          = (list_t *)ps;
 }
 
 /**************************************************************************
- 70	hash_index	sub_4cab	ok++	Used in: sub_4cf0
+ 70	hash_index	sub_4cab	ok++ (PMO)	Used in: sub_4cf0
  **************************************************************************/
-int hash_index(register uchar *p, int size) {
-    uint hash;
+int hash_index(register char const *s, int size) {
+    uint16_t hash;
 
-    for (hash = 0; *p != 0; ++p)
-        hash += *p + hash;
+    for (hash = 0; *s != 0; ++s)
+        hash += *(uint8_t *)s + hash;
     return hash % size;
 }
 
@@ -3336,80 +3353,129 @@ int hash_index(register uchar *p, int size) {
  71	sub_4cf0	ok++ (PMO)			Used in: get_token
  **************************************************************************/
 
-sym_t *lookupSym(register char *p1) {
-    sym_t **l1;
-    sym_t *l2;
+sym_t *lookupSym(register char const *s) {
+    sym_t **pps;
+    sym_t *ps;
 
-    l1 = &hashtab[hash_index((uchar *)p1, HASHSIZE)];
-    while (*l1 && strcmp((*l1)->name, p1))
-        if (++l1 == &hashtab[HASHSIZE])
-            l1 = hashtab;
-    if (l2 = *l1)
-        return l2;
-    *l1 = l2 = allocSym();
-    l2->name = alloc_mem((int)strlen(p1) + 1);
-    strcpy(l2->name, p1);
-    return l2;
+    pps = &hashtab[hash_index(s, HASHSIZE)];
+    while (*pps && strcmp((*pps)->label, s))
+        if (++pps == &hashtab[HASHSIZE])
+            pps = hashtab;
+    if (ps = *pps)
+        return ps;
+    *pps = ps = allocItem();
+    ps->label = alloc_mem((int)strlen(s) + 1);
+    strcpy(ps->label, s);
+    return ps;
 }
 
 /**************************************************************************
- 72	sub_4da7	ok++
+ 72	sub_4da7	ok++ (PMO)
  **************************************************************************/
 sym_t *allocBlankSym() {
-    register sym_t *pi;
+    register sym_t *ps;
 
-    pi       = allocSym();
-    pi->name = "";
-    return pi;
+    ps        = allocItem();
+    ps->label = "";
+    return ps;
 }
 
 /**************************************************************************
- 73	sub_4dbf	ok++			Used in: optimise
+ 73	sub_4dbf	ok++ (PMO)			Used in: optimise
  **************************************************************************/
 void resetHeap() {
+#ifdef CPM
     int *p;
-
+#endif
     if (programBreak == 0)
         programBreak = sbrk(0); /* current base of heap */
     else
-        brk(programBreak);      /* reset the heap */
+        brk(programBreak); /* reset the heap */
     alloct = allocs = programBreak;
-
-    for (p = (int *)hashtab; p < (int *) & hashtab[HASHSIZE]; p++)
-        *p = 0;
-    freeSymbolList = 0;
+#ifdef CPM
+    for (p = (int *)hashtab; p < (int *)&hashtab[HASHSIZE];)
+        *p++ = 0;
+#else
+    memset(hashtab, 0, sizeof(hashtab));
+#endif
+    freeItemList = NULL;
 }
 
 /**************************************************************************
- 74	sub_4e20	ok++			Used in: optimise
+ 74	sub_4e20	ok++	 (PMO)		Used in: optimise
  **************************************************************************/
-void sub_4e20() {
-
-    allocs = (char *) & hashtab;       /* */
-    alloct = (char *) & hashtab[HASHSIZE]; /* */
+void freeHashtab() { /* not realy needed for systems with large memory */
+#ifdef CPM
+    allocs = (char *)&hashtab;           /* */
+    alloct = (char *)&hashtab[HASHSIZE]; /* */
+#endif
 }
 
 /**************************************************************************
- 75	alloc_mem	sub_4e2d	ok+
- *
- *	A larger even number is used as size
+ 75	alloc_mem	sub_4e2d	ok++ (PMO)
+ Optimiser differences.
+ 1) res instruction is used to clear lsb rather than and 0xfe
+ 2) de is loaded before the size calculation. As it is not used before
+    the code does the same thing
  **************************************************************************/
+#ifdef CPM
+#define CHUNK 512
+#else
+#define CHUNK 8192 /* larger chunk to avoid waste as allocaiton sizes are larger */
+#endif
 void *alloc_mem(int size) {
+#ifdef CPM
     char *p;
+#endif
     register char *pi;
-
-    if (alloct < (allocs + (size = (size + 1) & 0xFE))) {
-        if ((allocs = sbrk(512)) == (char *)-1)
+    if ((size = (size + 1) & ~1) + allocs > alloct) {
+        if ((allocs = sbrk(CHUNK)) == (char *)-1)
             pr_error("Out of memory in %s", name_fun);
         alloct = sbrk(0);
     }
+
     pi = allocs;
     allocs += size;
-    p = pi;
-    while (size-- != 0)
+#ifdef CPM
+    for (p = pi; size-- != 0;)
         *p++ = 0; /* Clearing allocated memory area */
+#else
+    memset(pi, 0, size);
+#endif
     return pi;
 }
+
+/* simple sbrk & brk implementations */
+#ifndef CPM
+
+#define MAXHEAP (0x8000 * sizeof(char *))
+static char *heapBase;
+static char *heapTop;
+
+void *sbrk(int size) {
+    if (!heapBase && !(heapTop = heapBase = malloc(MAXHEAP)))
+        fprintf(stderr, "can't allocate heap!!\n");
+    if (heapTop + size >= heapBase + MAXHEAP)
+        return (void *)-1;
+    heapTop += size;
+    return heapTop - size;
+}
+
+int brk(void *p) {
+    if (heapBase <= (char *)p && (char *)p < heapBase + MAXHEAP) {
+        heapTop = p;
+        return 0;
+    }
+    return -1;
+};
+
+void heapchk(void const *p) {
+    if (p && (p < (void *)heapBase || p >= (void *)heapTop) &&
+        (p < (void *)hashtab || p >= (void *)&hashtab[HASHSIZE])) {
+        fprintf(stderr, "out of range heap item\n");
+    }
+}
+#endif
 
 /**************************************************************************
 
