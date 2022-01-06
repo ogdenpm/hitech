@@ -93,7 +93,7 @@ int fread();
 /*
  *	Structural declarations
  */
-struct aaa {
+struct node {
     char *name;        /* Record type name  		*/
     void (*fun_ptr)(); /* Record processing function	*/
 };
@@ -164,7 +164,7 @@ EXTERN	  5 "EXTERN";	+-- CP/M
  *	Record types:
  */
 
-struct aaa rec_types[] = {
+struct node rec_types[] = {
     { "", 0 },               /* 0 */
     { "TEXT", cod_text },    /* 1 */
     { "PSECT", cod_psect },  /* 2 */
@@ -240,7 +240,7 @@ char **argv;
  *	Processing of records (ok++, works good)
  */
 void prc_rec() {
-    register struct aaa *st;
+    register struct node *st;
 
     do {
         if (chk_rec() == 0)

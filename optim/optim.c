@@ -1042,9 +1042,12 @@ int get_line() {
     while ((c = getchar()) != '\n' && c != EOF && c != CPMEOF)
         if (charsLeft < sizeof(inp_buf) - 1 && c != '\r')
             inp_buf[charsLeft++] = c;
+    if (c == CPMEOF)
+        while ((c = getchar()) != EOF)
+            ;
     inp_buf[charsLeft] = '\0';
     ptr_inbuf          = inp_buf;
-    return charsLeft || (c != EOF && c != CPMEOF) ? *ptr_inbuf++ : EOF;
+    return charsLeft || c != EOF ? *ptr_inbuf++ : EOF;
 }
 #endif
 /**************************************************************************
@@ -1213,15 +1216,15 @@ int num_token(char const *fmt) {
  Only difference is the new code jumps to a location that cleans up
  stack after a call before jumping to cret. The direct jp cret also works
  **************************************************************************/
-void pr_token(register inst_t const *pi) {
+void pr_token(register inst_t const *ilist) {
     operator_t const *po;
 
-    if (pi->opCode) {
-        printf("%s", pi->opCode);
+    if (ilist->opCode) {
+        printf("%s", ilist->opCode);
         return; /* m1: */
     }
 
-    switch (pi->type) { /* m2: */
+    switch (ilist->type) { /* m2: */
     case T_JP:
         printf("jp");
         return;
@@ -1239,7 +1242,7 @@ void pr_token(register inst_t const *pi) {
             pr_error("Can't find op");
             return;
         }
-    } while ((pi->type != po->type) || (po->aux != pi->aux)); /* m8: */
+    } while ((ilist->type != po->type) || (po->aux != ilist->aux)); /* m8: */
 
     printf("%s", po->str);
     return;
@@ -1259,25 +1262,25 @@ void freeOperand(register operand_t *po) {
 /**************************************************************************
  15	sub_0b8b	ok++ (PMO)
  **************************************************************************/
-void freeInst(register inst_t *pi) {
+void freeInst(register inst_t *ilist) {
 
-    pi->pAlt     = freeInstList;
-    freeInstList = pi;
+    ilist->pAlt     = freeInstList;
+    freeInstList = ilist;
 }
 /**************************************************************************
  16	sub_0ba7	ok++ (PMO)
  **************************************************************************/
 operand_t *allocOperand() {
-    register operand_t *pi;
+    register operand_t *ilist;
 
     if (freeOperandList) {
-        pi = (operand_t *)freeOperandList;
-        HEAP(pi);
-        freeOperandList = ((list_t *)pi)->pNext;
-        pi->type = pi->aux = 0;
-        pi->oVal           = 0;
-        pi->oPSym          = NULL;
-        return pi;
+        ilist = (operand_t *)freeOperandList;
+        HEAP(ilist);
+        freeOperandList = ((list_t *)ilist)->pNext;
+        ilist->type = ilist->aux = 0;
+        ilist->oVal           = 0;
+        ilist->oPSym          = NULL;
+        return ilist;
     }
     return (operand_t *)alloc_mem(sizeof(operand_t));
 }
@@ -1285,9 +1288,9 @@ operand_t *allocOperand() {
 /**************************************************************************
  17	sub_0be2	ok++ (PMO)
  **************************************************************************/
-inst_t *allocInst(register inst_t *pi) {
+inst_t *allocInst(register inst_t *ilist) {
     inst_t *l1;
-    HEAP(pi->pNext);
+    HEAP(ilist->pNext);
     if ((l1 = freeInstList)) {
         HEAP(l1);
         freeInstList = l1->pAlt;
@@ -1297,26 +1300,26 @@ inst_t *allocInst(register inst_t *pi) {
     } else {
         l1 = alloc_mem(sizeof(inst_t));
     }
-    l1->pNext = pi->pNext;
-    l1->pAlt  = pi;
-    if (pi->pNext) {
-        HEAP(pi->pNext);
-        pi->pNext->pAlt = l1;
+    l1->pNext = ilist->pNext;
+    l1->pAlt  = ilist;
+    if (ilist->pNext) {
+        HEAP(ilist->pNext);
+        ilist->pNext->pAlt = l1;
     }
     HEAP(l1);
-    return pi->pNext = l1;
+    return ilist->pNext = l1;
 }
 
 /**************************************************************************
  18	sub_0ca2	ok++ (PMO)
  **************************************************************************/
-inst_t *syntheticLabel(register inst_t *pi) {
-    pi                = allocInst(pi);
-    pi->iPSym         = allocBlankSym();
-    pi->iSymId        = ++symbolId;
-    pi->iPSym->tPInst = pi;
-    pi->type          = T_SYMBOL;
-    return pi;
+inst_t *syntheticLabel(register inst_t *ilist) {
+    ilist                = allocInst(ilist);
+    ilist->iPSym         = allocBlankSym();
+    ilist->iSymId        = ++symbolId;
+    ilist->iPSym->tPInst = ilist;
+    ilist->type          = T_SYMBOL;
+    return ilist;
 }
 
 /**************************************************************************
@@ -1386,13 +1389,13 @@ void optimise() {
  20	sub_0e67	ok++ (PMO)	used in optimise
  **************************************************************************/
 void chkIXYUsage() {
-    register inst_t const *pi;
+    register inst_t const *ilist;
 
     usesIXorIY = false;
-    for (pi = root; pi; pi = pi->pNext) {
-        if (pi->type != T_SYMBOL &&
-            ((pi->iLhs && pi->iLhs->type == T_INDEXED) || (pi->iRhs && pi->iRhs->type == T_INDEXED) ||
-             (pi->iLhs && pi->iLhs->type == T_REG && pi->iLhs->aux >= REG_IX))) {
+    for (ilist = root; ilist; ilist = ilist->pNext) {
+        if (ilist->type != T_SYMBOL &&
+            ((ilist->iLhs && ilist->iLhs->type == T_INDEXED) || (ilist->iRhs && ilist->iRhs->type == T_INDEXED) ||
+             (ilist->iLhs && ilist->iLhs->type == T_REG && ilist->iLhs->aux >= REG_IX))) {
             usesIXorIY = true;
             return;
         }
@@ -1446,21 +1449,21 @@ void sub_0ed1() {
 /**************************************************************************
  22	sub_1071	ok++ (PMO)	used in sub_15ad
  **************************************************************************/
-bool sub_1071(register inst_t *pi) {
+bool sub_1071(register inst_t *ilist) {
 
     inst_t *pi1;
     inst_t *pi2;
     inst_t *pi3;
 
-    if (pi->type != T_JP || pi->aux != 0 || pi->iLhs->type != T_CONST)
+    if (ilist->type != T_JP || ilist->aux != 0 || ilist->iLhs->type != T_CONST)
         return false;
 
-    pi1 = pi->iLhs->oPSym->p.pInst;
+    pi1 = ilist->iLhs->oPSym->p.pInst;
     while (pi1->type == T_SYMBOL)
         pi1 = pi1->pAlt;
 
-    if (pi1 == pi) {
-        removeInstruction(pi);
+    if (pi1 == ilist) {
+        removeInstruction(ilist);
         logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
         return false;
     }
@@ -1470,20 +1473,20 @@ bool sub_1071(register inst_t *pi) {
     for (pi3 = pi1->pNext; pi3->type && (pi3->type != T_JP || pi3->aux != 0); pi3 = pi3->pNext)
         ;
 
-    if (pi3 == pi1->pNext || pi3->type == T_INVALID || pi3 == pi)
+    if (pi3 == pi1->pNext || pi3->type == T_INVALID || pi3 == ilist)
         return false;
 
-    pi->pNext->pAlt  = pi3;
-    pi1->pNext->pAlt = pi;
+    ilist->pNext->pAlt  = pi3;
+    pi1->pNext->pAlt = ilist;
 
     pi3->pNext->pAlt = pi1;
 
     pi2              = pi1->pNext;
     pi1->pNext       = pi3->pNext;
-    pi3->pNext       = pi->pNext;
-    pi->pNext        = pi2;
+    pi3->pNext       = ilist->pNext;
+    ilist->pNext        = pi2;
     logOptimise(O_CODE_MOTIONS); /* 6fdd opt_msg[16] = "Code motions" */
-    removeInstruction(pi);
+    removeInstruction(ilist);
     return logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
 }
 
@@ -1492,24 +1495,24 @@ bool sub_1071(register inst_t *pi) {
  **************************************************************************/
 void sub_122f() {
     operand_t *po;
-    register inst_t *pi;
+    register inst_t *ilist;
 
-    for (pi = root->pNext; pi; pi = pi->pNext) /* set initial values for symbols */
-        if (pi->type == T_SYMBOL)
-            if (pi->iPSym->label[0] == '_') /* check for public name */
-                pi->aux = INT_MAX;
+    for (ilist = root->pNext; ilist; ilist = ilist->pNext) /* set initial values for symbols */
+        if (ilist->type == T_SYMBOL)
+            if (ilist->iPSym->label[0] == '_') /* check for public name */
+                ilist->aux = INT_MAX;
             else
-                pi->aux = 0;
+                ilist->aux = 0;
 
-    for (pi = root->pNext; pi; pi = pi->pNext) { /* update reference counts */
-        if (pi->type == T_JP || pi->type == T_DJNZ) {
-            if ((po = pi->iLhs) && po->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
+    for (ilist = root->pNext; ilist; ilist = ilist->pNext) { /* update reference counts */
+        if (ilist->type == T_JP || ilist->type == T_DJNZ) {
+            if ((po = ilist->iLhs) && po->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
                 po->oPSym->p.pInst->aux++;
         }
     }
-    for (pi = switchVectors; pi; pi = pi->pNext) { /* do the same for the jump tables */
-        if (pi->type == T_DEFW) {
-            if (pi->iLhs && (po = pi->iLhs)->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
+    for (ilist = switchVectors; ilist; ilist = ilist->pNext) { /* do the same for the jump tables */
+        if (ilist->type == T_DEFW) {
+            if (ilist->iLhs && (po = ilist->iLhs)->type == T_CONST && po->oPSym && po->oPSym->p.pInst)
                 po->oPSym->p.pInst->aux++;
         }
     }
@@ -1518,9 +1521,9 @@ void sub_122f() {
 /**************************************************************************
  24	sub_1369	ok++ (PMO)
  **************************************************************************/
-bool sub_1369(register operand_t const *pi) {
+bool sub_1369(register operand_t const *ilist) {
 
-    return pi->type == T_CONST || pi->type == T_INDEXED || (pi->type == T_REGREF && pi->aux == REG_HL);
+    return ilist->type == T_CONST || ilist->type == T_INDEXED || (ilist->type == T_REGREF && ilist->aux == REG_HL);
 }
 
 /**************************************************************************
@@ -1529,28 +1532,28 @@ bool sub_1369(register operand_t const *pi) {
 /* note there are occasions when pi is accessed after this is called so
  *  freeInst has to preserve at least pi->pNext
  */
-void removeInstruction(register inst_t *pi) {
+void removeInstruction(register inst_t *ilist) {
 
-    if (pi->type == T_JP && pi->iLhs->type == T_CONST && pi->iLhs->oPSym)
-        removeLabelRef(pi->iLhs->oPSym);
+    if (ilist->type == T_JP && ilist->iLhs->type == T_CONST && ilist->iLhs->oPSym)
+        removeLabelRef(ilist->iLhs->oPSym);
 
-    pi->pAlt->pNext = pi->pNext;
-    pi->pNext->pAlt = pi->pAlt;
-    if (pi->type != T_SYMBOL) {
-        freeOperand(pi->iLhs);
-        freeOperand(pi->iRhs);
+    ilist->pAlt->pNext = ilist->pNext;
+    ilist->pNext->pAlt = ilist->pAlt;
+    if (ilist->type != T_SYMBOL) {
+        freeOperand(ilist->iLhs);
+        freeOperand(ilist->iRhs);
     }
-    freeInst(pi);
+    freeInst(ilist);
 }
 
 /**************************************************************************
  26	sub_140b	ok++ (PMO)
  **************************************************************************/
-inst_t *getNextRealInst(register inst_t *pi) {
+inst_t *getNextRealInst(register inst_t *ilist) {
 
-    while (pi->type == T_SYMBOL)
-        pi = pi->pNext;
-    return pi;
+    while (ilist->type == T_SYMBOL)
+        ilist = ilist->pNext;
+    return ilist;
 }
 
 /**************************************************************************
@@ -1587,15 +1590,15 @@ bool instructionsSame(register inst_t const *pi1, inst_t const *pi2) {
  29	sub_153d	ok++ (PMO)
  **************************************************************************/
 void removeLabelRef(register sym_t *ps) {
-    inst_t *pi;
+    inst_t *ilist;
 
-    if (!(pi = ps->p.pInst))
+    if (!(ilist = ps->p.pInst))
         return;
-    if (pi->aux == 0)
+    if (ilist->aux == 0)
         pr_error("Refc == 0");
-    if (--pi->aux != 0)
+    if (--ilist->aux != 0)
         return;
-    removeInstruction(pi);
+    removeInstruction(ilist);
     ps->p.pInst = NULL;
     freeSymbol(ps);
     logOptimise(O_UNREF_LAB); /* 6fc5 opt_msg[4] = "Unref'ed labels" */
@@ -1638,28 +1641,28 @@ void sub_15ad() {
  31	sub_1795	ok++ (PMO)
  **************************************************************************/
 bool sub_1795() {
-    register inst_t *pi;
+    register inst_t *ilist;
     static int stackAdjust;
 
     if (gPi->type != T_LD)
         return false;
     if (gPi->iLhs->type != T_REG || gPi->iLhs->aux != REG_SP)
         return false;
-    if ((pi = gPi->pAlt)->type != T_CADD || (pi = pi->pAlt)->type != T_LD)
+    if ((ilist = gPi->pAlt)->type != T_CADD || (ilist = ilist->pAlt)->type != T_LD)
         return false;
-    if (pi->iLhs->type != T_REG || pi->iLhs->aux != REG_HL || pi->iRhs->type != T_CONST)
+    if (ilist->iLhs->type != T_REG || ilist->iLhs->aux != REG_HL || ilist->iRhs->type != T_CONST)
         return false;
-    if (pi->iRhs->oPOperand)
+    if (ilist->iRhs->oPOperand)
         pr_error("Funny stack adjustment");
-    stackAdjust = pi->iRhs->oVal;
-    pi          = gPi->pNext;
-    if (pi->type == T_SIMPLE && pi->aux == I_EXX)
-        pi = pi->pNext;
-    for (; pi->type != T_CALL && pi->type != T_JP && pi->type != T_STK && (pi->type != T_EX || pi->iLhs->aux != REG_SP);
-         pi = pi->pNext)
+    stackAdjust = ilist->iRhs->oVal;
+    ilist          = gPi->pNext;
+    if (ilist->type == T_SIMPLE && ilist->aux == I_EXX)
+        ilist = ilist->pNext;
+    for (; ilist->type != T_CALL && ilist->type != T_JP && ilist->type != T_STK && (ilist->type != T_EX || ilist->iLhs->aux != REG_SP);
+         ilist = ilist->pNext)
         ;
 
-    if (stackAdjust > 0 && usesIXorIY && pi->aux == 0 && sub_4000(pi)) {
+    if (stackAdjust > 0 && usesIXorIY && ilist->aux == 0 && sub_4000(ilist)) {
         removeInstruction(gPi->pAlt->pAlt);
         removeInstruction(gPi->pAlt);
         gPi = gPi->pAlt;
@@ -1671,23 +1674,23 @@ bool sub_1795() {
         }
         return logOptimise(O_STK_ADJUST); /* 6fc1 opt_msg[2] = "Stack adjustments" m7: */
     }
-    pi = gPi->pAlt->pAlt;
+    ilist = gPi->pAlt->pAlt;
     if (stackAdjust < 0)
         stackAdjust = -stackAdjust;
-    if (pi->pAlt->type == T_SIMPLE && pi->pAlt->aux == I_EXX)
+    if (ilist->pAlt->type == T_SIMPLE && ilist->pAlt->aux == I_EXX)
         stackAdjust -= 2;
 
-    if (stackAdjust > 8 || pi->iRhs->oVal < 0)
+    if (stackAdjust > 8 || ilist->iRhs->oVal < 0)
         return false;
 
     logOptimise(O_STK_ADJUST); /* 6fc1 opt_msg[2] = "Stack adjustments" */
 
-    stackAdjust = pi->iRhs->oVal;
-    pi          = pi->pAlt;
-    removeInstruction(pi->pNext->pNext);
-    removeInstruction(pi->pNext);
+    stackAdjust = ilist->iRhs->oVal;
+    ilist          = ilist->pAlt;
+    removeInstruction(ilist->pNext->pNext);
+    removeInstruction(ilist->pNext);
     removeInstruction(gPi);
-    gPi = pi;
+    gPi = ilist;
 
     while (stackAdjust != 0) {
         gPi             = allocInst(gPi);
@@ -1705,9 +1708,9 @@ bool sub_1795() {
             gPi->aux = SI_INC;
         }
     }
-    if (gPi->pNext->type == T_SIMPLE && gPi->pNext->aux == I_EXX && pi->type == T_SIMPLE && pi->aux == I_EXX) {
+    if (gPi->pNext->type == T_SIMPLE && gPi->pNext->aux == I_EXX && ilist->type == T_SIMPLE && ilist->aux == I_EXX) {
         removeInstruction(gPi->pNext);
-        removeInstruction(pi);
+        removeInstruction(ilist);
     }
     return true;
 }
@@ -1716,16 +1719,16 @@ bool sub_1795() {
  32	sub_1aec	ok++ (PMO)
  **************************************************************************/
 bool sub_1aec() {
-    register inst_t *pi;
+    register inst_t *ilist;
 
     if (gPi->iLhs->type != T_REGREF) {
         if ((gPs = gPi->iLhs->oPSym)->p.pInst) {
-            pi = getNextRealInst(gPs->p.pInst);
-            pi = pi->pAlt;
-            if (gPs->p.pInst != pi /*->i_7*/) {
-                gPi->iLhs->oPOperand = pi->iLhs;
+            ilist = getNextRealInst(gPs->p.pInst);
+            ilist = ilist->pAlt;
+            if (gPs->p.pInst != ilist /*->i_7*/) {
+                gPi->iLhs->oPOperand = ilist->iLhs;
                 removeLabelRef(gPs);
-                ++pi->aux;                     /* safe const change */
+                ++ilist->aux;                     /* safe const change */
                 return logOptimise(O_RED_LAB); /* 6fbd opt_msg[0] = "Redundant labels" */
             }
         }
@@ -1737,14 +1740,14 @@ bool sub_1aec() {
  33	sub_1b86	ok++ (PMO)
  **************************************************************************/
 bool sub_1b86() {
-    register inst_t *pi;
+    register inst_t *ilist;
 
     if (gPi->type == T_JP || gPi->type == T_CALL) {
-        if ((gPs = gPi->iLhs->oPSym) && (pi = gPs->p.pInst)) {
-            pi = getNextRealInst(pi);
-            if (pi->type == T_JP && (pi->aux == 0 || pi->aux == gPi->aux) && pi->iLhs->oPSym != gPs) {
+        if ((gPs = gPi->iLhs->oPSym) && (ilist = gPs->p.pInst)) {
+            ilist = getNextRealInst(ilist);
+            if (ilist->type == T_JP && (ilist->aux == 0 || ilist->aux == gPi->aux) && ilist->iLhs->oPSym != gPs) {
                 removeLabelRef(gPs);
-                gPs              = pi->iLhs->oPSym;
+                gPs              = ilist->iLhs->oPSym;
                 gPi->iLhs->oPSym = gPs;
                 if (gPs->p.pInst)
                     ++gPs->p.pInst->aux;
@@ -1759,12 +1762,12 @@ bool sub_1b86() {
  34	sub_1c67	ok++ (PMO)
  **************************************************************************/
 bool sub_1c67() {
-    register inst_t *pi;
+    register inst_t *ilist;
     if (gPi->aux == 0) {
-        for (pi = gPi->pNext; pi; pi = pi->pNext) {
-            if (instructionsSame(pi, gPi)) {
+        for (ilist = gPi->pNext; ilist; ilist = ilist->pNext) {
+            if (instructionsSame(ilist, gPi)) {
                 seq1 = gPi;
-                seq2 = pi;
+                seq2 = ilist;
                 /* match chains of instructions */
                 while (instructionsSame(seq2->pAlt, seq1->pAlt)) {
                     seq1 = seq1->pAlt;
@@ -1778,7 +1781,7 @@ bool sub_1c67() {
                     seq2->iLhs->type  = T_CONST;
                     seq2->iLhs->oPSym = seq1->iPSym;
                     ++seq1->aux;
-                    removeInstruction(pi);
+                    removeInstruction(ilist);
                     return logOptimise(O_CMN_CODE_SEQ); /* 6fcd opt_msg[8] = "Common code seq's" */
                 }
             }
@@ -1791,26 +1794,26 @@ bool sub_1c67() {
  35	sub_1d94	ok++ (PMO)
  **************************************************************************/
 bool sub_1d94() {
-    register inst_t *pi;
+    register inst_t *ilist;
 
-    if (gPi->aux != 0 && (pi = gPi->iLhs->oPSym->p.pInst)) {
-        for (seq1 = gPi; sub_4625(pi->pNext) && instructionsSame(seq1->pNext, pi->pNext); pi = pi->pNext) {
-            HEAP(pi->pNext);
+    if (gPi->aux != 0 && (ilist = gPi->iLhs->oPSym->p.pInst)) {
+        for (seq1 = gPi; sub_4625(ilist->pNext) && instructionsSame(seq1->pNext, ilist->pNext); ilist = ilist->pNext) {
+            HEAP(ilist->pNext);
             HEAP(seq1->pNext);
             seq1 = seq1->pNext;
         }
         if (seq1 != gPi) {
-            if (pi->pNext->type == T_SYMBOL)
-                pi = pi->pNext;
+            if (ilist->pNext->type == T_SYMBOL)
+                ilist = ilist->pNext;
             else
-                pi = syntheticLabel(pi);
+                ilist = syntheticLabel(ilist);
             seq1                  = allocInst(seq1);
             seq1->iLhs            = allocOperand();
             seq1->iLhs->type      = T_CONST;
-            seq1->iLhs->oPOperand = pi->iLhs;
+            seq1->iLhs->oPOperand = ilist->iLhs;
             seq1->type            = gPi->type;
             seq1->aux             = gPi->aux;
-            ++pi->aux;
+            ++ilist->aux;
             removeInstruction(gPi);
             return logOptimise(O_CMN_CODE_SEQ); /* 6fcd opt_msg[8] = "Common code seq's" */
         }
@@ -1966,13 +1969,13 @@ void sub_1ec1() {
  37	sub_23c1	ok++ (PMO)
  **************************************************************************/
 bool sub_23c1() {
-    register inst_t *pi;
+    register inst_t *ilist;
 
-    if ((pi = gPi->pNext)->type == T_STK && pi->aux == I_PUSH && pi->iLhs->aux == gPi->iLhs->aux &&
-        !sub_47e0(gPi->iLhs->aux, pi->pNext, gPi) && !sub_47e0(gPi->iRhs->aux, pi, gPi)) {
-        pi->iLhs->aux = gPi->iRhs->aux;
+    if ((ilist = gPi->pNext)->type == T_STK && ilist->aux == I_PUSH && ilist->iLhs->aux == gPi->iLhs->aux &&
+        !sub_47e0(gPi->iLhs->aux, ilist->pNext, gPi) && !sub_47e0(gPi->iRhs->aux, ilist, gPi)) {
+        ilist->iLhs->aux = gPi->iRhs->aux;
         removeInstruction(gPi);
-        gPi = pi;
+        gPi = ilist;
     } else if (gPi->pNext->type == T_EX && gPi->pNext->iLhs->type == T_REG) {
         removeInstruction(gPi->pNext);
         removeInstruction(gPi);
@@ -2106,29 +2109,29 @@ bool sub_29c3() {
  **************************************************************************/
 
 bool sub_2bdb() {
-    register inst_t *pi;
+    register inst_t *ilist;
     if (gPi->type == T_STK && gPi->iLhs->aux == REG_BC && gPi->aux == I_POP && !sub_47e0(REG_BC, gPi->pNext, gPi)) {
-        for (pi = gPi->pNext; pi; pi = pi->pNext) {
-            if (pi->type == T_JP || pi->type == T_CALL || pi->type == T_SYMBOL)
+        for (ilist = gPi->pNext; ilist; ilist = ilist->pNext) {
+            if (ilist->type == T_JP || ilist->type == T_CALL || ilist->type == T_SYMBOL)
                 break;
-            if (pi->type == T_STK)
-                if (pi->aux != I_PUSH || pi->pNext->type != T_STK || pi->pNext->aux != I_POP)
+            if (ilist->type == T_STK)
+                if (ilist->aux != I_PUSH || ilist->pNext->type != T_STK || ilist->pNext->aux != I_POP)
                     break;
                 else
-                    pi = pi->pNext;
-            if (pi->type == T_EX || (pi->type == T_LD && pi->iLhs->type == T_REG))
-                if (pi->iLhs->aux == REG_SP)
+                    ilist = ilist->pNext;
+            if (ilist->type == T_EX || (ilist->type == T_LD && ilist->iLhs->type == T_REG))
+                if (ilist->iLhs->aux == REG_SP)
                     break;
         }
-        if (pi->type == T_STK && pi->aux == I_PUSH && pi->iLhs->aux == REG_HL && !sub_47e0(REG_HL, pi->pNext, pi)) {
+        if (ilist->type == T_STK && ilist->aux == I_PUSH && ilist->iLhs->aux == REG_HL && !sub_47e0(REG_HL, ilist->pNext, ilist)) {
             removeInstruction(gPi);
-            pi->opCode     = NULL;
-            pi->type       = T_EX;
-            pi->aux        = 0;
-            pi->iRhs       = pi->iLhs;
-            pi->iLhs       = allocOperand();
-            pi->iLhs->type = T_REGREF;
-            pi->iLhs->aux  = REG_SP;
+            ilist->opCode     = NULL;
+            ilist->type       = T_EX;
+            ilist->aux        = 0;
+            ilist->iRhs       = ilist->iLhs;
+            ilist->iLhs       = allocOperand();
+            ilist->iLhs->type = T_REGREF;
+            ilist->iLhs->aux  = REG_SP;
             return logOptimise(O_EX_SPHL); /* 6fd1 opt_msg[10] = "Ex (sp),hl'pi used" */
         }
     }
@@ -2288,19 +2291,19 @@ bool sub_3053() {
  43	sub_31ee	ok++ (PMO)
  **************************************************************************/
 void swapHLDE() {
-    operand_t pi;
+    operand_t ilist;
 
-    pi                          = regValues[REG_HL];
+    ilist                          = regValues[REG_HL];
     regValues[REG_HL]           = regValues[REG_DE];
-    regValues[REG_DE]           = pi;
+    regValues[REG_DE]           = ilist;
 
-    pi                          = regValues[REG_H];
+    ilist                          = regValues[REG_H];
     regValues[REG_H]            = regValues[REG_D];
-    regValues[REG_D]            = pi;
+    regValues[REG_D]            = ilist;
 
-    pi                          = regValues[REG_L];
+    ilist                          = regValues[REG_L];
     regValues[REG_L]            = regValues[REG_E];
-    regValues[REG_E]            = pi;
+    regValues[REG_E]            = ilist;
     regValues[REG_TRACKER].type = T_INVALID;
     ;
 };
@@ -2616,19 +2619,19 @@ void oper_err() {
 /**************************************************************************
  53	sub_39a3	ok++ (PMO)
  **************************************************************************/
-void getOperands(register inst_t *pi) {
+void getOperands(register inst_t *ilist) {
 
     tokType    = get_token();
     cntOperand = 0;
-    pi->iLhs   = NULL;
-    pi->iRhs   = NULL;
+    ilist->iLhs   = NULL;
+    ilist->iRhs   = NULL;
     if (tokType == T_COMM)
         oper_err();         /* cannot start with a comma */
     if (tokType != T_EOL) { /* no operands */
-        pi->iLhs = evalOperand();
+        ilist->iLhs = evalOperand();
         if (tokType == T_COMM) { /* if comma then 2nd operand */
             tokType  = get_token();
-            pi->iRhs = evalOperand();
+            ilist->iRhs = evalOperand();
             ++cntOperand;
         }
         ++cntOperand;
@@ -2645,55 +2648,55 @@ void loadFunction() {
     inst_t *l2;          /* ok */
     inst_t *l3;          /* ok */
     int fpBase;          /* ??? */
-    register inst_t *pi; /* ok */
+    register inst_t *ilist; /* ok */
 
-    pi = root = (inst_t *)alloc_mem(sizeof(inst_t));
-    pi->pNext = (inst_t *)alloc_mem(sizeof(inst_t));
-    HEAP(pi->pNext);
-    pi->pNext->pAlt = pi;
-    pi              = pi->pNext;
+    ilist = root = (inst_t *)alloc_mem(sizeof(inst_t));
+    ilist->pNext = (inst_t *)alloc_mem(sizeof(inst_t));
+    HEAP(ilist->pNext);
+    ilist->pNext->pAlt = ilist;
+    ilist              = ilist->pNext;
     l2 = switchVectors = word_6fee = (inst_t *)alloc_mem(sizeof(inst_t));
 
-    for (;; HEAP(pi->iRhs)) {
+    for (;; HEAP(ilist->iRhs)) {
         tokType = get_token();
-        HEAP(pi->iRhs);
-        for (;; HEAP(pi->pNext)) {
+        HEAP(ilist->iRhs);
+        for (;; HEAP(ilist->pNext)) {
             if (tokType == T_EOL) {
                 clr_len_inbuf();
                 break;
             }
 
-            if (pi->type != T_INVALID)
-                pi = allocInst(pi); /* m3: */
+            if (ilist->type != T_INVALID)
+                ilist = allocInst(ilist); /* m3: */
             if (tokType == -1) {    /* m4: */
-                word_6ffc = pi;
+                word_6ffc = ilist;
                 word_6fee = l2;
                 return;
             }
-            pi->type = tokType; /* m5: */
+            ilist->type = tokType; /* m5: */
             if (psect == SWDATA) {
                 if (tokType == T_DEFW) { /* collect the switch table */
-                    pi->opCode = yytext;
-                    getOperands(pi);
-                    l2->pNext       = pi;
-                    pi              = pi->pAlt;
-                    pi->pNext       = NULL;
+                    ilist->opCode = yytext;
+                    getOperands(ilist);
+                    l2->pNext       = ilist;
+                    ilist              = ilist->pAlt;
+                    ilist->pNext       = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                     break;
                 }
                 psect = DATA; /* revert to normal data handling */
             }
-            switch (pi->type = tokType) { /* m7: */
+            switch (ilist->type = tokType) { /* m7: */
             case T_CONST:
                 if ((psect == DATA) || (psect == BSS)) {
-                    pi->type = T_INVALID;
+                    ilist->type = T_INVALID;
                     pr_psect(psect);
                     printf("%d:\n", yylval.i);
                 } else {
-                    pi->aux = yylval.i; /* m10: */
-                    l3      = pi->pAlt;
-                    if (pi->pAlt->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == pi->aux)
+                    ilist->aux = yylval.i; /* m10: */
+                    l3      = ilist->pAlt;
+                    if (ilist->pAlt->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == ilist->aux)
                         removeInstruction(l3);
                 }
                 tokType = get_token(); /* m11: */
@@ -2703,53 +2706,53 @@ void loadFunction() {
 
             case T_SYMBOL:
                 ps      = yylval.pSym;
-                pi->aux = 0;
+                ilist->aux = 0;
                 tokType = get_token();
                 if (tokType == T_EQU) {
                     if (ps->label[0] != 'f') /* compiler generated equ names begin with f */
                         pr_error("Unknown EQU");
 
-                    pi->type = T_INVALID;
+                    ilist->type = T_INVALID;
                     tokType  = get_token();
-                    pi->iLhs = evalOperand();
+                    ilist->iLhs = evalOperand();
                     /* check is constant with no unresolved symbol ref */
-                    if (pi->iLhs->type != T_CONST || pi->iLhs->oPSym)
+                    if (ilist->iLhs->type != T_CONST || ilist->iLhs->oPSym)
                         pr_error("Bad arg to EQU");
 
-                    fpBase    = pi->iLhs->oVal; /* the frame pointer offset to lowest local (will be 0 or -ve) */
+                    fpBase    = ilist->iLhs->oVal; /* the frame pointer offset to lowest local (will be 0 or -ve) */
 
-                    word_6ffc = pi;
+                    word_6ffc = ilist;
                     word_6fee = l2;
-                    pi        = root;
+                    ilist        = root;
 
                     do { /* update any references to the frame size */
-                        if (pi->iRhs && pi->iRhs->type == T_CONST && pi->iRhs->oPSym == ps) {
-                            pi->iRhs->oVal += fpBase;
-                            pi->iRhs->oPSym = NULL;
+                        if (ilist->iRhs && ilist->iRhs->type == T_CONST && ilist->iRhs->oPSym == ps) {
+                            ilist->iRhs->oVal += fpBase;
+                            ilist->iRhs->oPSym = NULL;
                         }
-                        if (pi->iLhs && pi->iLhs->type == T_CONST && pi->iLhs->oPSym == ps) {
-                            pi->iLhs->oVal += fpBase;
-                            pi->iLhs->oPSym = NULL;
+                        if (ilist->iLhs && ilist->iLhs->type == T_CONST && ilist->iLhs->oPSym == ps) {
+                            ilist->iLhs->oVal += fpBase;
+                            ilist->iLhs->oPSym = NULL;
                         }
-                    } while (pi = pi->pNext);
+                    } while (ilist = ilist->pNext);
                     return;
                 }
-                pi->iPSym   = ps;
+                ilist->iPSym   = ps;
 
-                ps->p.pInst = pi;
+                ps->p.pInst = ilist;
 
-                pi->aux     = INT_MAX;
+                ilist->aux     = INT_MAX;
                 if (psect == DATA && ps->label[0] == 'S') { /* compiler generated switch tables start with S */
                     psect           = SWDATA;
-                    l2->pNext       = pi;
-                    pi              = pi->pAlt;
-                    pi->pNext       = NULL;
+                    l2->pNext       = ilist;
+                    ilist              = ilist->pAlt;
+                    ilist->pNext       = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                 }
                 if (psect == DATA || psect == BSS) {
-                    pi->type    = T_INVALID;
-                    pi->iLhs    = NULL;
+                    ilist->type    = T_INVALID;
+                    ilist->iLhs    = NULL;
                     ps->p.pInst = NULL;
                     pr_psect(psect);
                     printf("%s:\n", ps->label);
@@ -2761,8 +2764,8 @@ void loadFunction() {
                 continue; /* inner loop */
 
             case 255: /* -1 */
-                pi->type  = T_INVALID;
-                word_6ffc = pi;
+                ilist->type  = T_INVALID;
+                word_6ffc = ilist;
                 return;
 
             case T_DEFW:
@@ -2778,48 +2781,48 @@ void loadFunction() {
                 /* fall through */
             case T_GLB:
                 printf("%s\t%s\n", yytext, ptr_token());
-                pi->type = T_INVALID;
+                ilist->type = T_INVALID;
                 break;
 
             case T_PSCT:
                 psect    = num_psect(ptr_token()); /* m30: */
-                pi->type = T_INVALID;
+                ilist->type = T_INVALID;
                 break;
 
             case T_JR:
-                pi->type = T_JP; /* convert to jp so it is safe to move code */
+                ilist->type = T_JP; /* convert to jp so it is safe to move code */
                 yytext   = "jp";
                 /* fall through */
             default:
             case_default:
-                pi->opCode = yytext;
-                pi->aux    = yylval.i;
+                ilist->opCode = yytext;
+                ilist->aux    = yylval.i;
                 if (tokType == T_JP || tokType == T_CALL) /* set if can have conditional */
                     expectCond = true;
                 else
                     expectCond = false;
-                getOperands(pi);
-                if ((pi->type == T_JP) || (pi->type == T_CALL)) {
-                    if (pi->iLhs->type == T_COND) { /* if cond then hoist condition and remove lhs */
-                        pi->aux  = pi->iLhs->aux;
-                        pi->iLhs = pi->iRhs;
-                        pi->iRhs = NULL;
+                getOperands(ilist);
+                if ((ilist->type == T_JP) || (ilist->type == T_CALL)) {
+                    if (ilist->iLhs->type == T_COND) { /* if cond then hoist condition and remove lhs */
+                        ilist->aux  = ilist->iLhs->aux;
+                        ilist->iLhs = ilist->iRhs;
+                        ilist->iRhs = NULL;
                     }
                 }
-                if (pi->type == T_JP && pi->aux == 0 && pi->iLhs->type != T_REGREF &&
-                    (l3 = pi->pAlt)->type == T_CONST && l3->pAlt->type == T_JP && l3->pAlt->aux == 0) {
+                if (ilist->type == T_JP && ilist->aux == 0 && ilist->iLhs->type != T_REGREF &&
+                    (l3 = ilist->pAlt)->type == T_CONST && l3->pAlt->type == T_JP && l3->pAlt->aux == 0) {
 
                     while (l3 = l3->pAlt) {
-                        if (l3->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == pi->pAlt->aux)
-                            *l3->iLhs = *pi->iLhs;
-                        else if (l3->type == T_CONST && l3->aux == pi->pAlt->aux)
+                        if (l3->type == T_JP && l3->iLhs->type == T_FWD && l3->iLhs->oVal == ilist->pAlt->aux)
+                            *l3->iLhs = *ilist->iLhs;
+                        else if (l3->type == T_CONST && l3->aux == ilist->pAlt->aux)
                             break;
                     }
-                    removeInstruction(pi->pAlt);
-                    freeOperand(pi->iLhs);
-                    pi->type   = T_INVALID;
-                    pi->iLhs   = NULL;
-                    pi->opCode = NULL;
+                    removeInstruction(ilist->pAlt);
+                    freeOperand(ilist->iLhs);
+                    ilist->type   = T_INVALID;
+                    ilist->iLhs   = NULL;
+                    ilist->opCode = NULL;
                 }
                 break;
             }
@@ -2832,9 +2835,9 @@ void loadFunction() {
 /**************************************************************************
  55	sub_4000	ok++ (PMO)
  **************************************************************************/
-bool sub_4000(register inst_t const *pi) {
+bool sub_4000(register inst_t const *ilist) {
 
-    return pi->type == T_JP && pi->iLhs->oPSym && strcmp(pi->iLhs->oPSym->label, "cret") == 0;
+    return ilist->type == T_JP && ilist->iLhs->oPSym && strcmp(ilist->iLhs->oPSym->label, "cret") == 0;
 }
 
 /**************************************************************************
@@ -2842,45 +2845,45 @@ bool sub_4000(register inst_t const *pi) {
  **************************************************************************/
 void sub_404d() {
 
-    register inst_t *pi;
+    register inst_t *ilist;
 
     if (root->pNext) {
         pr_psect(TEXT);
-        for (pi = root->pNext; pi; pi = pi->pNext) {
-            if (pi->type == T_CALL && strcmp(pi->iLhs->oPSym->label, "ncsv") == 0) {
-                pi = pi->pNext;
-                if (pi->type != T_DEFW) /* "defw" */
+        for (ilist = root->pNext; ilist; ilist = ilist->pNext) {
+            if (ilist->type == T_CALL && strcmp(ilist->iLhs->oPSym->label, "ncsv") == 0) {
+                ilist = ilist->pNext;
+                if (ilist->type != T_DEFW) /* "defw" */
                     pr_error("Expecting defw after call ncsv");
-                if (pi->iLhs->oVal == 0) {
+                if (ilist->iLhs->oVal == 0) {
                     if (usesIXorIY)
                         printf("global csv\ncall csv\n");
                 } else {
                     usesIXorIY = true;
-                    if (pi->iLhs->oVal >= -4) {
+                    if (ilist->iLhs->oVal >= -4) {
                         printf("global csv\ncall csv\npush hl\n");
-                        if (pi->iLhs->oVal < -2)
+                        if (ilist->iLhs->oVal < -2)
                             printf("push hl\n");
                     } else
-                        printf("call ncsv\ndefw %d\n", pi->iLhs->oVal);
+                        printf("call ncsv\ndefw %d\n", ilist->iLhs->oVal);
                 }
-            } else if (!usesIXorIY && sub_4000(pi)) {
-                pi->type   = T_RET;
-                pi->opCode = NULL;
-                pr_instruction(pi);
-            } else if (!usesIXorIY && pi->type == T_CALL && pi->aux == 0 && pi->pNext->aux == 0 &&
-                       sub_4000(pi->pNext) && pi->iLhs->oPSym->label[0] == '_') {
-                pi->type   = T_JP; /* "jp" */
-                pi->opCode = NULL;
-                pr_instruction(pi);
-                pi = pi->pNext;
+            } else if (!usesIXorIY && sub_4000(ilist)) {
+                ilist->type   = T_RET;
+                ilist->opCode = NULL;
+                pr_instruction(ilist);
+            } else if (!usesIXorIY && ilist->type == T_CALL && ilist->aux == 0 && ilist->pNext->aux == 0 &&
+                       sub_4000(ilist->pNext) && ilist->iLhs->oPSym->label[0] == '_') {
+                ilist->type   = T_JP; /* "jp" */
+                ilist->opCode = NULL;
+                pr_instruction(ilist);
+                ilist = ilist->pNext;
             } else
-                pr_instruction(pi);
+                pr_instruction(ilist);
         }
     }
     if (switchVectors->pNext) {
         pr_psect(DATA);
-        for (pi = switchVectors->pNext; pi; pi = pi->pNext)
-            pr_instruction(pi);
+        for (ilist = switchVectors->pNext; ilist; ilist = ilist->pNext)
+            pr_instruction(ilist);
     }
 }
 
@@ -2891,40 +2894,40 @@ void sub_404d() {
  2) fputc('\n', stdout) is located differently
  **************************************************************************/
 
-void pr_instruction(register inst_t *pi) {
+void pr_instruction(register inst_t *ilist) {
 
-    if (pi->type == T_INVALID)
+    if (ilist->type == T_INVALID)
         ;
-    else if (pi->type == T_SYMBOL) {
-        if ((pi->iPSym->label[0]))
-            printf("%s:\n", pi->iPSym->label);
+    else if (ilist->type == T_SYMBOL) {
+        if ((ilist->iPSym->label[0]))
+            printf("%s:\n", ilist->iPSym->label);
         else
-            printf("L%d:\n", pi->iSymId);
-    } else if (pi->type == T_CONST) { /* m4: */
-        printf("%d:\n", pi->aux);     /* OPTIMISER[1]: shares printf call with above*/
-    } else if (key_f && pi->type == T_CALL && strcmp(pi->iLhs->oPSym->label, "csv") == 0) {
+            printf("L%d:\n", ilist->iSymId);
+    } else if (ilist->type == T_CONST) { /* m4: */
+        printf("%d:\n", ilist->aux);     /* OPTIMISER[1]: shares printf call with above*/
+    } else if (key_f && ilist->type == T_CALL && strcmp(ilist->iLhs->oPSym->label, "csv") == 0) {
         printf("push\tiy\npush\tix\nld\tix,0\nadd\tix,sp\n");
     } else {
         if (key_n)
             fputc('\t', stdout); /* m7: */
 
-        pr_token(pi);
+        pr_token(ilist);
 
-        if (pi->type == T_JP || pi->type == T_CALL || pi->type == T_RET) {
+        if (ilist->type == T_JP || ilist->type == T_CALL || ilist->type == T_RET) {
             fputc('\t', stdout);
-            if (pi->aux != 0)
-                printf("%s", conditions[pi->aux]);
-            if (pi->type != T_RET) {
-                if (pi->aux != 0)
+            if (ilist->aux != 0)
+                printf("%s", conditions[ilist->aux]);
+            if (ilist->type != T_RET) {
+                if (ilist->aux != 0)
                     fputc(',', stdout);
-                sub_436e(pi->iLhs); /* m11: */
+                sub_436e(ilist->iLhs); /* m11: */
             }
-        } else if (pi->iLhs) { /* m14: */
+        } else if (ilist->iLhs) { /* m14: */
             fputc('\t', stdout);
-            sub_436e(pi->iLhs);
-            if (pi->iRhs) {
+            sub_436e(ilist->iLhs);
+            if (ilist->iRhs) {
                 fputc(',', stdout);
-                sub_436e(pi->iRhs);
+                sub_436e(ilist->iRhs);
             }
         }
         fputc('\n', stdout); /* OPTIMISER: minor movement in where this is located also optimises return */
@@ -2935,48 +2938,48 @@ void pr_instruction(register inst_t *pi) {
  58	sub_436e	ok++ (PMO)
  Same except optimiser misses the optimisation of fputc(')', stdout)
  **************************************************************************/
-void sub_436e(register operand_t const *pi) {
-    HEAP(pi);
-    switch (pi->type) {
+void sub_436e(register operand_t const *ilist) {
+    HEAP(ilist);
+    switch (ilist->type) {
     case T_INDEXED:
     case T_ADDRREF:
         fputc('(', stdout);
-        if (pi->type == T_INDEXED) {
-            if (pi->aux == REG_IX)
+        if (ilist->type == T_INDEXED) {
+            if (ilist->aux == REG_IX)
                 printf("ix");
             else
                 printf("iy");
             fputc('+', stdout);
         }
     case T_CONST:
-        if (pi->oPSym) {
-            if (pi->oPSym->label[0])
-                printf("%s", pi->oPSym->label);
+        if (ilist->oPSym) {
+            if (ilist->oPSym->label[0])
+                printf("%s", ilist->oPSym->label);
             else
-                printf("L%d", pi->oPSym->p.pInst->iSymId);
-            if (0 < pi->oVal)
+                printf("L%d", ilist->oPSym->p.pInst->iSymId);
+            if (0 < ilist->oVal)
                 fputc('+', stdout);
         }
-        if (pi->oVal != 0 || !pi->oPSym)
-            printf("%d", pi->oVal);
-        if (pi->type != T_CONST)
+        if (ilist->oVal != 0 || !ilist->oPSym)
+            printf("%d", ilist->oVal);
+        if (ilist->type != T_CONST)
             fputc(')', stdout);
         break;
     case T_REGREF:
         fputc('(', stdout);
     case T_REG:
-        printf("%s", regs[pi->aux]);
-        if (pi->type == T_REGREF)
+        printf("%s", regs[ilist->aux]);
+        if (ilist->type == T_REGREF)
             fputc(')', stdout); /* OPTIMISER[1]: misses optimising htis with same fputc above */
         break;
     case T_FWD:
-        printf("%df", pi->oVal);
+        printf("%df", ilist->oVal);
         break;
     default:
         pr_error("Bad operand");
         break;
     }
-    HEAP(pi);
+    HEAP(ilist);
 }
 
 /**************************************************************************
@@ -3015,23 +3018,23 @@ void sub_44b2(register operand_t const *po) {
  * code functionally is the same
  **************************************************************************/
 void sub_4544(int reg) {
-    register operand_t *pi;
+    register operand_t *ilist;
 
     regValues[reg].type = T_INVALID;
     if (regTestMasks[REG_HL] & regTestMasks[reg]) {
         hlDelta                     = 0;
         regValues[REG_TRACKER].type = T_INVALID;
     }
-    if (pi = regHiLoValMap[reg].pHiRegVal) {
-        pi->type = T_INVALID;
-        if (pi = regHiLoValMap[reg].pLoRegVal)
-            pi->type = T_INVALID;
+    if (ilist = regHiLoValMap[reg].pHiRegVal) {
+        ilist->type = T_INVALID;
+        if (ilist = regHiLoValMap[reg].pLoRegVal)
+            ilist->type = T_INVALID;
     }
     if (reg != 17)
         return;
-    for (pi = regValues; pi < &regValues[REG_TRACKER]; ++pi)
-        if (pi->type == T_INDEXED && pi->aux == REG_IY)
-            pi->type = T_INVALID;
+    for (ilist = regValues; ilist < &regValues[REG_TRACKER]; ++ilist)
+        if (ilist->type == T_INDEXED && ilist->aux == REG_IY)
+            ilist->type = T_INVALID;
 
     if (regValues[REG_TRACKER].type == T_INDEXED && regValues[REG_TRACKER].aux == REG_IY)
         regValues[REG_TRACKER].type = T_INVALID;
@@ -3051,16 +3054,16 @@ void sub_4601() {
 /**************************************************************************
  62	sub_4625	ok++ (PMO)
  **************************************************************************/
-bool sub_4625(register inst_t const *pi) {
+bool sub_4625(register inst_t const *ilist) {
 
-    switch (pi->type) {
+    switch (ilist->type) {
     case T_LD:
     case T_STK:
         return true;
     case T_INCDEC:
-        return pi->iLhs->type == T_REG && pi->iLhs->aux >= REG_BC;
+        return ilist->iLhs->type == T_REG && ilist->iLhs->aux >= REG_BC;
     case T_EX:
-        return pi->iLhs->aux != REG_AF;
+        return ilist->iLhs->aux != REG_AF;
     }
     return false;
 }
@@ -3068,9 +3071,9 @@ bool sub_4625(register inst_t const *pi) {
 /**************************************************************************
  63	sub_4682	ok++ (PMO)
  **************************************************************************/
-bool sub_4682(register operand_t const *pi) {
+bool sub_4682(register operand_t const *ilist) {
 
-    return pi->type == T_CONST && !pi->oPSym && pi->oVal == 0;
+    return ilist->type == T_CONST && !ilist->oPSym && ilist->oVal == 0;
 }
 
 /**************************************************************************
@@ -3427,22 +3430,22 @@ void *alloc_mem(int size) {
 #ifdef CPM
     char *p;
 #endif
-    register char *pi;
+    register char *ilist;
     if ((size = (size + 1) & ~1) + allocs > alloct) {
         if ((allocs = sbrk(CHUNK)) == (char *)-1)
             pr_error("Out of memory in %s", name_fun);
         alloct = sbrk(0);
     }
 
-    pi = allocs;
+    ilist = allocs;
     allocs += size;
 #ifdef CPM
     for (p = pi; size-- != 0;)
         *p++ = 0; /* Clearing allocated memory area */
 #else
-    memset(pi, 0, size);
+    memset(ilist, 0, size);
 #endif
-    return pi;
+    return ilist;
 }
 
 /* simple sbrk & brk implementations */
