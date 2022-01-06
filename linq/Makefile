@@ -83,7 +83,7 @@ $(TARGET): $(OBJ)
 	zxas $<
 
 clean:
-	$(RM) $(TARGET) $(OBJ)
+	$(RM) $(TARGET) $(OBJ) *.map *.sym *.sym.sorted *.huf *.7z
 
 # set your preferred compression
 compress: $(TARGET:.com=.$(DISTYPE))
