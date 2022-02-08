@@ -4,8 +4,25 @@ unsigned short crc16(unsigned char *data_p, size_t length);
 #define NODATAREF
 
 /* record types */
-enum { TEXT = 1, PSECT, RELOC, SYM, START, END, IDENT, TOO_LONG = -1, PAST_END = -2 };
+enum {
+    TEXT = 1,
+    PSECT,
+    RELOC,
+    SYM,
+    START,
+    END,
+    IDENT,
+    XPSECT,
+    SEGMENT,
+    XSYM,
+    SIGNAT,
+    FNINFO,
+    FNCONF,
+    TOO_LONG = -1,
+    PAST_END = -2
+};
 enum { UNDEF = 0, ABS, FIXUP };
+enum { RABS, RPSECT, RNAME, RRPSECT = 5, RRNAME, RSPSECT = 9, RSNAME, RCPLX = 3 };
 
 #define CHUNK 50 // allocation chunk for symbols
 
@@ -37,33 +54,6 @@ struct {
 } labels[MAXLABEL];
 int labelCnt;
 
-struct {
-    char *alias;
-    char *label;
-} map[] = { { "_bmove", "_movmem" },
-            { "_inp", "_in" },
-            { "_isdigit", "_isdig" },
-            { "_outp", "_out" },
-            { "asll", "asal" },
-            { "aslland", "asaland" },
-            { "asllmul", "asalmul" },
-            { "asllor", "asalor" },
-            { "asllsub", "asalsub" },
-            { "asllxor", "asalxor" },
-            { "aslmul", "asamul" },
-            { "lladd", "aladd" },
-            { "lland", "aland" },
-            { "lldec", "ladec" },
-            { "llinc", "lainc" },
-            { "llmul", "almul" },
-            { "llor", "alor" },
-            { "llsub", "alsub" },
-            { "llxor", "alxor" },
-            { "lmul", "amul" },
-            { "lrelop", "arelop" },
-            { "shll", "shal" },
-            { NULL }
-};
 
 int getWord(FILE *fp) {
     int c1 = getc(fp);
@@ -123,9 +113,15 @@ void dumpPattern(FILE *fpout) {
     int splitRef = 0;
     int loc;
     bool hasPublic = false;
+    int abs     = 0;
 
-    if (codesize == 0)
+    for (loc = 0; loc < codesize && loc < 32; loc++)
+        if (flags[loc] == ABS)
+            abs++;
+
+    if (abs < 6)
         return;
+
     for (loc = 0; loc < codesize && loc < 32; loc++) {
         if (flags[loc] == ABS)
             fprintf(fpout, "%02X", code[loc]);
@@ -143,7 +139,14 @@ void dumpPattern(FILE *fpout) {
 
     for (int i = 0; i < labelCnt; i++)
         if (labels[i].type == PUBLIC) {
-            fprintf(fpout, ":%04X %s ", labels[i].offset, labels[i].name);
+            fprintf(fpout, ":%04X %s", labels[i].offset, labels[i].name);
+            for (j = i + 1; j < labelCnt; j++) {
+                if (labels[j].type == PUBLIC && labels[j].offset == labels[i].offset) {
+                    fprintf(fpout, "$%s", labels[j].name);
+                    labels[j].type = 0;
+                }
+            }
+            putc(' ', fpout);
             hasPublic = true;
         }
     if (!hasPublic)
@@ -171,17 +174,10 @@ void clearLabels() {
 }
 
 void addLabel(int offset, char *label, uint8_t type) {
-    for (int i = 0; map[i].alias; i++)
-        if (strcmp(map[i].alias, label) == 0) {
-            if (type != PUBLIC)
-               label = map[i].label;
-            else
-                return;
-            break;
-        }
     for (int i = 0; i < labelCnt; i++) {
         if (strcmp(labels[i].name, label) == 0) {
-            if (type == PUBLIC || ((labels[i].type & HASDELTA) && code[offset] + code[offset + 1] == 0)) {
+            if (type == PUBLIC ||
+                ((labels[i].type & HASDELTA) && code[offset] + code[offset + 1] == 0)) {
                 labels[i].offset = offset;
                 labels[i].type   = type;
             }
@@ -207,7 +203,7 @@ int doText(char *name) {
         fprintf(stderr, "%s: unexpected EOF in TEXT record\n", name);
         return false;
     }
-    if (strcmp(psect, "text"))
+    if (stricmp(psect, "text") != 0 && stricmp(psect, "_text") != 0)
         return -1;
 
     int length = record.length - record.pos;
@@ -219,7 +215,7 @@ int doText(char *name) {
     }
     memcpy(code + offset - codebase, record.data + record.pos, length);
     memset(flags + offset - codebase, ABS, length);
-    if (offset + length - codebase > codesize)
+    if (length != 0 && offset + length - codebase > codesize)
         codesize = offset + length - codebase;
 
     return offset;
@@ -229,28 +225,46 @@ void doReloc(char *name, int base) {
     while (record.pos < record.length) {
         int offset = unpackWord(); // assumption is that byte order is 0, 1
         int type   = unpackByte();
-        char label[MAXNAMELEN];
-        if (!unpackName(label)) {
-            fprintf(stderr, "%s: unexpected EOF in RELOC record\n", name);
-            exit(1);
+        int cplx;
+        char label[MAXNAMELEN] = "";
+        if (type != (RCPLX << 4) + 2) {
+            if (!unpackName(label)) {
+                fprintf(stderr, "%s: unexpected EOF in RELOC record\n", name);
+                exit(1);
+            }
         }
         int size = type & 0xf;
-        switch (type >> 4) {
-        case 0:
+        type >>= 4;
+        switch (type) {
+        case RABS:
             break;
-        case 1:
-            if (base >= 0)
-                memset(flags + base + offset - codebase, FIXUP, size);
-            break;
-        case 2:
-            if (base >= 0) {
-                memset(flags + base + offset - codebase, FIXUP, size);
-                if (size == 2)
-                    addLabel(base + offset - codebase, label, EXTERNAL);
+        case RCPLX:
+            while ((cplx = unpackByte())) {
+                if (cplx == 3) {
+                    unpackWord();
+                    unpackWord();
+                } else if (cplx == 16 || cplx == 32) {
+                    char tmp[MAXNAMELEN];
+                    if (!unpackName(tmp)) {
+                        fprintf(stderr, "%s: unexpected EOF in RELOC Complex record\n", name);
+                        exit(1);
+                    }
+                }
             }
+
+        case RPSECT:
+        case RRPSECT:
+        case RSPSECT:
+        case RNAME:
+        case RRNAME:
+        case RSNAME:
+            memset(flags + base + offset - codebase, FIXUP, size);
+            if (type == RNAME && size == 2)
+                addLabel(base + offset - codebase, label, EXTERNAL);
             break;
         default:
-            fprintf(stderr, "%s: unsupported reloc - offset=%04X type=%d psect=%s\n", name, offset, type >> 4, label);
+            fprintf(stderr, "%s: unsupported reloc - offset=%04X type=%d size=%d psect=%s\n", name, offset,
+                    type, size, label);
             break;
         }
     }
@@ -266,14 +280,14 @@ void doSym(char *name) {
             fprintf(stderr, "%s: unexpected EOF in SYM record\n", name);
             exit(1);
         }
-        if ((flags & 0x1f) == PUBLIC && strcmp(psect, "text") == 0)
+        if ((flags & 0x1f) == PUBLIC && (stricmp(psect, "text") == 0 || stricmp(psect, "_text") == 0))
             addLabel(value - codebase, symbol, PUBLIC);
     }
 }
 
 bool doModule(char *name, FILE *fpin, FILE *fpout) {
     int type;
-    int textBase;
+    int textBase = -1;
 
     memset(flags, UNDEF, codesize ? codesize : sizeof(flags));
     codesize = 0;
@@ -285,7 +299,8 @@ bool doModule(char *name, FILE *fpin, FILE *fpout) {
             textBase = doText(name);
             break;
         case RELOC:
-            doReloc(name, textBase);
+            if (textBase >= 0)
+                doReloc(name, textBase);
             break;
         case SYM:
             doSym(name);
@@ -293,6 +308,12 @@ bool doModule(char *name, FILE *fpin, FILE *fpout) {
         case PSECT:
         case START:
         case IDENT:
+        case XPSECT:
+        case SEGMENT:
+        case XSYM:
+        case SIGNAT:
+        case FNINFO:
+        case FNCONF:
             break;
         default:
             fprintf(stderr, "%s: unsupported record type %d\n", name, type);
@@ -329,8 +350,8 @@ void doLib(char *file, FILE *fpout) {
         while (modulecnt-- != 0) {
             int modsymsize;
 
-            if ((modsymsize = getWord(symin)) < 0 || fseek(symin, 10, SEEK_CUR) != 0 || !getName(symin, modname) ||
-                fseek(symin, modsymsize, SEEK_CUR) != 0) {
+            if ((modsymsize = getWord(symin)) < 0 || fseek(symin, 10, SEEK_CUR) != 0 ||
+                !getName(symin, modname) || fseek(symin, modsymsize, SEEK_CUR) != 0) {
                 fprintf(stderr, "%s: error processing symbols\n", file);
                 break;
             }
