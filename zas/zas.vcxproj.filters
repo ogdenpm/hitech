@@ -15,58 +15,52 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="kwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cclass.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="code.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="expr.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lex.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="macro.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="delete.c">
+    <ClCompile Include="parse.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="extract.c">
+    <ClCompile Include="sym.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="io.c">
+    <ClCompile Include="tlab.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="list.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="misc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="obj.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="replace.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="getargs.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="missing\dirent.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="fname.c">
+    <ClCompile Include="emulate.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="version.in" />
-    <None Include="packages.config" />
+    <ClInclude Include="kwd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="zas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cclass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="version.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Generated\version.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="libr.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="missing\dirent.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <None Include="zas.licenseheader" />
   </ItemGroup>
 </Project>

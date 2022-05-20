@@ -20,7 +20,6 @@ char *tmpFileName;
 uint8_t moduleBuf[BLOCKSIZE];
 uint8_t libBuf[BLOCKSIZE];
 
-
 void openTemp() {
 #ifdef CPM
     tmpFileName = "libtmp.$$$";
@@ -143,7 +142,7 @@ void visitModules(mfuncptr action) {
         if (fread(libBuf, 12, 1, libraryFp) != 1)
             unexp_eof();
 
-        symSize    = get16le(libBuf);    
+        symSize    = get16le(libBuf);
         symCnt     = get16le(libBuf + 2);
         moduleSize = get32le(libBuf + 4);
         libTime    = get32le(libBuf + 8);
@@ -162,7 +161,7 @@ void visitModules(mfuncptr action) {
     }
 }
 
-void visitSymbols(void (*action)(char *, int)) {
+void visitSymbols(sfuncptr action) {
     int cnt;
     int type;
 
@@ -228,15 +227,15 @@ void extractOneModule(char *name) {
     moduleRead = true;
 }
 
-void copyNewModule(char *name, int moduleId) {
+void copyNewModule(int id) {
     size_t remaining, written;
     size_t chunkSize;
     FILE *fp;
 
-    if ((fp = fopen(name, "rb")) == 0)
-        open_err(name);
+    if ((fp = fopen(cmdLineNames[id], "rb")) == 0)
+        open_err(cmdLineNames[id]);
     written   = 0;
-    remaining = moduleSizes[moduleId];
+    remaining = moduleSizes[id];
 
     while ((chunkSize = fread(moduleBuf, 1, remaining > BLOCKSIZE ? BLOCKSIZE : remaining, fp)) !=
            0) {
@@ -248,29 +247,36 @@ void copyNewModule(char *name, int moduleId) {
     fclose(fp);
 }
 
-void copyNewSymbols(char *moduleName, int moduleId) {
+/* as the objFileName may include a path element, this routine
+   removes the path component before writing.
+   this also applies to CPM as a:file.obj may have been specified
+   if !caseSentive also map name to lowercase
+*/
+void copyNewSymbols(int id) {
     uint32_t modsize;
     size_t simsize;
     uint16_t cnt;
     register struct sym *st;
+    
+    if (verbose)
+        printf("%c %s\n", moduleFlags[id] ? 'r' : 'a', moduleStdNames[id]);
+    moduleSizes[id] = (modsize = scanModule(cmdLineNames[id]));
 
-    moduleSizes[moduleId] = (modsize = scanModule(moduleName));
-
-    cnt                   = (uint16_t)(curSymPtr - symbols);
-    simsize               = cnt * 2; /* flag & trailing 0 */
+    cnt             = (uint16_t)(curSymPtr - symbols);
+    simsize         = cnt * 2; /* flag & trailing 0 */
 
     for (st = symbols; st != curSymPtr; ++st)
         simsize += strlen(st->name); /* add in the symbol lengths */
-
-    newSymSize +=
-        (strlen(moduleName) + simsize + 13); /* 13 -> header size + trailing 0 of module name */
+    /* 13 -> header size + trailing 0 of module name */
+    newSymSize += strlen(moduleStdNames[id]) + simsize + 13;
     put16le((uint16_t)simsize, libBuf);
     put16le(cnt, libBuf + 2);
     put32le(modsize, libBuf + 4);
     put32le((uint32_t)curTime, libBuf + 8); /* time may be too big, but truncate */
     writeBlock(libBuf, 1, 12, tempFp);
     tempFileSize += 12;
-    writeName(moduleName);
+
+    writeName(moduleStdNames[id]);
 
     for (st = symbols; st != curSymPtr; ++st) {
         fputc(st->flags, tempFp);
@@ -321,7 +327,6 @@ void readName(uint8_t *p1) {
 }
 
 void writeName(char *p1) {
-
     do {
         ++tempFileSize;
     } while (fputc(*p1++, tempFp) != 0);

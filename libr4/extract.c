@@ -1,9 +1,11 @@
 #include "libr.h"
 
 void extractNamedModule(char *name, time_t libTime) {
-
-    if (lookupName(name))
+    if (lookupName(name)) {
         extractOneModule(name);
+        if (verbose)
+            printf("x %s\n", name);
+    }
 }
 
 void extractModules() {

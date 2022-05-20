@@ -143,18 +143,19 @@ int scanModule(char *name) {
 }
 
 
-void copyMatchedSymbols(char *p1, time_t libTime) {
+void copyMatchedSymbols(char *moduleName, time_t libTime) {
+    int moduleId;
 
-    if (lookupName(p1) != 0)
-        copyNewSymbols(p1, lookupName(p1) - 1);
+    if ((moduleId = lookupName(moduleName)))
+        copyNewSymbols(moduleId - 1);
     else
         copySymbolsToTemp();
 }
 
-void copyMatchedModules(char *p1, time_t libTime) {
-
-    if (lookupName(p1) != 0)
-        copyNewModule(p1, lookupName(p1) - 1);
+void copyMatchedModules(char *moduleName, time_t libTime) {
+    int moduleId;
+    if ((moduleId = lookupName(moduleName)))
+        copyNewModule(moduleId - 1);
     else
         copyModuleToTemp();
 }

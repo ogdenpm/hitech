@@ -60,10 +60,10 @@ void wrSymbol(register sym_t *ps) {
     /* write to the object file */
     len = SYM_PNAME + strlen(symbol_name) + 1 + strlen(psect_name) + 1;
 
-    chkAddRecordItem(SYM_RECORD, len);                   /* make enough room */
-    conv_u32tob(ps->p.value, nonTextRecPtr + SYM_VALUE); /* save the value */
-    conv_u16tob(ps->flags, nonTextRecPtr + SYM_FLAGS);   /* and the flags */
-    strcpy((char *)nonTextRecPtr + SYM_PNAME, psect_name);       /* psect name & symbol name */
+    chkAddRecordItem(SYM_RECORD, len);                     /* make enough room */
+    conv_u32tob(ps->p.value, nonTextRecPtr + SYM_VALUE);   /* save the value */
+    conv_u16tob(ps->flags, nonTextRecPtr + SYM_FLAGS);     /* and the flags */
+    strcpy((char *)nonTextRecPtr + SYM_PNAME, psect_name); /* psect name & symbol name */
     strcpy(strlen(psect_name) + SYM_PNAME + 1 + (char *)nonTextRecPtr, symbol_name);
     nonTextRecPtr += len; /* undate for next entry */
 }
@@ -96,9 +96,9 @@ void prFileLinkMap() {
     else
         printf("%s\n%16s", fname_obj, "");
 
-    col           = 0;
-    nCols           = (width - 10) / 32;
-    absSym->name  = "(abs)"; /* for printing */
+    col          = 0;
+    nCols        = (width - 10) / 32;
+    absSym->name = "(abs)"; /* for printing */
 
     for (pp = psectInfo; pp != nextPsect; ++pp) {
         if (pp->endAddr != 0) {
@@ -108,12 +108,12 @@ void prFileLinkMap() {
                 addr = pp->blkStartAddress;
             if (!key_R)
                 addr += pp->linkAddress;
-            if (nCols < ++col) { /* m6: */
+            if (nCols < ++col) {
                 printf("\n\t\t");
                 col = 1;
             } else if (col > 1)
-                    fputc('\t', stdout);
-            printf("%-8.8s %8lx %8lx", pp->psectSym->name, addr, pp->endAddr); /* m8: */
+                fputc('\t', stdout);
+            printf("%-8.8s %8" PRIx32 " %8" PRIx32, pp->psectSym->name, addr, pp->endAddr);
         }
     }
     fputc('\n', stdout);
@@ -130,10 +130,10 @@ void output_summary(register psect_t *st) {
     if (key_R != 0) { /* Link   */
         printf("%8c", 0x20);
     } else {
-        printf("%8lx", st->linkAddress);
+        printf("%8" PRIx32, st->linkAddress);
     }
-    printf(" %8lx", st->loadAddress);       /* Load   */
-    printf(" %8lx\n", st->blkStartAddress); /* Length */
+    printf(" %8" PRIx32, st->loadAddress);       /* Load   */
+    printf(" %8" PRIx32 "\n", st->blkStartAddress); /* Length */
 }
 
 /**************************************************************************
@@ -153,13 +153,13 @@ void wr_linkmap() {
     /* 997 */
     qsort(symbol_table, MAX_SYMBOLS, sizeof(symbol_table[0]), compare_fun);
     absSym->name = "(abs)"; /* for printing use (abs) rather than "" */
-    for (pSlot = symbol_table, symColWidth = 0, psectColWidth = 0; ps = *pSlot; pSlot++) {
+    for (pSlot = symbol_table, symColWidth = 0, psectColWidth = 0; (ps = *pSlot); pSlot++) {
         i = (uint8_t)strlen(ps->name);
         if ((ps->flags & 0xC000) != 0) {
             if (psectColWidth < i)
                 psectColWidth = i;
         } else if (symColWidth < i)
-            symColWidth = i; /* m2: */
+            symColWidth = i;
     }
     fputc('\n', stdout);
 
@@ -168,9 +168,9 @@ void wr_linkmap() {
         if (l2->classSym == 0) {
             if (l2->psectSym->flags & SF_CLASS) {
                 printf("\tCLASS.%-8.8s\n", l2->psectSym->name);
-                for (l3 = psectInfo; l3 != nextPsect; ++l3) { /* m8: */
+                for (l3 = psectInfo; l3 != nextPsect; ++l3) {
                     if (l3->classSym == l2->psectSym)
-                        output_summary(l3); /* m6: */
+                        output_summary(l3);
                 }
                 fputc('\n', stdout);
             } else
@@ -186,7 +186,7 @@ void wr_linkmap() {
     nCol  = width / (symColWidth + psectColWidth + 8);
     pSlot = symbol_table;
 
-    for (i = 0; ps = *pSlot; pSlot++) {
+    for (i = 0; (ps = *pSlot); pSlot++) {
         if ((ps->flags & 0xC000) == 0) {
             printf("%-*s", symColWidth, ps->name);
             if ((ps->flags & 0xF) == SF_EXTERN)
@@ -197,7 +197,7 @@ void wr_linkmap() {
                 i = 0;
                 fputc('\n', stdout);
             } else
-                printf("  "); /* m17: */
+                printf("  ");
         }
     }
     if (i != 0)
@@ -231,7 +231,7 @@ int compare_fun(const void *p1, const void *p2) {
         }
     }
 
-    return strcmp(ps1->name, ps2->name); /* m7: */
+    return strcmp(ps1->name, ps2->name);
 }
 
 /**************************************************************************
@@ -245,7 +245,7 @@ int textRecPass1() {
 
     readRecData(textRecBuf); /* Read TEXT record to textRecBuf */
 
-    psectName = (char *)textRecBuf + TEXT_PNAME;                       /* ptr to name psectSym    */
+    psectName = (char *)textRecBuf + TEXT_PNAME;                    /* ptr to name psectSym    */
     textLen   = length - (int)(TEXT_PNAME + strlen(psectName) + 1); /* number of data bytes */
 
     if (textLen < 0)
@@ -281,7 +281,7 @@ void textRecPass2() {
     curAddr = textRecPtr;
 
     ps      = addSym((char *)textRecBuf + TEXT_PNAME, SF_PSECT); /* ptr to symbol table     */
-    l1      = conv_btou32(textRecBuf + TEXT_OFFSET);     /* Offset                  */
+    l1      = conv_btou32(textRecBuf + TEXT_OFFSET);             /* Offset                  */
     l2      = ps->p.pinfo;
 
     if (!(ps->flags & SF_OVRLD))
@@ -294,7 +294,7 @@ void textRecPass2() {
 
         textBaseAddress += l2->linkAddress;
     }
-    conv_u32tob(l1, textRecBuf + TEXT_OFFSET); /* m3: */
+    conv_u32tob(l1, textRecBuf + TEXT_OFFSET);
 }
 
 /**************************************************************************

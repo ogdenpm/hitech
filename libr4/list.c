@@ -21,10 +21,10 @@ static void checkToList(char *testName, int type) {
     }
 }
 
-static void listOneModule(char *testName, time_t libTime) {
+static void listOneModule(char *name, time_t libTime) {
     static time_t prevTime;
 
-    if (lookupName(testName) == 0)
+    if (lookupName(name) == 0)
         return;
     if (listModuleName) {
         listModuleFound = false;
@@ -32,8 +32,8 @@ static void listOneModule(char *testName, time_t libTime) {
         if (!listModuleFound)
             return;
     }
-    printf("%-15.15s", testName);
-    if (listModuleName != 0)
+    printf("%-15.15s", name);
+    if (listModuleName)
         printf(" %c", listModuleType >= 7 ? '?' : symbolTypes[listModuleType]);
 
     if (libTime != 0 && libTime != prevTime) {
@@ -46,7 +46,7 @@ static void listOneModule(char *testName, time_t libTime) {
 void listModules(char *key, char *name) {
 
     if (*key) {
-        listModuleName = name;
+        listModuleName = fname(name); /* ignore any path name element*/
         do {
             switch (*key) {
             case 'd':
@@ -77,7 +77,6 @@ static void printSymbol(char *name, int type) {
 }
 
 static void printObjAndSymbols(char *name, time_t libTime) {
-
     if (lookupName(name) == 0)
         return;
     printf("%-16.15s", name); /* Print obj name from library with the key s */

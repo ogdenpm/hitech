@@ -46,7 +46,6 @@ FILE *moduleFp = stdin; /*6c28 */
 FILE *moduleFp = NULL; /* for GCC and VC stdin is actually a function call so can't be used here */
 #endif
 
-
 int width         = 80;
 
 char *rec_types[] = {
@@ -76,10 +75,9 @@ void (*recHandler[][2])() = {
     { xpsectRecPass1, skipRecData }             /* 6c5e 8 "XPSECT" */
 };
 
-
 void (*finPassHandler[2])() = { finPass1, finPass2 };
 
-psect_t *nextPsect         = psectInfo; /* 6f69 */
+psect_t *nextPsect          = psectInfo; /* 6f69 */
 
 /*
  *	Uninitialized variables and arrays
@@ -105,7 +103,7 @@ int num_files;              /* 7c32 * */
 FILE *libraryFp;            /* 7c34 * */
 int symCnt;                 /* 7c36 * */
 uint8_t libBuf[100];        /* 7c38 * */
-vec_t **libTable;        /* 7c9c * */
+vec_t **libTable;           /* 7c9c * */
 bool haveEntryPt;           /* 7c9e   */
 char *libraryName;          /* 7c9f * */
 bool key_LM;                /* 7ca1 * */
@@ -125,7 +123,7 @@ char *fname_outp;           /* 7cb5   */
 bool key_I;                 /* 7cb7 * */
 char *psect_location;       /* 7cb8   */
 bool key_X;                 /* 7cbb * */
-FILE *outFp;               /* 7cbc   */
+FILE *outFp;                /* 7cbc   */
 bool key_L;                 /* 7cbe * */
 int num_lib_files;          /* 7cbf * */
 bool key_M;                 /* 7cc1 * */
@@ -214,7 +212,8 @@ void readRecHdr() {
 void readRecData(uint8_t *buf) {
 
     if (fread(buf, 1, length, moduleFp) != length)
-        badFormat("incomplete %s record body: length = %d", rec_types[*(recbuf + RECORD_TYPE)], length);
+        badFormat("incomplete %s record body: length = %d", rec_types[*(recbuf + RECORD_TYPE)],
+                  length);
 }
 
 /**************************************************************************
@@ -254,7 +253,7 @@ void writeText() {
         targetAddress = conv_btou32(textRecBuf); /* pick up the text record offset */
 
         if (targetAddress < offset_address)
-            fatal_err("module has code below file base of 0%lxh", offset_address);
+            fatal_err("module has code below file base of 0%" PRIx32 "h", offset_address);
 
         if (fseek(outFp, targetAddress - offset_address, SEEK_SET) == -1)
             fatal_err("%s: Seek error", fname_outp);
@@ -360,7 +359,7 @@ uint32_t conv_btou32(register uint8_t *p1) {
     l2 = 4;
     l1 = 0;
     while (l2-- > 0)
-        l1 += ((uint32_t)(uint16_t)p1[order32[l2]]) << (l2 * 8);
+        l1 += ((uint32_t)(uint16_t)p1[order32[(int)l2]]) << (l2 * 8);
     return l1;
 }
 
@@ -387,7 +386,7 @@ uint32_t conv_btou24(register uint8_t *p1) {
     l2 = 3;
     l1 = 0;
     while (l2-- > 0)
-        l1 += ((uint32_t)(uint16_t)p1[order32[l2]] << (l2 * 8));
+        l1 += ((uint32_t)(uint16_t)p1[order32[(int)l2]] << (l2 * 8));
     return l1;
 }
 

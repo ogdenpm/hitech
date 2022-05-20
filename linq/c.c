@@ -8,10 +8,10 @@
  */
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 #if CPM
 #include <sys.h>
@@ -71,174 +71,181 @@ int main(int argc, char **argv) {
         argc = _argc_;
     }
 #endif
+    create_symtab(); /* PMO: moved before -U option which uses symtab */
+
     for (--argc, ++argv; argc != 0 && **argv == '-'; --argc, ++argv) {
 
-        pOption = *argv + 1; /* m2: */
+        pOption = *argv + 1;
         while (*pOption) {
-            switch (*pOption++) { /* m5: */
+            switch (*pOption++) {
             case 'R':
-            case 'r':      /* Leave the output relocatable */
-                key_R = 1; /* m7: */
+            case 'r': /* Leave the output relocatable */
+                key_R = 1;
                 break;
 
             case 'L':
-            case 'l':                       /* Retain absolute relocation info */
-                if ((*pOption == 'm')       /* m8: */
-                    || (*pOption == 'M')) { /* Will retain only segement relocation */
-                    key_LM = 1;             /* information				/* m9: */
-                    pOption++;              /* m10: */
+            case 'l': /* Retain absolute relocation info */
+                if ((*pOption == 'm') ||
+                    (*pOption == 'M')) { /* Will retain only segement relocation */
+                    key_LM = 1;          /* information */
+                    pOption++;
                     break;
                 }
                 key_L = 1; /*m11: */
                 break;
 
             case 'N':
-            case 'n':      /* Sort symbols by address */
-                key_N = 1; /* m12: */
+            case 'n': /* Sort symbols by address */
+                key_N = 1;
                 break;
 
             case 'C':
-            case 'c':                     /* Produce a binary output file offset */
-                key_C = 1; /* by value */ /* m13: */
+            case 'c':      /* Produce a binary output file offset */
+                key_C = 1; /* by value */
                 parseLongVal(&pOption, &offset_address);
-                break; /* m14: */
+                break;
 
             case 'S':
-            case 's':      /* Strip symbol information from output file */
-                key_S = 1; /* m15: */
+            case 's': /* Strip symbol information from output file */
+                key_S = 1;
 
             case 'X':
-            case 'x':      /* Suppress local symbols in output file */
-                key_X = 1; /* m16: */
+            case 'x': /* Suppress local symbols in output file */
+                key_X = 1;
 
             case 'Z':
-            case 'z': /* Suppress trivial (compiler-generated) */
-                key_Z = 1; /* symbols in theoutput file */ /* m17: */
+            case 'z':      /* Suppress trivial (compiler-generated) */
+                key_Z = 1; /* symbols in theoutput file */
                 break;
 
             case 'O':
-            case 'o':                  /* Call output file name */
-                if (fname_outp == 0) { /* m18: */
+            case 'o': /* Call output file name */
+                if (fname_outp == 0) {
                     if (*pOption != 0) {
                         fname_outp = pOption;
                         pOption    = "";
                         break;
                     }
                 }
-                fatal_err("Illegal -o flag"); /* m19: */
+                fatal_err("Illegal -o flag");
                 break;
 
             case 'P':
-            case 'p':                      /* Spec is a psectSym location specification */
-                if (psect_location == 0) { /* m21: */
+            case 'p': /* Spec is a psectSym location specification */
+                if (psect_location == 0) {
                     if (*pOption != 0) {
                         psect_location = pOption;
                         pOption        = "";
                         break;
                     }
                 }
-                fatal_err("Illegal -p flag"); /* m22: */
+                fatal_err("Illegal -p flag");
                 break;
 
             case 'M':
-            case 'm':                 /* Write a link map to the file name */
-                if (fname_map == 0) { /* m23: */
+            case 'm': /* Write a link map to the file name */
+                if (fname_map == 0) {
                     key_M     = 1;
                     fname_map = pOption;
                     pOption   = "";
                     break;
                 }
-                fatal_err("Duplicate -m flag"); /* m24: */
+                fatal_err("Duplicate -m flag");
                 break;
 
             case 'U':
-            case 'u':                /* Make symbol initially undefined */
-                if (*pOption != 0) { /* m25: */
+            case 'u': /* Make symbol initially undefined */
+                if (*pOption != 0) {
                     addSym(pOption, 0x10);
                     pOption = "";
                     break;
                 }
-                fatal_err("Missing arg to -u"); /* m26: */
+                fatal_err("Missing arg to -u");
                 break;
 
             case 'H':
             case 'h':
-                key_H = 1; /* m27: */
+                key_H = 1;
 
             case 'D':
-            case 'd':               /* Write a symbol file */
-                if (fname_sym != 0) /* m28: */
+            case 'd': /* Write a symbol file */
+                if (fname_sym != 0)
                     fatal_err("Duplicate -d flag");
                 if (*pOption != 0)
                     fname_sym = pOption;
                 else
-                    fname_sym = "l.sym"; /* m30: */
-                pOption = "";            /* m31: */
+                    fname_sym = "l.sym";
+                pOption = "";
                 break;
 
             case 'W':
-            case 'w':                         /* Specify map width */
-                if (isdigit(*pOption) != 0) { /* m32: */
+            case 'w': /* Specify map width */
+                if (isdigit(*pOption) != 0) {
                     width   = atoi(pOption);
                     pOption = "";
                     break;
                 }
-                fatal_err("Missing arg to -w"); /* m33: */
+                fatal_err("Missing arg to -w");
                 break;
 
             case 'I':
-            case 'i':      /* Ignore undefined symbols */
-                key_I = 1; /* m34: */
+            case 'i': /* Ignore undefined symbols */
+                key_I = 1;
                 break;
             default:
-                fatal_err("Illegal flag %c\n%s", *(pOption - 1), usageMsg); /* m35: */
+                fatal_err("Illegal flag %c\n%s", *(pOption - 1), usageMsg);
                 break;
             } /* end switch */
         }     /* end pOption while */
     }         /* end argc while */
 
     if (key_C && (key_R || key_L)) {
-        fprintf(stderr, "-c illegal with -r or -l"); /* m38: */
+        fprintf(stderr, "-c illegal with -r or -l");
         exit(1);
     }
     if (argc == 0)
-        fatal_err(usageMsg); /* m39: */
-    create_symtab();         /* m40: */
-    if (fname_outp == 0)     /* Assign default output file name */
+        fatal_err(usageMsg);
+    /* create_symtab();  moved to before option processing as -U uses symbol table */
+    if (fname_outp == 0) { /* Assign default output file name */
         if (key_C)
             fname_outp = "l.bin";
         else
             fname_outp = "l.obj";
-
-    outFp = fopen(fname_outp, "wb"); /* m42: */
+    }
+    outFp = fopen(fname_outp, "wb");
     if (outFp == 0)
         fatal_err("%s: Can't create", fname_outp);
     if (key_M && *fname_map && freopen(fname_map, "w", stdout) == 0)
         fatal_err("%s: Can't create", fname_map);
 
-    if (fname_sym != 0) { /* m44: */
+    if (fname_sym != 0) {
         if ((symFp = fopen(fname_sym, "w")) == 0)
             fatal_err("%s: Can't create", fname_sym);
     }
-    absSym        = addSym("", SF_PSECT | 0xD0); /* m45: */
+    absSym        = addSym("", SF_PSECT | 0xD0);
     num_lib_files = 0;
-    for (curFileId = 0; argc != curFileId; ++curFileId) { /* m48: */
+    for (curFileId = 0; argc != curFileId; ++curFileId) {
         if (is_library(argv[curFileId]) != 0)
             ++num_lib_files;
     }
     allocModuleArrays(num_lib_files);
-    for (linker_pass = 0; linker_pass < 2; ++linker_pass) {               /* m56: */
-        num_lib_files = 0;                                                /* m49: */
-        for (curFileId = 0; curFileId < argc; ++curFileId) {              /* m54: */
-            if (freopen((fname_obj = argv[curFileId]), "rb", stdin) == 0) /* m50: */
+    for (linker_pass = 0; linker_pass < 2; ++linker_pass) {
+        num_lib_files = 0;
+        for (curFileId = 0; curFileId < argc; ++curFileId) {
+#ifdef CPM
+            if (freopen((fname_obj = argv[curFileId]), "rb", stdin) == 0)
+#else
+            if (freopen((fname_obj = argv[curFileId]), "rb", stdin) == 0 && 
+                freopen(mkLibPath(fname_obj), "rb", stdin) == 0)
+#endif
                 fatal_err("%s: Can't open", fname_obj);
-            if (is_library(fname_obj) != 0) { /* lib file */ /* m51: */
+            if (is_library(fname_obj) != 0) { /* lib file */
                 openLibrary();
                 ++num_lib_files;
             } else
-                doObjFile(); /* m52: */
-            fname_obj = 0;   /* m53: */
-        }                    /*    / finPass1 */
+                doObjFile();
+            fname_obj = 0;
+        } /*    / finPass1 */
         (finPassHandler[linker_pass])();
         if (err_num != 0)
             exit(1); /*    \ finPass2 */
@@ -392,7 +399,6 @@ void warning(char const *fmt, ...) {
     va_end(args);
 }
 
-
 /**************************************************************************
  39	badFormat	sub_1232h	ok++ (PMO)
  **************************************************************************/
@@ -420,8 +426,11 @@ void *xalloc(size_t p1) {
 }
 
 /**************************************************************************
- 41	clrbuf	ok++ (PMO)
+ 41	clrbuf	ok++ (PMO) (use macro for newer code)
+ as latest definition of memcpy uses restrict and gcc complains of overlap
+ also memset is usually inlined
  **************************************************************************/
+#ifdef CPM
 void clrbuf(register char *st, size_t p2) {
 
     if (p2 == 0)
@@ -431,7 +440,7 @@ void clrbuf(register char *st, size_t p2) {
         return;
     bmove(st, st + 1, p2); /* use bmove to copy 0 to remaining locations*/
 }
-
+#endif
 /*
  *	Relocation type
  */
@@ -475,10 +484,10 @@ void relocRecPass1() {
  new      ld (ix-4),l | ld (ix-3),h | ex de,hl | ld hl,8
  **************************************************************************/
 void relocRecPass2() {
-    uint8_t *rp; /* Pointer relocation information field */
-    sym_t *ps;
-    char *name; /* Psect or external name              */
-    size_t len; /* Length relocation information field */
+    uint8_t *rp;      /* Pointer relocation information field */
+    sym_t *ps = NULL; /* PMO Force init */
+    char *name;       /* Psect or external name              */
+    size_t len;       /* Length relocation information field */
     uint16_t offset;
     uint32_t relocatability;
     uint8_t reloc_type; /* Relocation type */
@@ -594,8 +603,7 @@ void relocRecPass2() {
 
             case RRNAME:
                 fixup(offset, reloc_type,
-                      0 - textBaseAddress - (uint32_t)offset +
-                          (ps = addSym(name, 0))->p.value); /* m22: */
+                      0 - textBaseAddress - (uint32_t)offset + (ps = addSym(name, 0))->p.value);
                 ps = ps->psectSym;
                 break;
 
@@ -606,7 +614,7 @@ void relocRecPass2() {
                 break;
 
             case RSNAME:
-                pp             = (ps = addSym(name, 0)->psectSym)->p.pinfo; /* m25: */
+                pp             = (ps = addSym(name, 0)->psectSym)->p.pinfo;
                 relocatability = pp->align;
                 if (relocatability == 0)
                     relocatability = 1;
@@ -623,7 +631,7 @@ void relocRecPass2() {
                     nonTextRecPtr += (strlen(ps->name) + RELOC_NAME + 1);
                 }
         }
-    } /* m29: */
+    }
 }
 
 /**************************************************************************
@@ -648,7 +656,7 @@ void fixup(int offset, uint16_t relocType, uint32_t delta) {
     case 2:
         nval  = delta + (long)conv_letoi16(fixloc);
         nmask = 0xffff;
-        conv_u16tob((uint8_t)nval, fixloc);
+        conv_u16tob((uint16_t)nval, fixloc);
         break;
     case 3:
         nval = delta + conv_btou24(fixloc);
@@ -692,7 +700,7 @@ sym_t **getSymbolSlot(char *symbol_name, int flags) {
     startp = symbol_table + (hashval % MAX_SYMBOLS);
     flags &= 0xC000;
     testp = startp;
-    while (ps = *testp) {
+    while ((ps = *testp)) {
         if ((ps->flags & 0xC000) == flags) {
             if ((ps->flags & SF_GLOBAL) || ps->fileId == curFileId || key_R)
                 if (strcmp(ps->name, symbol_name) == 0)
@@ -737,7 +745,7 @@ sym_t *addSym(char *symbol_name, int flags) {
         } else {
             if (nextPsect == psectInfo + MAX_PSECTS)
                 fatal_err("Too many psects");
-            nextPsect->psectSym = ps; /* m2: */
+            nextPsect->psectSym = ps;
             ps->p.pinfo         = nextPsect++;
         }
     }
@@ -754,13 +762,13 @@ void prSymbol(char *symbol_name, uint32_t value, int lflag, register sym_t *psec
     if (!key_H) {
         if (lflag != 0)
             return;
-        fprintf(symFp, "%4.4lx %s\n", value, symbol_name);
+        fprintf(symFp, "%4.4" PRIx32 " %s\n", value, symbol_name);
         return;
     }
 
     switch (lflag) {
     case SF_REGNAM:
-        fprintf(symFp, "%s reg %lx\n", symbol_name, value);
+        fprintf(symFp, "%s reg %" PRIx32 "\n", symbol_name, value);
         return;
 
     case SF_FILNAM:
@@ -768,13 +776,13 @@ void prSymbol(char *symbol_name, uint32_t value, int lflag, register sym_t *psec
         return;
 
     case SF_STACK:
-        fprintf(symFp, "%s stk %ld\n", symbol_name, value);
+        fprintf(symFp, "%s stk %" PRId32 "\n", symbol_name, value);
         return;
     }
 
-    fprintf(symFp, "%s %lx", symbol_name, value);
+    fprintf(symFp, "%s %" PRIx32 , symbol_name, value);
     if (psectSym != 0)
-        fprintf(symFp, " %lx", psectSym->p.pinfo->loadAddress - psectSym->p.pinfo->linkAddress);
+        fprintf(symFp, " %" PRIx32, psectSym->p.pinfo->loadAddress - psectSym->p.pinfo->linkAddress);
     fputc('\n', symFp);
     return;
 }
@@ -819,7 +827,7 @@ void symRecPass2() {
                 if (!key_R)
                     value += psectSym->p.pinfo->linkAddress;
             }
-            conv_u32tob(value, (uint8_t *)ptr_sym); /* m9: */
+            conv_u32tob(value, (uint8_t *)ptr_sym);
 
         case SF_STACK:
         case SF_REGNAM:
@@ -1102,7 +1110,7 @@ void setPsectOrigin(register psect_t *st) {
         linkAddress += st->blkStartAddress;
         loadAddress += st->blkStartAddress;
     }
-    if (st->linkAddress + st->blkStartAddress > maxLinkAddress) /* m3: */
+    if (st->linkAddress + st->blkStartAddress > maxLinkAddress)
         maxLinkAddress = st->linkAddress + st->blkStartAddress;
     st->originSet = true;
 }

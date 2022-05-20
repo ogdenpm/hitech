@@ -2,7 +2,7 @@
 
 int width            = 80;      /* Output width */
 char commands[]      = "rdxms"; /* Program Keys */
-char usageMsg[]      = "Usage: libr [-w][-pwidth] key [subkeys symbol] file.lib [modules ...]";
+char usageMsg[]      = "Usage: libr [-w][-pwidth][-v] key [subkeys symbol] file.lib [modules ...]";
 char keysMsg[]       = "Keys: r(eplace), d(elete), (e)x(tract), m(odules), s(ymbols)";
 
 void (*dispatch[])() = {
@@ -18,38 +18,44 @@ int err_num;
 bool noWarnings;
 int num_ofiles; /* number of object files */
 char **cmdLineNames;
+char **moduleStdNames;
 
 uint8_t *moduleFlags; /* Pointer to an area of modsize num_ofiles */
-int *moduleSizes;     /* Pointer to an area of modsize num_ofiles * sizeof(int) */
+#define SEEN        1
+#define PROCESSED   2
+uint32_t *moduleSizes;     /* Pointer to an area of modsize num_ofiles * sizeof(uint32_t) */
 
 int main(int argc, char *argv[]) {
-    char *pCmd;
+    char *p;
     char *s;
 
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
         signal(SIGINT, sigintHandler);
-#if CPM
+
     if (argc == 1) {
         argv = _getargs(0, "libr");
         argc = _argc_;
     }
-#endif
 
     fclose(stdin);
 
     for (--argc, ++argv; argc && **argv == '-'; --argc, ++argv) {
-        pCmd = *argv + 1;
-        while (*pCmd)
-            switch (*pCmd++) {
+        p = *argv + 1;
+        while (*p)
+            switch (*p++) {
+            case 'v':
+            case 'V':
+                verbose = true;
+                break;
             case 'W': /* Suppress non-fatal errors */
             case 'w':
                 noWarnings = true; /* Disable warning messages */
                 break;
             case 'P': /* Specify page width */
             case 'p':
-                if (isdigit(*pCmd)) {
-                    width = atoi(pCmd); /* Assigning a new width value */
-                    pCmd  = "";
+                if (isdigit(*p)) {
+                    width = atoi(p); /* Assigning a new width value */
+                    p     = "";
                     break;
                 }
             default:
@@ -63,13 +69,13 @@ int main(int argc, char *argv[]) {
     s = *argv;
     --argc;
     ++argv;
-    if ((pCmd = strchr(commands, tolower(*s))) == NULL)
+    if ((p = strchr(commands, tolower(*s))) == NULL)
         fatal_err(keysMsg);
 
-    cmdIndex = (int)(pCmd - commands);
+    cmdIndex = (int)(p - commands);
 
-    if (*(s + 1) != 0) {
-        pCmd = *argv;
+    if (s[1]) {
+        p = *argv;
         --argc;
         ++argv;
     }
@@ -79,7 +85,7 @@ int main(int argc, char *argv[]) {
     openLibrary(*argv);
     allocModuleArrays(argc - 1, argv + 1);
 
-    (dispatch[cmdIndex])(s + 1, pCmd); /* Execute function */
+    (dispatch[cmdIndex])(s + 1, p); /* Execute function */
 
     finish(err_num != 0); /* Terminate the program with the appropriate error code */
 }
@@ -145,9 +151,9 @@ _Noreturn void seek_err(char *p1) {
     finish(3);
 }
 
-void noModule(char *name, int dummy) {
+void noModule(int id) {
 
-    simpl_err("no such module: %s", name);
+    simpl_err("no such module: %s", moduleStdNames[id]);
 }
 
 /**************************************************************************
@@ -167,53 +173,54 @@ void sigintHandler(int p1) {
 /**************************************************************************
  utility routines
  **************************************************************************/
-int cmpNames(register char *s, char *t) {
 
-    while (*s && tolower(*s) == tolower(*t))
-        ++s, ++t;
-    return *s - *t;
-}
+void allocModuleArrays(int cnt, char **pnames) {
 
-void allocModuleArrays(int p1, char **p2) {
-
-    cmdLineNames = p2;
-    if ((num_ofiles = p1) != 0) {
-        moduleFlags = allocmem(num_ofiles);
-        moduleSizes = (int *)allocmem(num_ofiles * sizeof(int));
+    cmdLineNames = pnames;
+    if ((num_ofiles = cnt) != 0) {
+        moduleFlags    = allocmem(num_ofiles * sizeof(uint8_t));
+        moduleSizes    = allocmem(num_ofiles * sizeof(uint32_t));
+        moduleStdNames = allocmem(num_ofiles * sizeof(char *));
+        while (cnt-- >= 0) {
+            char *s;
+            moduleStdNames[cnt] = fname(cmdLineNames[cnt]);
+            for (s = moduleStdNames[cnt]; *s; s++)
+                *s = tolower(*s);
+        }
     }
 }
 
-uint8_t lookupName(char *p1) {
-    uint8_t l1;
+uint8_t lookupName(char *moduleName) {
+    int i;
 
     if (num_ofiles == 0)
         return 1;
-    l1 = num_ofiles;
-    do {
-        if (l1-- == 0)
-            return 0;
-    } while (cmpNames(cmdLineNames[l1], p1) != 0);
-
-    moduleFlags[l1] = 1;
-    return l1 + 1;
+    for (i = 0; i < num_ofiles; i++) {
+        if (strcasecmp(moduleStdNames[i], moduleName) == 0) {
+            moduleFlags[i] |= SEEN;
+            return i + 1;
+        }
+    }
+    return 0;
 }
 
 void processUnmatched(pfuncptr action) {
     int i;
     for (i = 0; i != num_ofiles; i++) {
         if (moduleFlags[i] == 0)
-            action(cmdLineNames[i], i);
+            action(i);
     }
 }
 
 void copyUnchangedSymbols(char *name, time_t libTime) {
-
-    if (!lookupName(name))
+    if (lookupName(name) == 0)
         copySymbolsToTemp();
+    else if (verbose)
+        printf("d %s\n", name);
 }
 
 void copyUnchangedModules(char *name, time_t libTime) {
-
-    if (!lookupName(name))
+    
+    if (lookupName(name) == 0)
         copyModuleToTemp();
 }

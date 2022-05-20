@@ -16,13 +16,12 @@
 #include "link.h"
 /* the following macros allow for different bit vector implementations */
 #ifndef CHAR_BIT
-#define CHAR_BIT    8
+#define CHAR_BIT 8
 #endif
 
-
-#define VECBITS (sizeof(vec_t)*CHAR_BIT)
+#define VECBITS        (sizeof(vec_t) * CHAR_BIT)
 #define VECBYTES(bits) (bits + VECBITS - 1) / VECBITS * sizeof(vec_t)
-#define SetBit(v, n)   ((v)[(n)/VECBITS] |= (1 << ((n) & (VECBITS - 1))))
+#define SetBit(v, n)   ((v)[(n) / VECBITS] |= (1 << ((n) & (VECBITS - 1))))
 #define TstBit(v, n)   ((1 << ((n) & (VECBITS - 1))) & (v)[(n) / VECBITS])
 /**************************************************************************
  17	seek_err		sub-07c5h	ok++ (nau) (PMO)
@@ -65,8 +64,14 @@ void openLibrary() {
 
     libraryName = fname_obj;
     fname_obj   = 0;
-
+#ifdef CPM
     if ((libraryFp = fopen(libraryName, "rb")) == 0)
+#else
+    if ((libraryFp = fopen(libraryName, "rb")) == 0 &&
+        (libraryFp = fopen(mkLibPath(libraryName), "rb")) == 0)
+
+#endif
+
         fatal_err("%s: Can't open", libraryName);
 
     if (fread(libBuf, 1, 4, libraryFp) != 4)
@@ -106,7 +111,7 @@ void scanModule(int modIdx) {
         if (fseek(libraryFp, symSize, SEEK_CUR) == -1)
             seek_err();
     } else {
-        visitSymbols(chkModuleNeeded); /* m1: */
+        visitSymbols(chkModuleNeeded);
         if (moduleNeeded) {
             SetBit(libTable[num_lib_files], modIdx);
             moduleLoaded = true; /* not actually used */

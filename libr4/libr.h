@@ -33,18 +33,28 @@ typedef unsigned char uint8_t;
 #include <sys.h>
 #include <unixio.h>
 #define vfprintf    _doprnt
+#elif defined(_MSC_VER)
+#define strcasecmp  _stricmp
 #else
-#ifndef _MSC_VER
 #include <unistd.h> // for unlink
 #endif
-#endif
 
+#ifndef _MAX_PATH
+#ifdef PATH_MAX
+#define _MAX_PATH PATH_MAX
+#else
+#define _MAX_PATH 255
+#endif
+#endif
 
 #ifdef CPM
 #define BLOCKSIZE 512
 #else
-#define BLOCKSIZE 4096 /* Dos used 1k */
+#define BLOCKSIZE 4096 /* DOS used 1k */
 #endif
+
+
+
 
 /* clang-format off
    Object record types:   | Length (16 bits)     | Record type (8 bits) | Data (Length*8 bits) | */
@@ -65,7 +75,7 @@ typedef unsigned char uint8_t;
 /* Hitech C has problems with function pointer declarations so define explicit */
 typedef void (*mfuncptr)(char *, time_t);
 typedef void (*sfuncptr)(char *, int);
-typedef void (*pfuncptr)(char *, int);
+typedef void (*pfuncptr)(int);
 
 
 
@@ -82,11 +92,16 @@ extern int cmdIndex;
 extern int err_num;
 extern bool noWarnings;
 extern int num_ofiles;
-extern int *moduleSizes;
+extern uint32_t *moduleSizes;
+extern uint8_t *moduleFlags;
 extern struct sym *curSymPtr;
 extern struct sym symbols[];
+extern int _argc_;
+extern char **cmdLineNames;
+extern char **moduleStdNames;
+bool verbose;
 
-int cmpNames(char *p, char *buf);
+
 void allocModuleArrays(int name, char **buf);
 uint8_t lookupName(char *name);
 void processUnmatched(pfuncptr action);
@@ -107,14 +122,15 @@ void visitSymbols(sfuncptr action);
 void copySymbolsToTemp(void);
 void copyModuleToTemp(void);
 void extractOneModule(char *name);
-void copyNewModule(char *name, int moduleId);
-void copyNewSymbols(char *moduleName, int moduleId);
+void copyNewModule(int moduleId);
+void copyNewSymbols(int moduleId);
 void put32le(uint32_t val, uint8_t *buf);
 void put16le(uint16_t val, uint8_t *buf);
 uint16_t get16le(uint8_t *buf);
 uint32_t get32le(uint8_t *buf);
 void readName(uint8_t *buf);
 void writeName(char *name);
+void writeObjName(char *p1); /* writes object file name, mapping to lower case unless -s option */
 void unexp_eof(void);
 void listModules(char *key, char *name);
 void listWithSymbols(void);
@@ -129,7 +145,7 @@ void simpl_err(char *fmt, ...);
 void warning(char *fmt, ...);
 _Noreturn void badFormat(char *name, char *fmt, ...);
 
-void noModule(char *name, int dummy);
+void noModule(int id);
 _Noreturn void finish(int name);
 _Noreturn void sigintHandler(int name);
 void *allocmem(size_t name);
@@ -146,3 +162,5 @@ void copyMatchedModules(char *name, time_t libTime);
 void replaceModule(void);
 
 
+char **_getargs(char *, char *);
+char *fname(char *name);

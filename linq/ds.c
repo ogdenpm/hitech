@@ -208,8 +208,8 @@ void finPass1() {
     if (key_S)
         return;
 
-    for (pslot = symbol_table; &symbol_table[MAX_SYMBOLS] != pslot; ++pslot) { /* m63: */
-        if (ps = *pslot) {
+    for (pslot = symbol_table; &symbol_table[MAX_SYMBOLS] != pslot; ++pslot) {
+        if ((ps = *pslot)) {
             if (ps->flags & SF_PSECT) {
                 if (!key_C) {
                     wrRecord();

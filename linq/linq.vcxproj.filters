@@ -30,6 +30,9 @@
     <ClCompile Include="e.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="extra.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="link.h">

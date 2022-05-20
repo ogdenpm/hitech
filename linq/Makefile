@@ -17,7 +17,7 @@ TARGET  = link.com
 SRC		= a.c b.c c.c ds.c e.c
 INCLUDE	= link.h
 
-DISTFILES = $(SRC) $(INCLUDE) Makefile
+DISTFILES = $(SRC) $(INCLUDE) Makefile extra.c
 DISTYPE	= 7z
 # DISTYPE = huff
 #

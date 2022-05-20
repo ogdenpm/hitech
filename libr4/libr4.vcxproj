@@ -107,6 +107,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>missing</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -149,6 +150,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>missing</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -191,6 +193,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>missing</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -233,6 +236,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>missing</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -270,10 +274,13 @@
   <ItemGroup>
     <ClCompile Include="delete.c" />
     <ClCompile Include="extract.c" />
+    <ClCompile Include="fname.c" />
+    <ClCompile Include="getargs.c" />
     <ClCompile Include="io.c" />
     <ClCompile Include="list.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="misc.c" />
+    <ClCompile Include="missing\dirent.c" />
     <ClCompile Include="obj.c" />
     <ClCompile Include="replace.c" />
   </ItemGroup>
@@ -286,6 +293,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libr.h" />
+    <ClInclude Include="missing\dirent.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Generated\version.h" />
