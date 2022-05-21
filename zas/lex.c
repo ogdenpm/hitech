@@ -37,7 +37,7 @@ int16_t macroSize;                                     /* 99ac */
 int16_t macroUsed;                                     /* 99ae */
 bool lstThisLine;                                      /* 99b0 */
 char heading[41];                                      /* 99b1 */
-int hexLineCnt;                                        /* 99da */
+int16_t hexLineCnt;                                        /* 99da */
 src_t srcStack[MAXINCL];                               /* 99dc */
 char *pHexCode;                                        /* 9b26 */
 char yytext[100];                                      /* 9b28 */
@@ -46,18 +46,18 @@ int16_t lineLen;                                       /* 9b8d */
 char title[41];                                        /* 9b8f */
 char *macroBase;                                       /* 9bb8 */
 char *outPtr;                                          /* 9bba */
-int rowCnt;                                            /* 9bbc */
-int curLineno;                                         /* 9bbe */
+int16_t rowCnt;                                        /* 9bbc */
+int16_t curLineno;                                     /* 9bbe */
 char *curFileName;                                     /* 9bc0 */
 char l9bc2h;                                           /* 9bc2 */
 char *inPtr;                                           /* 9bc3 */
 char controls;                                         /* 9bc5 */
 int16_t tmpId;                                         /* 9bc6 */
 char *pHexStart;                                       /* 9bc8 */
-int srcSP;                                             /* 9bca */
+int16_t srcSP;                                         /* 9bca */
 char inBuf[256];                                       /* 9bcc */
 char hexLines[LIST_FRAGMENT_SIZE * MAX_LIST_FRAGMENT]; /* 9ccc */
-int width;                                             /* 9e16 */
+int16_t width;                                             /* 9e16 */
 
 static char *skipToNextToken(register char *s);       /* 24 1217 +-- */
 static int32_t zatol(register char *s, uint8_t base); /* 25 1276 +-- */

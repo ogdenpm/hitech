@@ -30,8 +30,8 @@
  */
 typedef struct _kwd {
     char *name;
-    int id;
-    int flags;
+    int16_t id;
+    int16_t flags;
 } kwd_t;
 
 #define G_SIMPLE   1
