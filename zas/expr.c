@@ -90,7 +90,7 @@ prop_t *evalExpr() {
                 break;
             case G_FWD:
             case G_BWD:
-                *iy = *findLocalLabel(yylval.ySym, tokType);
+                *iy = *findLocalLabel(yylval.yNum, tokType);
                 break;
             }
             tokType = yylex();

@@ -148,7 +148,7 @@ typedef struct src_ { /* input management structure: file & macro */
 #define srcText u._srcText
 
 typedef struct tmpLab_ {
-    sym_t *tLabel;
+    int16_t tLabel;
     int16_t tLoc;
     sym_t *tPsect;
 } tmpLabel_t;
@@ -233,8 +233,8 @@ sym_t *remSym(register sym_t *pSym);            /* 109 52B7 +-- */
 void addSym(register sym_t *pSym);              /* 110 5366 +-- */
 sym_t *dupSym(register sym_t *pSym);            /* 111 53A1 +-- */
 void initLocalLabels(void);                     /* 112 53E5 +-- */
-void defTmpLabel(sym_t *tLabel);                /* 113 5404 +-- */
-prop_t *findLocalLabel(sym_t *ps, int tokType); /* 114 546A +-- */
+void defTmpLabel(int16_t nLabel);                /* 113 5404 +-- */
+prop_t *findLocalLabel(int16_t nLabel, int tokType); /* 114 546A +-- */
 
 extern prop_t startAddr;             /* 9799 */
 extern char yytext[100];             /* 9b28 */

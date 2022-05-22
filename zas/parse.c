@@ -206,7 +206,7 @@ static void getOperands(int minOperand) {
  * old version has extra jp for ENDC
  **************************************************************************/
 void doPass() {
-    sym_t *nLabel;
+    int16_t nLabel;
     register char *iy;
     jOptIdx = -1;
     initLocalLabels();
@@ -244,7 +244,7 @@ void doPass() {
             parsePsect();
             break;
         case G_INT:
-            nLabel = yylval.ySym;
+            nLabel = yylval.yNum;
             if ((tokType = yylex()) != T_COLON)
                 syntaxErr();
             defTmpLabel(nLabel);

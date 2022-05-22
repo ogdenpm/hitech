@@ -7,10 +7,20 @@
 TARGET = zasx.com
 CSRCS = code.c cclass.c expr.c lex.c macro.c main.c kwd.c parse.c sym.c tlab.c\
 		emulate.c
+
 HDRS  = cclass.h kwd.h zas.h
 
-OBJS = $(CSRCS:.c=.obj)
+#NOVARG = start2.obj
 
+OBJS = $(CSRCS:.c=.obj) $(NOVARG)
+
+
+CFLAGS=-O -dOLDLIB
+LIBS=LIBCORIG.LIB LIBFORIG.LIB
+CRT=CRTORIG.OBJ
+#CFLAGS=-O
+#LIBS=LIBC.LIB LIBF.LIB
+#CRT=CRTCPM.OBJ
 
 ifeq ($(OS),Windows_NT)
 RM = del /q
@@ -24,14 +34,15 @@ all:	$(TARGET)
 .SUFFIXES: .c .obj
 
 %.obj: %.c
-	zxc -c -O -dOLDLIB $<
-
+	zxc -c -O $(CFLAGS) $<
+%.obj: %.as
+	zas $<
 
 $(TARGET): $(OBJS)
-	linq -Z -Dzas.xym -N -C -Mzas.map -Ptext=0,data,bss -C100H -O$@ crtorig.obj $(OBJS) LIBCORIG.LIB LIBFORIG.LIB
-#	$(file >$@.in,-Z -Dzas.xym -N -C -Mzas.map -Ptext=0,data,bss -C100H -OP:$@ crtorig.obj \)
+	linq -Z -Dzas.xym -N -C -Mzas.map -Ptext=0,data,bss -C100H -O$@ $(CRT) $(OBJS) $(LIBS)
+#	$(file >$@.in,-Z -Dzas.xym -N -C -Mzas.map -Ptext=0,data,bss -C100H -OP:$@ $(CRT) \)
 #	$(foreach O,$(OBJS),$(file >>$@.in,P:$O \))
-#	$(file >>$@.in,LIBCORIG.LIB LIBFORIG.LIB)
+#	$(file >>$@.in,$(LIBS))
 #	zxcc linq <$@.in
 #	$(RM) $@.in
 

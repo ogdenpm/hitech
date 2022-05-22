@@ -50,7 +50,7 @@ void initLocalLabels() {
 /**************************************************************************
  113	sub_5404h +++
  **************************************************************************/
-void defTmpLabel(sym_t *tLabel) {
+void defTmpLabel(int16_t tLabel) {
     if (phase != 2) {
         if (++tmpLabelPtr == &tmpLabelTab[MAX_TMP])
             fatalErr("Too many temporary labels");
@@ -67,15 +67,15 @@ void defTmpLabel(sym_t *tLabel) {
 /**************************************************************************
  114 546a +++
  **************************************************************************/
-prop_t *findLocalLabel(sym_t *ps, int tok) {
+prop_t *findLocalLabel(int16_t nLabel, int tok) {
     register tmpLabel_t *iy = lowLabel;
     if (tok == G_FWD) {
         do {
             if (++iy > highLabel)
                 goto undef;
-        } while (iy->tLabel != ps);
+        } while (iy->tLabel != nLabel);
     } else {
-        while (iy->tLabel != ps)
+        while (iy->tLabel != nLabel)
             if (--iy < tmpLabelTab)
                 goto undef;
     }
