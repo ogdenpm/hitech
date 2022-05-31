@@ -28,123 +28,37 @@
  * Completion of the work and porting to work under modern compilers done by Mark Ogden
  * 19-May-2022
  */
-#ifndef CPM
 
-#include "cclass.h"
-#include "zas.h"
+
 /* functions to emulate hitech floating point operations */
-static zfloat dtento(uint32_t matissa, int16_t exp);
 
-zfloat altof(uint32_t d) { /* long to float */
-    return dtento(d, 0);
-}
+/* simple option using native IEEE floating point with sizeof(float) == 4
+   this version relies on the floating point number and uint32_t being stored
+   int the same byte order
 
-zfloat zatof(char *s) { /* ascii to float */
-    uint32_t matissa = 0;
-    int16_t exp      = 0;
-    int16_t n        = 0;
-    bool negExp      = false;
-
-    while (Isdigit(*s)) {
-        if (matissa < UINT32_MAX / 10)
-            matissa = matissa * 10 + (*s - '0');
-        else
-            exp++;
-        s++;
-    }
-    if (*s == '.') {
-        s++;
-        while (Isdigit(*s)) {
-
-            if (matissa < UINT32_MAX / 10) {
-                matissa = matissa * 10 + (*s - '0');
-                exp--;
-            }
-            s++;
-        }
-    }
-    if (Tolower(*s) == 'e') {
-        s++;
-        if (*s == '+' || *s == '-')
-            negExp = *s++ == '-';
-        while (Isdigit(*s))
-            n = n * 10 + (*s++ - '0');
-        if (negExp)
-            exp -= n;
-        else
-            exp += n;
-    }
-
-    return dtento(matissa, exp);
-};
-
-/* function to return a val + exp into a floating point number in hitech C format */
-/* note the accuracy of the numbers should be the same or better than the hitech C internal
-   code as it repeatedly does *10.0 or /10.0, which can lead to rounding errors. Here
-   the extra precision means that the rounding errors should be less
 */
+#ifndef CPM
+#include "zas.h"
+#include <math.h>
+#define ZBIAS    65
+#define IEEEBIAS 127
 
-static zfloat dtento(uint32_t val, int16_t exp) {
-    if (val == 0) // zero result quick return
+zfloat tozfloat(double f) {
+    union {
+        zfloat zf; /* warning relies same byte ordering cf. float */
+        float f;
+    } u;
+    int n;
+    u.f     = (float)frexp(f, &n); /* split matissa and exponent */
+    int zexp = ((u.zf >> 23) & 0xff) - IEEEBIAS + n + ZBIAS;
+    if ((u.zf == 0 && n == 0) || zexp < 0 || zexp > 127) /* zero or under/overflow */
         return 0;
-    /* use 64bit arithmetic to avoid lots of repeated normalisation */
-    uint64_t matissa = val;
-    short zexp       = 96; /* bias for exponent */
-    if (exp >= 0) {
-        /* for +ve exponents, keep mutliplying by 10, scaling when
-           the next digit would overflow
-        */
-        while (exp-- > 0) {
-            if (matissa >= UINT64_MAX / 10) {
-                matissa >>= 24; /* allow room for more x10, still leaves reasonable precision */
-                zexp += 24;
-            }
-            matissa *= 10;
-        }
-    } else {
-        /* for -ve exponents scale to use full 64bits and keep dividing by 10
-           scaling back to 64bits when the precision is < 40 bits
-        */
-        matissa <<= 32;
-        zexp -= 32;
-        while ((matissa & (1ULL << 63)) == 0) {
-            matissa <<= 1;
-            zexp--;
-        }
-        while (exp++ < 0) {
-            if (matissa < (UINT64_MAX >> 24)) {
-                matissa <<= 24;
-                zexp -= 24;
-            }
-            matissa /= 10;
-        }
-    }
-    /* normalise to occupy 32 bits*/
-    while (matissa >= (1ULL << 32)) {
-        matissa >>= 1;
-        zexp++;
-    }
-    while (matissa < (1ULL << 31)) {
-        matissa <<= 1;
-        zexp--;
-    }
-    /* rounding */
-    matissa += 0x80;
-    if (matissa >= (1ULL << 32)) {
-        matissa >>= 1;
-        zexp++;
-    }
-    matissa >>= 8;
-    /* the ouput on underflow and overflow does not match hitech C
-       officially they should both return 0 with an internal flag
-       fperr set. In practice they may not depending on circumstances
-       here underflow returns 0, overflow returns largest number
-    */
-    if (zexp < 0) /* underflow */
-        return 0;
-    if (zexp > 127) /* overflow */
-        return 0x7fffffff;
+    u.zf &= 0x807fffff; /* remove IEEE exponent */
+    u.zf |= (zexp << 24) + (1 << 23); /* add in exponent and IEEE's hidden bit */
+    return u.zf;
 
-    return (uint32_t)matissa + (zexp << 24);
 }
+
 #endif
+
+

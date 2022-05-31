@@ -167,16 +167,15 @@ void parseCond(int16_t tok) {
             while (Isalnum(PeekCh()))
                 *s++ = (char)GetCh();
             *s = 0;
-            /* PMO note fall throughs below look wrong but match code */
             switch (getKwdId(yytext)) {
             case T_ENDC:
                 if (tok == T_ENDC && --nest == 0)
                     return;
-                /* FALLTHRU */
+                break; /* PMO Fix should not fall through */
             case T_ENDM:
                 if (tok == T_ENDM && --nest == 0)
                     return;
-                /* FALLTHRU */
+                break; /* PMO Fix should not fall through */
             case T_MACRO:
                 if (tok == T_ENDM)
                     nest++;
@@ -410,7 +409,7 @@ static int parseNumber() {
     }
     *s = 0;
     if (base == 0 && floatMode == 2 && isFloat(yytext)) {
-        yylval.yFloat = zatof(yytext);
+        yylval.yFloat = tozfloat(atof(yytext));
         return G_FLOAT;
     }
     if (base == 0)

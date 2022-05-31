@@ -57,14 +57,12 @@ typedef char bool;
 /* definitions to handle floating point for x-assembly*/
 #ifdef CPM
 typedef float zfloat;
-#define altof(d) d
+#define tozfloat(d) d
 #define negf(f)  (-f)
-#define zatof    atof
 #else
 typedef uint32_t zfloat;
-zfloat altof(uint32_t d);
-zfloat zatof(char *s);
-#define negf(f) ((f) ^ 0x80000000L);
+zfloat tozfloat(double f);
+#define negf(f) ((f) ^ 0x80000000UL);
 #endif
 
 #define MAX_OPERATORS 331
@@ -104,7 +102,6 @@ typedef struct {
             struct _sym *_cPsectSym; /* code psect */
             struct _sym *_cExtSym;   /* code ext name */
         } s;
-        char *_cPname;
         int16_t _psSize;  /* psect size */
         int16_t _mArgCnt; /* macro arg cnt*/
     } u2;
@@ -262,4 +259,8 @@ extern int16_t maxSymLen;            /* a29a */
 extern sym_t *symTable[MAX_SYMBOLS]; /* a2a0 */
 extern int jmpOptCnt;                /* 9e7c */
 extern prop_t retProp;               /* a752 */
+
+
+
+extern uint32_t curLoc32;
 #endif

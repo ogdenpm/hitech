@@ -208,6 +208,7 @@ static void getOperands(int minOperand) {
 void doPass() {
     int16_t nLabel;
     register char *iy;
+
     jOptIdx = -1;
     initLocalLabels();
     if (setjmp(jmpBuf)) /* line error recovery point */
@@ -488,7 +489,7 @@ static void parseDeff() {
             tokType = yylex();
         }
         if (tokType == G_INT)
-            val = altof(yylval.yNum);
+            val = tozfloat(yylval.yNum);
         else if (tokType != G_FLOAT) {
             error("Floating number expected)");
             val = 0L;
