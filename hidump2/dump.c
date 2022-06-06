@@ -162,6 +162,160 @@ uint8_t major;
 uint8_t minor;
 uint8_t recType;
 
+typedef  struct {
+    uint16_t flags;
+    uint8_t val;
+    char *rname;
+    char *label;
+} loc_t;
+
+typedef struct {
+    size_t size;
+    size_t maxAddr;
+    loc_t *loc;
+} mem_t;
+
+mem_t text, data;
+
+mem_t *curMem;
+int curBase;
+
+
+#define CHUNK 2048
+#define HASVAL  0x100
+#define TYPE(n)    (((n) >> 4) & 0xf)
+#define SIZE(n)    ((n) & 0xf)
+#define LINELIMIT   56
+
+
+
+void memChk(mem_t* mp, size_t addr) {
+    if (addr > mp->maxAddr)
+        mp->maxAddr = addr;
+    if (addr <= mp->size)
+        return;
+    addr += CHUNK;  /* provide a little extra room */
+    if ((mp->loc = realloc(mp->loc, addr * sizeof(loc_t))) == NULL) {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+
+    memset(mp->loc + mp->size, 0, (addr - mp->size) * sizeof(loc_t));
+    mp->size = addr;
+}
+
+void addMem(uint8_t *pdata, int ldata) {
+    memChk(curMem, curBase + ldata - 1);
+    for (int i = 0; i < ldata; i++) {
+        curMem->loc[curBase + i].val = *pdata++;
+        curMem->loc[curBase + i].flags |= HASVAL;
+    }
+}
+
+
+void addReloc(int addr, char* name, int reloc) {
+    if (TYPE(curMem->loc[curBase + addr].flags))
+        fprintf(stderr, "log %04X already has relocation, skipping %s\n", curBase + addr, name);
+    else {
+        curMem->loc[curBase + addr].rname = strdup(name);
+        curMem->loc[curBase + addr].flags |= reloc;
+    }
+}
+
+
+void addLabel(mem_t* mp, int addr, char* name) {
+    memChk(mp, addr);
+    if (mp->loc[addr].label) {
+        char *tmp = malloc(strlen(mp->loc[addr].label) + strlen(name) + 2);
+        strcpy(tmp, mp->loc[addr].label);
+        strcat(tmp, ":");
+        strcat(tmp, name);
+        free(mp->loc[addr].label);
+        mp->loc[addr].label = tmp;
+    } else
+        mp->loc[addr].label = strdup(name);
+}
+
+void dumpMem(mem_t* mp, char *psect) {
+    if (mp->maxAddr == 0)
+        return;
+    printf("\t\tpsect %s\n", psect);
+
+    int chCnt = 0;
+    for (int i = 0; i <= mp->maxAddr;) {
+        if (mp->loc[i].label) {
+            if (chCnt)
+                putchar('\n');
+            char *s = mp->loc[i].label;
+            char *t;
+            while (t = strchr(s, ':')) {
+                *t = 0;
+                printf("\t\t%04X: %s:\n", i, s);
+                s = t + 1;
+            }
+            printf("\t\t%04X: %s:\n", i, s);
+            chCnt = 0;
+        }
+        char num[9];
+        int size = SIZE(mp->loc[i].flags);
+        int type = TYPE(mp->loc[i].flags);
+        if (size > 4  || type == 3 || type == 4 || type == 7 || type == 8 || type > RSNAME) {
+            printf("\nFixup(%d) Size(%d) not supported\n", type, size);
+            size = 1;
+            type = RABS;
+        } else if (size == 0) {
+            size = 1;
+            type = RABS;
+        }
+        
+        for (int j = 0, k = size; k--; j += 2) {
+            if (mp->loc[i + k].flags & HASVAL)
+                sprintf(num + j, "%02X", mp->loc[i + k].val);
+            else
+                sprintf(num + j, "XX");
+
+        }
+        char *rname = mp->loc[i].rname ? mp->loc[i].rname : "(abs)";
+        int sep = i % 16 == 0 && i % 8 ? 2 : 0;
+        if (chCnt + strlen(num) + (type != RABS ? strlen(rname) + 2 : 0) + sep >= LINELIMIT || (i % 16 == 0 && chCnt)) {
+            putchar('\n');
+            chCnt = 0;
+        }
+        if (chCnt == 0)
+            chCnt = printf("\t\t%04X:", i);
+        else if (i % 8 == 0)
+            printf(" -");
+
+
+        switch (TYPE(mp->loc[i].flags)) {
+        case RABS:  chCnt += printf(" %s", num); break;
+        case RPSECT: chCnt += printf(" %s+%s", num, rname); break;
+        case RNAME: chCnt += printf(" %s+%s", rname, num); break;
+        case RRPSECT: chCnt += printf(" %s$%s", num, rname); break;
+        case RRNAME: chCnt += printf(" %s$%s", rname, num); break;
+        case RSPSECT: chCnt += printf(" %s@%s", num, rname); break;
+        case RSNAME: chCnt += printf(" %s$%s", rname, num); break;
+        }
+
+        while (size--) {
+            mp->loc[i].val = 0;
+            mp->loc[i].flags = 0;
+            if (mp->loc[i].rname) {
+                free(mp->loc[i].rname);
+                mp->loc[i].rname = NULL;
+            }
+            if (mp->loc[i].label) {
+                free(mp->loc[i].label);
+            mp->loc[i].label = NULL;
+            }
+            i++;
+        }
+    }
+    putchar('\n');
+    mp->maxAddr = 0;
+}
+
+
 int main(int argc, char **argv) {
     char **parg;
 
@@ -179,6 +333,8 @@ int main(int argc, char **argv) {
             fatal("cannot open");
         printf("%s\n", fname);
         dumpFile();
+        dumpMem(&text, "_TEXT");
+        dumpMem(&data, "data");
     }
     exit(0);
 }
@@ -189,7 +345,8 @@ void dumpFile() {
         if (recType >= 20)
             fatal("Bad record type %d", recType);
         recEntry = &recHandlers[recType];
-        printf("\t%d\t%s\t%u\n", recNum, recEntry->name, recLen);
+        if (recType != TEXT && recType != RELOC)
+            printf("\t%d\t%s\t%u\n", recNum, recEntry->name, recLen);
         recEntry->handler();
         if (recType == END)
             break;
@@ -216,12 +373,11 @@ bool readRecord(FILE *fp) {
 // between the two groups of 10 bytes on a line
 
 void textHandler() {
-    uint32_t offset;
     uint8_t *pdata;
     char *psname;
-    int16_t dataLen;
+    int dataLen;
     int addr = 0;
-    offset   = get32(recBuf);
+    curBase   = get32(recBuf);
     psname   = (char *)(recBuf + 4);
     for (pdata = (uint8_t *)psname; *pdata; pdata++)
         ;
@@ -229,15 +385,29 @@ void textHandler() {
     dataLen = recLen - (int)(strlen(psname) + 5);
     if (dataLen < 0)
         fatal("text record has length too small: %d", dataLen);
-    printf("\t\t%s\t%" PRId32 "\t%d\n", psname, offset, dataLen);
-    while (dataLen != 0) {
-        printf("\t\t%3d: ", addr);
-        for (uint8_t i = 20; i != 0 && dataLen != 0; addr++, i--, dataLen--) {
-            if (i == 10)
-                printf("- ");
-            printf("%02X ", *pdata++);
+    
+
+    if (strcmp(psname, "_TEXT") == 0)
+        curMem = &text;
+    else if (strcmp(psname, "data") == 0)
+        curMem = &data;
+    else
+        curMem = NULL;
+
+    if (curMem)
+        addMem(pdata, dataLen);
+    else {
+        printf("\t%d\tTEXT\t%u\n", recNum, recLen);
+        printf("\t\t%s\t0x%04X\t0x%04X\n", psname, curBase, dataLen);
+        while (addr != dataLen) {
+            printf("\t\t%0x4: ", curBase + addr);
+            for (uint8_t i = 20; i != 0 && addr != dataLen; addr++, i--) {
+                if (i == 10)
+                    printf("- ");
+                printf("%02X ", *pdata++);
+            }
+            putchar('\n');
         }
-        putchar('\n');
     }
 }
 
@@ -407,14 +577,26 @@ void parseComplex(uint8_t **pp) {
 void relocHandler() {
     uint8_t *p;
     uint8_t type;
+    bool heading = false;
 
     for (p = recBuf; p < recBuf + recLen;) {
         type = p[2] >> 4;
         if (type == COMPLEX || type == RELBITS_COMPLEX) {
+            if (!heading) {
+                printf("\t%d\tRELOC\t%u\n", recNum, recLen);
+                heading = true;
+            }
             printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[type], p[2] & 0xf);
             p += 3;
             parseComplex(&p);
+        } else if (curMem) {
+            addReloc(get16(p), p + 3, p[2]);
+            p += strlen((char *)p + 3) + 4;
         } else {
+            if (!heading) {
+                printf("\t%d\tRELOC\t%u\n", recNum, recLen);
+                heading = true;
+            }
             printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[type], p + 3, p[2] & 0xf);
             p += strlen((char *)p + 3) + 4;
         }
@@ -534,13 +716,14 @@ void fnconfHandler() {
 
 void symHandler() {
     char *psname, *syname;
+    int loc;
     for (uint8_t *p = recBuf; p < recBuf + recLen; p += strlen(psname) + strlen(syname) + 8) {
         syname = psname = (char *)p + 6;
         while (*syname++)
             ;
         uint16_t flags = get16(p + 4);
         printf("\t\t%-15s %s\t%" PRId32, syname,
-               *psname ? psname : (flags & 6) ? "" : "(abs)", get32(p));
+               *psname ? psname : (flags & 6) ? "" : "(abs)", loc = get32(p));
         if (flags == 6)
             printf("\tLOCAL UNDEFINED\n");
         else {
@@ -552,6 +735,11 @@ void symHandler() {
             else
                 printf("\t%s\n", symNames[flags]);
         }
+        if (strcmp(psname, "_TEXT") == 0)
+            addLabel(&text, loc, syname);
+        else if (strcmp(psname, "data") == 0)
+            addLabel(&data, loc, syname);
+
     }
 }
 

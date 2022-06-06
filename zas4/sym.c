@@ -1,15 +1,14 @@
 /*
  *
- * The sym.c file is part of the restored ZAS.COM program
- * from the Hi-Tech C compiler v3.09
+ * The sym.c file is part of the restored ZAS.EXE program
+ * from the Hi-Tech Z80 C cross compiler v4.11
  *
  * Not a commercial goal of this laborious work is to popularize among
- * potential fans of 8-bit computers the old HI-TECH C compiler V3.09
- * (HI-TECH Software) and extend its life, outside of the CP/M environment
- * (Digital Research, Inc), for full operation in a  Unix-like operating
- * system UZI-180 without using the CP/M emulator.
+ * potential fans of 8-bit computers the old HI-TECH Z80 C cross compiler V4.11
+ * (HI-TECH Software) and extend its life, outside of the MSDOS 16 bit environment
+ * for full operation in windows 32/64 and Unix-like operating systems
  *
- * The HI-TECH C compiler V3.09 is provided free of charge for any use,
+ * The HI-TECH Z80 C cross compiler V4.11 is provided free of charge for any use,
  * private or commercial, strictly as-is. No warranty or product support
  * is offered or implied including merchantability, fitness for a particular
  * purpose, or non-infringement. In no event will HI-TECH Software or its
@@ -24,26 +23,30 @@
  * Commercial use and distribution of recreated source codes without permission
  * from the copyright holderis strictly prohibited.
  *
- * Early work on the decompilation was done by Andrey Nikitin
- * Completion of the work and porting to work under modern compilers done by Mark Ogden
- * 19-May-2022
+ * This work is an extension of earlier work on decompiling ZAS.COM from the
+ * Hi-Tech CP/M based compiler v3.09
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 06-Jun-2022
  */
 #include "zas.h"
 
-sym_t *curPsect;              /* a298 */
-int16_t maxSymLen;            /* a29a */
-sym_t *absPsect;              /* a29c */
-int numSymbols;               /* a29e */
-sym_t *symTable[MAX_SYMBOLS]; /* a2a0 */
-prop_t retProp;               /* a752 */
+sym_t *curPsect;              /* 2b20 */
+int16_t maxSymLen;            /* 2b22 */
+sym_t *absPsect;              /* 2b24 */
+int16_t numSymbols;           /* 2b26 */
+sym_t *symTable[MAX_SYMBOLS]; /* 2b28 */
+prop_t retProp;               /* 3ace */
 
-static int hash(register char *str, int hashSize);              /* 102 4F35 +-- */
-static int sym_cmpfunc(const void *ppSym1, const void *ppSym2); /* 107 51AD +-- */
+static int16_t hash(register char *str, int16_t hashSize);      /* 125 4EA2 */
+static int sym_cmpfunc(const void *ppSym1, const void *ppSym2); /* 131 5080 */
 
 /**************************************************************************
- 102	hash	+++
+ 125 4ea2 ++
  **************************************************************************/
-static int hash(register char *str, int hashSize) {
+static int16_t hash(register char *str, int16_t hashSize) {
     uint16_t sum;
 
     for (sum = 0; *str != 0; ++str)
@@ -52,20 +55,31 @@ static int hash(register char *str, int hashSize) {
 }
 
 /**************************************************************************
- 103	getSym	+++
+ 126 4ece++
  **************************************************************************/
-sym_t *getSym(register char *name, int flags) {
+sym_t *findSymSlot(char *name) {
+    sym_t *pSym = symTable[hash(name, MAX_SYMBOLS)];
+    while (pSym && ((pSym->sFlags & S_PSECT) || strcmp(pSym->sName, name)))
+        pSym = pSym->sChain;
+    return pSym;
+}
+
+/**************************************************************************
+ 127 4f02 ++
+ **************************************************************************/
+/* flags == S_PSECT to find the psect else flags = 0 to find other symbols*/
+sym_t *getSym(register char *name, uint16_t flags) {
     sym_t *pSym;
-    sym_t **ppSym;
+    sym_t **pSlot;
     int16_t nameLen;
 
-    if (!(flags & S_PSECT) && crfFp && c_opt != 0)
+    if (!(flags & S_PSECT) && crfFp && c_opt)
         fprintf(crfFp, "%s %d\n", name, curLineno);
 
-    ppSym = symTable + hash(name, MAX_SYMBOLS);
-    pSym  = *ppSym;
+    pSlot = symTable + hash(name, MAX_SYMBOLS);
+    pSym  = *pSlot;
 
-    while (pSym && ((pSym->sFlags & S_PSECT) != flags || (strcmp(pSym->sName, name) != 0)))
+    while (pSym && ((pSym->sFlags & S_PSECT) != flags || strcmp(pSym->sName, name)))
         pSym = pSym->sChain;
 
     if (pSym)
@@ -76,8 +90,8 @@ sym_t *getSym(register char *name, int flags) {
 
     /* insert new symbol at head of hash chain */
     pSym         = xalloc(sizeof(sym_t));
-    pSym->sChain = *ppSym;
-    *ppSym       = pSym;
+    pSym->sChain = *pSlot;
+    *pSlot       = pSym;
     nameLen      = (int16_t)strlen(name);
     pSym->sName  = xalloc(nameLen + 1); /* insert symbol srcType */
     strcpy(pSym->sName, name);
@@ -86,39 +100,44 @@ sym_t *getSym(register char *name, int flags) {
     if ((flags & S_PSECT))
         pSym->sFlags = flags;
     else {
-        pSym->sFlags        = S_UNDEF;
-        pSym->sProp.cExtSym = pSym;
+        pSym->sFlags      = S_UNDEF;
+        pSym->sProp.rSym  = pSym;
+        pSym->sProp.rType = RT_EXT; // default to external
     }
     return pSym;
 }
 
 /**************************************************************************
- 104	xalloc	sub_50e3h	+++
+ 128 4fe0++
  **************************************************************************/
 void *xalloc(size_t size) {
-    register char *st;
+    register char *si;
+    register char *di;
 
-    if ((st = calloc(1, size)) == 0)
+    if ((si = malloc(size)) == 0)
         fatalErr("Out of memory");
-    return st;
+    for (di = si; size--; di++)
+        *di = 0;
+    return si;
 }
 
 /**************************************************************************
- 105	enterAbsPsect	+++
+ 129 5014 ++
  **************************************************************************/
 void enterAbsPsect() {
-    register sym_t *st;
+    register sym_t *ps;
 
     if ((absPsect = getSym("", S_PSECT)) == 0)
         fatalErr("Can't enter abs psect");
-    st = absPsect;
-    st->sFlags |= S_ABSPSECT | S_GLOBAL;
-    st->sProp.cExtSym = 0;
-    curPsect          = absPsect;
+    ps = absPsect;
+    ps->sFlags |= (S_GLOBAL | S_ABSPSECT);
+    ps->sProp.rSym  = NULL;
+    ps->sProp.rType = RT_ABS;
+    curPsect        = absPsect;
 }
 
 /**************************************************************************
- 106	resetVals	+++
+ 130 5046 ++
  **************************************************************************/
 void resetVals() {
     sym_t **ppSym;
@@ -134,7 +153,7 @@ void resetVals() {
 }
 
 /**************************************************************************
- 107	sym_cmpfunc	sub_51adh	+++
+131 5000 ++
  **************************************************************************/
 static int sym_cmpfunc(const void *ppSym1, const void *ppSym2) {
     register sym_t const *pSym1 = *(sym_t const **)ppSym1;
@@ -150,8 +169,7 @@ static int sym_cmpfunc(const void *ppSym1, const void *ppSym2) {
 }
 
 /**************************************************************************
- 108	sortSymbols	+++
- * unchains symbols into one list in symTable and sorts them
+ 132 50be ++
  **************************************************************************/
 void sortSymbols() {
     sym_t **pSlot;
@@ -177,7 +195,7 @@ void sortSymbols() {
 }
 
 /**************************************************************************
- 109	remSym	+++
+ 133 511a ++
  **************************************************************************/
 sym_t *remSym(register sym_t *pSym) {
     sym_t **pSlot;
@@ -198,7 +216,7 @@ sym_t *remSym(register sym_t *pSym) {
 }
 
 /**************************************************************************
- 110	addSym	+++
+ 134 5178++
  **************************************************************************/
 void addSym(register sym_t *pSym) {
     sym_t **pSlot = &symTable[hash(pSym->sName, MAX_SYMBOLS)];
@@ -207,7 +225,7 @@ void addSym(register sym_t *pSym) {
 }
 
 /**************************************************************************
- 111	dupSym	+++
+ 135 5196++
  **************************************************************************/
 sym_t *dupSym(register sym_t *pSym) {
     sym_t *pNewSym;
@@ -216,4 +234,14 @@ sym_t *dupSym(register sym_t *pSym) {
     *pNewSym        = *pSym;
     pNewSym->sChain = 0;
     return pNewSym;
+}
+
+/**************************************************************************
+ 136 51c0 ++
+ **************************************************************************/
+void delSym(sym_t *si) {
+    if (si->sName)
+        free(si->sName);
+    free(si);
+    numSymbols--;
 }

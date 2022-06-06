@@ -58,6 +58,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="zas.licenseheader" />
+    <None Include="zas4.licenseheader" />
   </ItemGroup>
 </Project>

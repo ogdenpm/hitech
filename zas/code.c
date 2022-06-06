@@ -67,7 +67,7 @@ static void i16tole(char *p1, int16_t p2);                                     /
 static void u32tole(char *p1, uint32_t p2);                                    /* 19 0A32 +-- */
 
 /**************************************************************************
- 1	013d +++
+ 1	013d +++ (not used)
  **************************************************************************/
 #ifdef CPM
 static int nameCmp(register char *str1, char *str2) {
@@ -157,10 +157,10 @@ static void add_reloc(register prop_t *pc, uint16_t relocSize, size_t offset) {
 
     textWritten = false;
     if (pc->cExtSym) {
-        relocType = 0x20; /* RNAME */
+        relocType = R_RNAME;
         name      = pc->cExtSym->sName;
     } else if (pc->cPsectSym) {
-        relocType = 0x10; /* RPSECT */
+        relocType = R_RPSECT;
         name      = pc->cPsectSym->sName;
     } else
         return;
@@ -210,9 +210,9 @@ void addObjRelocWord(register prop_t *pc) {
         curPsect->sProp.vNum += 2;
     else {
         if (pc->cExtSym)
-            flags = 0x10;
+            flags = TF_EXT;
         else if (pc->cPsectSym)
-            flags = 0x100;
+            flags = TF_REL;
         else
             flags = 0;
         if (controls)
@@ -239,9 +239,9 @@ void addObjRelocByte(register prop_t *pc) {
         if (!s_opt && (pc->vNum >= 256 || pc->vNum < -128))
             error("Size error");
         if (pc->cExtSym)
-            flags = 0x10;
+            flags = TF_EXT;
         else if (pc->cPsectSym)
-            flags = 0x100;
+            flags = TF_REL;
         else
             flags = 0;
         if (controls)
@@ -345,14 +345,14 @@ void addObjAllSymbols() {
     sym_t **ppSym = symTable;
     initSymRecord();
     for (; *ppSym; ppSym++) {
-        if ((*ppSym)->sFlags & F_PSECT) {
-            (*ppSym)->sFlags &= 0xf0;
+        if ((*ppSym)->sFlags & S_PSECT) {
+            (*ppSym)->sFlags &= S_PTYPEMASK;
             addObjPsect(*ppSym);
-        } else if (!((*ppSym)->sFlags & F_ARGS)) {
-            if (!x_opt || ((*ppSym)->sFlags & (F_GLOBAL | F_BPAGE))) {
-                if ((*ppSym)->sFlags & F_BPAGE)
-                    (*ppSym)->sFlags = F_GLOBAL + 6; /* RRNAME */
-                (*ppSym)->sFlags &= 0x1f;
+        } else if (!((*ppSym)->sFlags & S_MACROARG)) {
+            if (!x_opt || ((*ppSym)->sFlags & (S_GLOBAL | S_UNDEF))) {
+                if ((*ppSym)->sFlags & S_UNDEF)
+                    (*ppSym)->sFlags = S_GLOBAL + S_EXTERN;
+                (*ppSym)->sFlags &= S_STYPEMASK;
                 addObjSymbol(*ppSym);
             }
         }
@@ -374,8 +374,8 @@ static void i16tole(char *p1, int16_t p2) {
 static void u32tole(char *p1, uint32_t p2) {
     *p1++ = p2;
     *p1++ = p2 >> 8;
-    *p1++ = p2 >> 0x10;
-    *p1   = p2 >> 0x18;
+    *p1++ = p2 >> 16;
+    *p1   = p2 >> 24;
 }
 
 /**************************************************************************

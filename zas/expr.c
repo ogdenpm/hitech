@@ -75,7 +75,7 @@ prop_t *evalExpr() {
                 break;
             case T_DOLLAR:
                 *iy = curPsect->sProp;
-                if ((curPsect->sFlags & 0xc0) == 0xc0)
+                if ((curPsect->sFlags & S_ABSPSECT) == S_ABSPSECT)
                     iy->cPsectSym = 0;
                 else
                     iy->cPsectSym = curPsect;
@@ -83,9 +83,9 @@ prop_t *evalExpr() {
                 break;
             case G_SYM:
                 *iy = yylval.ySym->sProp;
-                if ((yylval.ySym->sFlags & 0x210) == 0x200 && phase == 2) {
+                if ((yylval.ySym->sFlags & (S_UNDEF|S_GLOBAL)) == S_UNDEF && phase == 2) {
                     error("Undefined symbol %s", yylval.ySym->sName);
-                    yylval.ySym->sFlags |= 0x10;
+                    yylval.ySym->sFlags |= S_GLOBAL; /* treat as global */
                 }
                 break;
             case G_FWD:

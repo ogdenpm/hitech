@@ -1,15 +1,14 @@
 /*
  *
- * The kwd.h file is part of the restored ZAS.COM program
- * from the Hi-Tech C compiler v3.09
+ * The kwd.h file is part of the restored ZAS.EXE program
+ * from the Hi-Tech Z80 C cross compiler v4.11
  *
  * Not a commercial goal of this laborious work is to popularize among
- * potential fans of 8-bit computers the old HI-TECH C compiler V3.09
- * (HI-TECH Software) and extend its life, outside of the CP/M environment
- * (Digital Research, Inc), for full operation in a  Unix-like operating
- * system UZI-180 without using the CP/M emulator.
+ * potential fans of 8-bit computers the old HI-TECH Z80 C cross compiler V4.11 
+ * (HI-TECH Software) and extend its life, outside of the MSDOS 16 bit environment
+ * for full operation in windows 32/64 and Unix-like operating systems
  *
- * The HI-TECH C compiler V3.09 is provided free of charge for any use,
+ * The HI-TECH Z80 C cross compiler V4.11 is provided free of charge for any use,
  * private or commercial, strictly as-is. No warranty or product support
  * is offered or implied including merchantability, fitness for a particular
  * purpose, or non-infringement. In no event will HI-TECH Software or its
@@ -24,9 +23,13 @@
  * Commercial use and distribution of recreated source codes without permission
  * from the copyright holderis strictly prohibited.
  *
- * Early work on the decompilation was done by Andrey Nikitin
- * Completion of the work and porting to work under modern compilers done by Mark Ogden
- * 19-May-2022
+ * This work is an extension of earlier work on decompiling ZAS.COM from the
+ * Hi-Tech CP/M based compiler v3.09
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 06-Jun-2022
  */
 typedef struct _kwd {
     char *name;
@@ -100,17 +103,24 @@ typedef struct _kwd {
 #define T_MACRO    66
 #define T_ENDM     67
 #define T_COND     68
-#define T_ENDC     69
+#define G_END      69   // ENDC and ENDIF
 #define G_REG      70
 #define G_CC       71
 #define G_PSECT    72
 #define G_FLOAT    73
-#define T_END      74
+#define T_END      74   // standard END
 #define T_MLT      75
 #define T_IN0      76
 #define T_TSTIO    77
 #define T_TST      78
 #define T_OUT0     79
+#define T_REPT     80
+#define T_IRP      81
+#define T_IRPC     82
+#define T_ELSE     83
+#define T_LOCAL    84
+#define T_LINE     85
+#define T_FILE     86
 #define T_INDEXED  100
 #define T_MEM      101
 #define T_REGIND   102
@@ -138,38 +148,45 @@ enum {
 };
 
 /* PSECT flags */
-#define F_GLOBAL     0x10
-#define F_PURE       0x20
-#define F_OVRLD      0x40
-#define F_LOCAL      0x800
-#define F_RELOC      0x7000
-#define F_SIZE       0x6000
-#define F_ABS        0x80
+#define F_ABS       0x80
+#define F_GLOBAL    0x10
+#define F_PURE      0x20
+#define F_OVRLD     0x40
+#define F_LOCAL     0x800
+#define F_RELOC     0x7000
+#define F_SIZE      0x6000
 
+/* Macro flags*/
 
-/* reloc types */
-#define R_RNAME      0x20
-#define R_RPSECT     0x10
+/* rtype flags */
+#define RT_ABS      0
+#define RT_REL      0x10
+#define RT_EXT      0x20
+
+/* symbol flags */
+#define S_NONPSECT  0
+#define S_GLOBAL    0x10
+#define S_PURE      0x20
+#define S_ABSPSECT  0xc0
+#define S_ABS       0x80
+#define S_PSECT     0x100
+#define S_UNDEF     0x200
+#define S_DEFINED   0x400
+
+#define S_IRP       1
+#define S_IRPC      2
+#define S_REPT      4
+#define S_MACROARG  0x1000
+#define S_MLOCAL    0x2000
+#define S_REPMASK   7
+
+#define S_LINENO    4
+#define S_FILNAM    5
+#define S_EXTERN    6
+#define S_PTYPEMASK 0xf0 // global, pure, overld and abs
+#define S_STYPEMASK 0x1f // global and lineno, filnam, extern or size
 
 /* tag flags */
-#define TF_EXT       0x10
-#define TF_REL       0x100
+#define TF_EXT      0x10
+#define TF_REL     0x100
 
-/* sym flags */
-/* symbol flags */
-#define S_NONPSECT   0
-#define S_GLOBAL     0x10
-#define S_ABSPSECT   0xc0
-#define S_PSECT      0x100
-#define S_UNDEF      0x200
-#define S_DEFINED    0x400
-
-#define S_MACROARG   0x1000
-#define S_MACROPARAM 0x2000
-
-#define S_EXTERN     6
-#define S_PTYPEMASK  0xf0 /* global, pure, overld and abs */
-#define S_STYPEMASK  0x1f /* global and lineno, filnam, extern or size */
-
-#define I_DI    0xf3
-#define I_EI    0xfb

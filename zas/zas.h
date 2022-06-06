@@ -53,18 +53,6 @@ typedef char bool;
 
 #include "kwd.h"
 
-
-/* definitions to handle floating point for x-assembly*/
-#ifdef CPM
-typedef float zfloat;
-#define tozfloat(d) d
-#define negf(f)  (-f)
-#else
-typedef uint32_t zfloat;
-zfloat tozfloat(double f);
-#define negf(f) ((f) ^ 0x80000000UL);
-#endif
-
 #define MAX_OPERATORS 331
 #define MAX_PSECT     17
 #define MAX_TMP       350
@@ -83,7 +71,7 @@ zfloat tozfloat(double f);
 typedef union {
     int16_t yVal;
     int32_t yNum;
-    zfloat yFloat;
+    float yFloat;
     char *yStr;
     struct _sym *ySym;
 } yytype_t;

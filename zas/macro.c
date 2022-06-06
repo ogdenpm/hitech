@@ -47,11 +47,11 @@ void parseParamAndBody(register sym_t *ps) {
             syntaxErr();
         else {
             var2 = yylval.ySym;
-            if (var2->sFlags & F_BPAGE)
+            if (var2->sFlags & S_UNDEF)
                 remSym(var2);
             else
                 var2 = dupSym(var2);
-            var2->sFlags = 0x2000;
+            var2->sFlags = S_MACROPARAM;
             if (cntParam == 30)
                 fatalErr("Too many macro parameters");
             var3e[cntParam++] = var2;
@@ -82,7 +82,7 @@ void parseParamAndBody(register sym_t *ps) {
 void parseMacroCall(register sym_t *ps) {
     int var2;
     char *var4;
-    if (ps->sFlags & F_ARGS) {
+    if (ps->sFlags & S_MACROARG) {
         for (var2 = 0; var2 < ps->sProp.mArgCnt; var2++) {
             if (!(var4 = getMacroArg()))
                 var4 = "";

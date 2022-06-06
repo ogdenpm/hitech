@@ -96,10 +96,10 @@ kwd_t kwd[] = {
     {"defm",   T_DEFM,     0   },  /* 60  */
     {"defs",   T_DEFS,     0   },  /* 61  */
     {"defw",   T_DEFW,     0   },  /* 62  */
-    {"di",     G_SIMPLE,   0xF3},  /* 63  */
+    {"di",     G_SIMPLE,   I_DI},  /* 63  */
     {"djnz",   T_DJNZ,     0x10},  /* 64  */
     {"e",      G_REG,      3   },  /* 65  */
-    {"ei",     G_SIMPLE,   0xFB},  /* 66  */
+    {"ei",     G_SIMPLE,   I_EI},  /* 66  */
     {"end",    T_END,      0   },  /* 67  */
     {"endc",   T_ENDC,     0   },  /* 68  */
     {"endm",   T_ENDM,     0   },  /* 69  */
@@ -305,13 +305,13 @@ uint8_t invalidChars[] = {
 
 
 kwd_t psectKwd[] = {
-    {"abs",    G_PSECT, 0x80  },  /* 0 */
-    {"global", G_PSECT, 0x10  },  /* 1 */
-    {"local",  G_PSECT, 0x800 },  /* 2 */
-    {"ovrld",  G_PSECT, 0x40  },  /* 3 */
-    {"pure",   G_PSECT, 0x20  },  /* 4 */
-    {"reloc",  G_PSECT, 0x7000},  /* 5 */
-    {"size",   G_PSECT, 0x6000},  /* 6 */
+    {"abs",    G_PSECT, F_ABS   },  /* 0 */
+    {"global", G_PSECT, F_GLOBAL},  /* 1 */
+    {"local",  G_PSECT, F_LOCAL },  /* 2 */
+    {"ovrld",  G_PSECT, F_OVRLD },  /* 3 */
+    {"pure",   G_PSECT, F_PURE  },  /* 4 */
+    {"reloc",  G_PSECT, F_RELOC },  /* 5 */
+    {"size",   G_PSECT, F_SIZE  },  /* 6 */
 };
 
 

@@ -234,7 +234,7 @@ char *parseMacroBody() {
             break;
         case G_SYM:
             ps = yylval.ySym;
-            if ((ps->sFlags & 0x2210) == F_BPAGE) {
+            if ((ps->sFlags & (S_MACROPARAM|S_UNDEF|S_GLOBAL)) == S_UNDEF) {
                 remSym(ps);
                 free(ps->sName);
                 free(ps);
@@ -409,7 +409,7 @@ static int parseNumber() {
     }
     *s = 0;
     if (base == 0 && floatMode == 2 && isFloat(yytext)) {
-        yylval.yFloat = tozfloat(atof(yytext));
+        yylval.yFloat = (float)atof(yytext);
         return G_FLOAT;
     }
     if (base == 0)
@@ -509,7 +509,7 @@ int16_t yylex() {
         }
         if (Isalpha(yytext[0])) {
             yylval.ySym = getSym(yytext, symFlags);
-            if (yylval.ySym->sFlags & 0x2000) {
+            if (yylval.ySym->sFlags & S_MACROPARAM) {
                 inPtr = tokStart;
                 openMacro(yylval.ySym);
             } else
@@ -580,7 +580,7 @@ void openMacro(register sym_t *pSym) {
     srcStack[srcSP].srcControls = controls;
     if (++srcSP == MAXINCL)
         fatalErr("Macro expansions nested too deep");
-    srcStack[srcSP].srcType = (pSym->sFlags & 0x1000) ? 1 : 2;
+    srcStack[srcSP].srcType = (pSym->sFlags & S_MACROARG) ? 1 : 2;
     srcStack[srcSP].srcName = curFileName;
     srcStack[srcSP].srcText = pSym->sProp.vText;
     srcStack[srcSP].srcSym  = pSym;
@@ -720,14 +720,14 @@ void tagHex(uint16_t flag) {
         return;
     if (pHexStart[8] == ' ') {
         hex4(pHexStart + 8, curPsect->sProp.vNum);
-        if ((curPsect->sFlags & 0xc0) != 0xc0)
+        if ((curPsect->sFlags & S_ABSPSECT) != S_ABSPSECT)
             pHexStart[12] = '\'';
     }
     if (pHexStart + 14 == pHexCode)
         return;
-    if (flag == 0x10)
+    if (flag == TF_EXT)
         *pHexCode++ = '*';
-    else if (flag == 0x100)
+    else if (flag == TF_REL)
         *pHexCode++ = '\'';
     if (pHexStart + 26 <= ++pHexCode) {
         if (hexLineCnt == 10)
@@ -901,9 +901,9 @@ void putTaggedAddr(prop_t *sProp, int16_t ch) {
         pHexStart[20] = (char)ch;
         pHexCode      = pHexStart + 8;
         if (sProp->cExtSym)
-            var2 = F_GLOBAL;
+            var2 = TF_EXT;
         else if (sProp->cPsectSym)
-            var2 = F_PSECT;
+            var2 = TF_REL;
         else
             var2 = 0;
         putAddr(sProp->vNum, var2);
@@ -949,10 +949,10 @@ void prSymbols() {
     maxSymLen = width / (maxSymLen + 8); /* reuse maxSymLen for symbols per line */
     col       = 0;
     while (*ppSym) {
-        if (!((*ppSym)->sFlags & 0x1000)) {
-            if ((*ppSym)->sFlags & 0x100)
+        if (!((*ppSym)->sFlags & S_MACROARG)) {
+            if ((*ppSym)->sFlags & S_PSECT)
                 xrefType = '#';
-            else if ((*ppSym)->sFlags & 0x200)
+            else if ((*ppSym)->sFlags & S_UNDEF)
                 xrefType = '*';
             else if ((*ppSym)->sProp.cPsectSym)
                 xrefType = '\'';
