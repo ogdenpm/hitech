@@ -84,12 +84,12 @@ int main(int argc, char **argv) {
             break;
         case 'W':
         case 'w': /* Set page width */
-            if ((width = atoi(&argv[0][2])) < 41)
+            if ((width = (int16_t)atoi(&argv[0][2])) < 41)
                 fatalErr("Page width must be >= 41");
             break;
         case 'P':
         case 'p': /* Set page len */
-            if ((pageLen = atoi(&argv[0][2])) < 15 && pageLen != 0)
+            if ((pageLen = (int16_t)atoi(&argv[0][2])) < 15 && pageLen != 0)
                 fatalErr("Page length must be 0 or >= 15");
             break;
 
@@ -132,16 +132,23 @@ int main(int argc, char **argv) {
                 extPt = i;
         if (extPt > 25)
             extPt = 25;
+#ifdef _MSC_VER
+#pragma warning(disable : 6053) /* the buffers used below are all zeros before here so             \
+                                   strncpy/strcat is safe */
+#endif
         strncpy(objNameBuf, *argv, extPt);
-        strcat(objNameBuf, ".obj"); /* relies on objNameBuf having all zeros at start */
+        strcat(objNameBuf, ".obj");
         objFileName = objNameBuf;
-        strncpy(crfNameBuf, *argv, extPt); /* relies on crfNameBuf having all zeros at start */
+        strncpy(crfNameBuf, *argv, extPt);
         strcat(crfNameBuf, ".crf");
+#ifdef _MSC_VER
+#pragma warning(default : 6053)
+#endif
         crfFileName = crfNameBuf;
     }
     nInput        = 0;
     inputFileList = argv;
-    inputFileCnt  = argc;
+    inputFileCnt  = (int16_t)argc;
     enterAbsPsect();
     phase = 0;
     if (j_opt) { /* jump optimizations */
@@ -156,10 +163,12 @@ int main(int argc, char **argv) {
     if (c_opt && !(crfFp = fopen(crfFileName, "w")))
         fatalErr("Can't create cross reference file %s", crfFileName);
     nInput = 0;
-    if (!(objFp = fopen(objFileName, "wb")))
+    objFp  = fopen(objFileName, "wb");
+    if (!objFp)
         fatalErr("Can't create %s", objFileName);
 
-    if ((controls = l_opt) && lstFileName && !freopen(lstFileName, "w", stdout))
+    controls = l_opt;
+    if (controls && lstFileName && !freopen(lstFileName, "w", stdout))
         fatalErr("Can't create %s", lstFileName);
     setHeading("");
     if (l_opt && width == 0)

@@ -38,7 +38,7 @@ int16_t maxSymLen;            /* 2b22 */
 sym_t *absPsect;              /* 2b24 */
 int16_t numSymbols;           /* 2b26 */
 sym_t *symTable[MAX_SYMBOLS]; /* 2b28 */
-prop_t retProp;               /* 3ace */
+rval_t retProp;               /* 3ace */
 
 static int16_t hash(register char *str, int16_t hashSize);      /* 125 4EA2 */
 static int sym_cmpfunc(const void *ppSym1, const void *ppSym2); /* 131 5080 */
@@ -101,8 +101,8 @@ sym_t *getSym(register char *name, uint16_t flags) {
         pSym->sFlags = flags;
     else {
         pSym->sFlags      = S_UNDEF;
-        pSym->sProp.rSym  = pSym;
-        pSym->sProp.rType = RT_EXT; // default to external
+        pSym->rSym  = pSym;
+        pSym->rType = RT_EXT; // default to external
     }
     return pSym;
 }
@@ -131,8 +131,8 @@ void enterAbsPsect() {
         fatalErr("Can't enter abs psect");
     ps = absPsect;
     ps->sFlags |= (S_GLOBAL | S_ABSPSECT);
-    ps->sProp.rSym  = NULL;
-    ps->sProp.rType = RT_ABS;
+    ps->rSym  = NULL;
+    ps->rType = RT_ABS;
     curPsect        = absPsect;
 }
 
@@ -147,7 +147,7 @@ void resetVals() {
     do {
         for (pSym = *ppSym; pSym; pSym = pSym->sChain)
             if (pSym && (pSym->sFlags & S_PSECT))
-                pSym->sProp.vNum = 0L;
+                pSym->rVal = 0L;
     } while (++ppSym < &symTable[MAX_SYMBOLS]);
     curPsect = absPsect;
 }

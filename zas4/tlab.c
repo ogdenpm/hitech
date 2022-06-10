@@ -66,19 +66,19 @@ void defTmpLabel(int16_t tLabel) {
         if (++tmpLabelPtr == &tmpLabelTab[MAX_TMP])
             fatalErr("Too many temporary labels");
         tmpLabelPtr->tLabel = tLabel;
-        tmpLabelPtr->tLoc   = curPsect->sProp.vCurLoc;
+        tmpLabelPtr->tLoc   = curPsect->pCurLoc;
         tmpLabelPtr->tPsect = curPsect;
 
         if (phase == 0)
             highLabel = tmpLabelPtr;
-    } else if (curPsect->sProp.vCurLoc != lowLabel->tLoc)
+    } else if (curPsect->pCurLoc != lowLabel->tLoc)
         error("Phase error on temporary label");
 }
 
 /**************************************************************************
  139 5270 ++
  **************************************************************************/
-prop_t *findLocalLabel(int16_t nLabel, int16_t tok) {
+rval_t *findLocalLabel(int16_t nLabel, int16_t tok) {
     register tmpLabel_t *si = lowLabel;
     if (tok == G_FWD) {
         do {
@@ -90,15 +90,14 @@ prop_t *findLocalLabel(int16_t nLabel, int16_t tok) {
             if (--si < tmpLabelTab)
                 goto undef;
     }
-    retProp.vNum  = si->tLoc;
-    retProp.rSym  = si->tPsect;
-    retProp.rType = si->tPsect == 0 ? 0 : 0x10;
+    retProp.val  = si->tLoc;
+    retProp.sym  = si->tPsect;
+    retProp.type = si->tPsect == 0 ? 0 : RT_REL;
     return &retProp;
 undef:
     error("Undefined temporary label");
-    retProp.rFlags = 0;
-    retProp.rType  = RT_ABS;
-    retProp.rSym   = absPsect;
-    retProp.vNum   = 0xffff;
+    retProp.sym = 0;
+    retProp.type  = RT_ABS;
+    retProp.val   = 0xffff;
     return &retProp;
 }

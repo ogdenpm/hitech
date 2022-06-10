@@ -49,7 +49,7 @@ void parseParamAndBody(register sym_t *ps) {
     sym_t *si;
 
     if (phase == 0)
-        ps->sProp.vArg = 0;
+        ps->mSlotCnt = 0;
     macroIdx = 0;
 
     if ((ps->sFlags & S_REPMASK) != S_REPT && (tokType = yylex()) != T_EOL)
@@ -61,7 +61,7 @@ void parseParamAndBody(register sym_t *ps) {
                 if (!(si->sFlags & S_UNDEF))
                     addSym(si = dupSym(si));
                 si->sFlags     = S_MLOCAL;
-                si->sProp.vArg = macroIdx + 1;
+                si->mSlotCnt = macroIdx + 1;
                 if (macroIdx == 30)
                     fatalErr("Too many macro parameters");
                 macroTab[macroIdx++] = si;
@@ -70,15 +70,16 @@ void parseParamAndBody(register sym_t *ps) {
         } while (tokType == T_COMMA && !(ps->sFlags & (S_IRP | S_IRPC)) &&
                  (tokType = yylex()) != T_EOL);
 
-    if (phase == 2 && (ps->sFlags & S_MACROARG) && macroIdx != ps->sProp.mArgCnt) // 26de
+    if (phase == 2 && (ps->sFlags & S_MACROARG) && macroIdx != ps->mArgCnt) // 26de
         error("Phase error in macro args");
-    ps->sProp.mArgCnt = macroIdx;
+    ps->mArgCnt = macroIdx;
     if (ps->sFlags & S_IRPC) {
-        if (!(di = getMacroArg()))
+        di = getMacroArg();
+        if (!di)
             di = "";
         ps->irpcList = xalloc(strlen(di) + 1);
         strcpy(ps->irpcList, di);
-        ps->sProp.mIdx = 0;
+        ps->mIdx = 0;
     } else if (ps->sFlags & S_IRP) {
         cntParam = 0;
         while ((di = getMacroArg())) {
@@ -88,11 +89,11 @@ void parseParamAndBody(register sym_t *ps) {
         ps->irpList = xalloc((cntParam + 1) * sizeof(char *));
         while (cntParam--)
             ps->irpList[cntParam] = paramList[cntParam];
-        ps->sProp.mIdx = 0;
+        ps->mIdx = 0;
     } // 2826
     skipLine();
-    ps->sProp.vText = parseMacroBody();
-    ps->sProp.vArg  = macroIdx;
+    ps->mBody = parseMacroBody();
+    ps->mSlotCnt  = macroIdx;
     while (macroIdx--) {
         remSym(macroTab[macroIdx]);
         delSym(macroTab[macroIdx]);
@@ -109,31 +110,32 @@ void parseMacroCall(register sym_t *ps) {
     char *si;
     register char **di = NULL;
     if (ps->sFlags & (S_MACROARG | S_REPT)) {
-        di = xalloc(ps->sProp.vArg * sizeof(char *)); // vArg is real args + locals
+        di = xalloc(ps->mSlotCnt * sizeof(char *)); // vArg is real args + locals
         if (ps->sFlags & S_MACROARG) {                // collect normal macro args
-            for (var2 = 0; var2 != ps->sProp.mArgCnt; var2++) {
-                if (!(si = getMacroArg()))
+            for (var2 = 0; var2 != ps->mArgCnt; var2++) {
+                si = getMacroArg();
+                if (!si)
                     si = "";
                 di[var2] = xalloc(strlen(si) + 1);
                 strcpy(di[var2], si);
             }
         }
         skipLine();                                                      // waste rest of line
-        for (var2 = ps->sProp.mArgCnt; var2 != ps->sProp.vArg; var2++) { // allocate locals
+        for (var2 = ps->mArgCnt; var2 != ps->mSlotCnt; var2++) { // allocate locals
             sprintf(label, "??%04d", localsCnt++);
             di[var2] = xalloc(strlen(si = label) + 1);
             strcpy(di[var2], si);
         }
         if (ps->sFlags & S_IRP) // initialise IRP dummy
-            di[0] = ps->irpList[ps->sProp.mIdx];
+            di[0] = ps->irpList[ps->mIdx];
         if (ps->sFlags & S_IRPC) { // initialise IRPC dummy
             di[0]    = xalloc(2);
-            di[0][0] = ps->irpcList[ps->sProp.mIdx];
+            di[0][0] = ps->irpcList[ps->mIdx];
         }
     } // 2965
     mArgStk[++argSP].mSym = ps;
     mArgStk[argSP].mArgs  = di;
-    openMacro(ps->sProp.vText, S_MACROARG);
+    openMacro(ps->mBody, S_MACROARG);
 }
 
 /**************************************************************************
@@ -145,31 +147,31 @@ void nextArgSub() {
     int16_t i;
 
     if (di) {
-        for (i = 0; i != si->sProp.vArg; i++)
+        for (i = 0; i != si->mSlotCnt; i++)
             free(di[i]);
         free(di);
     }
     /*
         note original code seems to have a bug in that the actual test for IRP is
-        (int8_t) si->irpList[++si->sProp.mIdx]
+        (int8_t) si->irpList[++si->mIdx]
         there are three options to check
         1) the error is fine (unlikely)
-        2) the test was actually against si->irpList[++si->sProp.mIdx] a char *
-        3) si->irpList[++si->sProp.mIdx][0] was intended
+        2) the test was actually against si->irpList[++si->mIdx] a char *
+        3) si->irpList[++si->mIdx][0] was intended
         currently option 2 is used here and appears to work
     */
     if (si->sFlags & S_IRP) {
-        if (si->irpList[++si->sProp.mIdx]) {
+        if (si->irpList[++si->mIdx]) {
             parseMacroCall(si);
             return;
         }
     } else if (si->sFlags & S_IRPC) {
-        if (si->irpcList[++si->sProp.mIdx]) {
+        if (si->irpcList[++si->mIdx]) {
             parseMacroCall(si);
             return;
         }
     } else if (si->sFlags & S_REPT) {
-        if (--si->sProp.mIdx) {
+        if (--si->mIdx) {
             parseMacroCall(si);
             return;
         }
@@ -212,7 +214,7 @@ void parseLocal() {
             if (!(ps->sFlags & S_UNDEF))
                 addSym(ps = dupSym(ps));
             ps->sFlags     = S_MLOCAL;
-            ps->sProp.vArg = macroIdx + 1;
+            ps->mSlotCnt = macroIdx + 1;
             if (macroIdx == 30)
                 fatalErr("Too many macro parameters");
             macroTab[macroIdx++] = ps;
@@ -250,18 +252,18 @@ void parseIrpc() {
  75 2b32 ++
  **************************************************************************/
 void parseRept() {
-    prop_t repCnt;
+    rval_t repCnt;
     tokType = yylex();
     repCnt  = *evalExpr();
-    if (repCnt.rType || repCnt.vNum < 0) {
+    if (repCnt.type || repCnt.val < 0) {
         error("Rept argument must be >= 0");
-        repCnt.vNum = 1;
+        repCnt.val = 1;
     }
     sym_t *pSym      = xalloc(sizeof(sym_t));
     pSym->sFlags     = S_REPT;
-    pSym->sProp.mIdx = repCnt.vNum;
+    pSym->mIdx = (int16_t)repCnt.val;
     parseParamAndBody(pSym);
-    if (pSym->sProp.mIdx)
+    if (pSym->mIdx)
         parseMacroCall(pSym);
     else
         freeRepSym(pSym);
@@ -271,6 +273,6 @@ void parseRept() {
  76 2ba2 ++
  **************************************************************************/
 static void freeRepSym(sym_t *ps) {
-    free(ps->sProp.vText);
+    free(ps->mBody);
     free(ps);
 }

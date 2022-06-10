@@ -33,126 +33,126 @@
  */
 #include "zas.h"
 
-prop_t gProp;        /* 2006 */
+rval_t gProp;        /* 2006 */
 
-static void unary(int16_t op, register prop_t *pc);                   /* 26 08FA */
-static void binary(int16_t op, register prop_t *left, prop_t *right); /* 27 096C */
+static void unary(int16_t op, register rval_t *pc);                   /* 26 08FA */
+static void binary(int16_t op, register rval_t *left, rval_t *right); /* 27 096C */
 
 /**************************************************************************
  26 08fa ++
  **************************************************************************/
-static void unary(int16_t op, register prop_t *pc) {
+static void unary(int16_t op, register rval_t *pc) {
     switch (op) {
     case T_MARKER:
         return;
     case T_UMINUS:
-        pc->vNum = -pc->vNum;
+        pc->val = -pc->val;
         break;
     case T_UPLUS:
         return;
     case G_NOT:
-        pc->vNum = ~pc->vNum;
+        pc->val = ~pc->val;
         break;
     case T_HIGH:
-        pc->vNum >>= 8;
+        pc->val >>= 8;
         /* FALLTHRU */
     case T_LOW:
-        pc->vNum &= 0xff;
+        pc->val &= 0xff;
     case T_RES:
     default:
         break;
     }
-    if (pc->rType)
+    if (pc->type)
         relocErr();
 }
 /**************************************************************************
 27 096c ++
 **************************************************************************/
-static void binary(int16_t op, register prop_t *left, prop_t *right) {
+static void binary(int16_t op, register rval_t *left, rval_t *right) {
     switch (op) {
     case T_PLUS:
-        if (left->rType && right->rType)
+        if (left->type && right->type)
             relocErr();
-        left->vNum += right->vNum;
-        if (left->rType == RT_ABS) {
-            left->rType = right->rType;
-            left->rSym  = right->rSym;
+        left->val += right->val;
+        if (left->type == RT_ABS) {
+            left->type = right->type;
+            left->sym  = right->sym;
         }
         return;
     case T_MINUS:
-        if (right->rType &&
-            (right->rType != RT_REL || left->rType != RT_REL || right->rSym != left->rSym))
+        if (right->type &&
+            (right->type != RT_REL || left->type != RT_REL || right->sym != left->sym))
             relocErr();
-        else if (right->rSym == left->rSym) {   
-            left->rSym = NULL;
-            left->rType     = RT_ABS;
+        else if (right->sym == left->sym) {   
+            left->sym = NULL;
+            left->type     = RT_ABS;
         }
-        left->vNum -= right->vNum;
+        left->val -= right->val;
         return;
     case T_MULT:
-        left->vNum *= right->vNum;
+        left->val *= right->val;
         break;
     case T_DIV:
-        if (right->vNum == 0)
+        if (right->val == 0)
             error("Division by zero");
         else
-            left->vNum /= right->vNum;
+            left->val /= right->val;
         break;
     case T_MOD:
-        left->vNum %= right->vNum;
+        left->val %= right->val;
         break;
     case T_SHR:
-        left->vNum >>= right->vNum;
+        left->val >>= right->val;
         break;
     case T_SHL:
-        left->vNum <<= right->vNum;
+        left->val <<= right->val;
         break;
     case G_AND:
-        left->vNum &= right->vNum;
+        left->val &= right->val;
         break;
     case G_OR:
-        left->vNum |= right->vNum;
+        left->val |= right->val;
         break;
     case T_XOR:
-        left->vNum ^= right->vNum;
+        left->val ^= right->val;
         break;
     case G_EQ:
-        left->vNum = left->vNum == right->vNum;
+        left->val = left->val == right->val;
         break;
     case G_GT:
-        left->vNum = left->vNum > right->vNum;
+        left->val = left->val > right->val;
         break;
     case G_LT:
-        left->vNum = left->vNum < right->vNum;
+        left->val = left->val < right->val;
         break;
     case T_UGT:
-        left->vNum =
-            (uint16_t)left->vNum >
+        left->val =
+            (uint16_t)left->val >
             (uint16_t)
-                right->vNum; /* note uint16_t matches code, uint32_t would possibly be better */
+                right->val; /* note uint16_t matches code, uint32_t would possibly be better */
         break;
     case T_ULT:
-        left->vNum = (uint16_t)left->vNum < (uint16_t)right->vNum;
+        left->val = (uint16_t)left->val < (uint16_t)right->val;
         break;
     }
-    if (left->rType ||
-        right->rType) /* PMO fix neither should be relocatable original used left for both */
+    if (left->type ||
+        right->type) /* PMO fix neither should be relocatable original used left for both */
         relocErr();
 }
 
 /**************************************************************************
  28 0b1c ++
  **************************************************************************/
-prop_t *evalExpr() {
+rval_t *evalExpr() {
     bool expectOp;
     struct {
         int8_t op;
         uint8_t prec;
     } * var3, opStack[30];
-    register prop_t *iy;
-    prop_t valStack[30];
+    register rval_t *pv;
+    rval_t valStack[30];
 
-    iy               = &valStack[30];
+    pv               = &valStack[30];
     var3             = &opStack[29];
     opStack[29].op   = 27;
     opStack[29].prec = 0;
@@ -180,21 +180,21 @@ prop_t *evalExpr() {
             if (expectOp)
                 break;
             expectOp = true;
-            iy--;
+            pv--;
             switch (tokType) {
             case G_INT:
-                iy->vNum   = yylval.yNum;
-                iy->rSym = NULL;
-                iy->rType  = RT_ABS;
+                pv->val   = yylval.yNum;
+                pv->sym = NULL;
+                pv->type  = RT_ABS;
                 break;
             case T_DOLLAR:
-                iy->vNum = curPsect->sProp.vCurLoc;
+                pv->val = curPsect->pCurLoc;
                 if (isAbsPsect(curPsect)) {
-                    iy->rSym = NULL;
-                    iy->rType  = RT_ABS;
+                    pv->sym = NULL;
+                    pv->type  = RT_ABS;
                 } else {
-                    iy->rSym  = curPsect;
-                    iy->rType = RT_REL;
+                    pv->sym  = curPsect;
+                    pv->type = RT_REL;
                 }
                 break;
             case G_SYM:
@@ -203,15 +203,15 @@ prop_t *evalExpr() {
                         error("Undefined symbol %s", yylval.ySym->sName);
                         yylval.ySym->sFlags |= S_GLOBAL; /* treat as global */
                     }
-                    iy->vNum  = 0;
-                    iy->rSym  = yylval.ySym;
-                    iy->rType = RT_EXT;     // treat as external
+                    pv->val  = 0;
+                    pv->sym  = yylval.ySym;
+                    pv->type = RT_EXT;     // treat as external
                 } else
-                    *iy = yylval.ySym->sProp;
+                    *pv = yylval.ySym->rv;
                 break;
             case G_FWD:
             case G_BWD:
-                *iy = *findLocalLabel(yylval.yNum, tokType);
+                *pv = *findLocalLabel((int16_t)yylval.yNum, tokType);
                 break;
             }
             tokType = yylex();
@@ -252,14 +252,14 @@ prop_t *evalExpr() {
             tokType  = yylex();
             expectOp = true;
         } else if (var3->op <= T_MARKER) {
-            unary(var3->op, iy);
+            unary(var3->op, pv);
         } else {
-            binary(var3->op, iy + 1, iy);
-            iy++;
+            binary(var3->op, pv + 1, pv);
+            pv++;
         }
         if (++var3 == &opStack[30]) {
-            gProp = *iy;
-            if (iy == &valStack[29])
+            gProp = *pv;
+            if (pv == &valStack[29])
                 return &gProp;
             break;
         }
@@ -268,8 +268,8 @@ prop_t *evalExpr() {
     error("Expression error");
     skipLine();
     tokType      = T_EOL;
-    gProp.vNum   = 0;
-    gProp.rType  = RT_ABS;
-    gProp.rSym = NULL;
+    gProp.val   = 0;
+    gProp.type  = RT_ABS;
+    gProp.sym = NULL;
     return &gProp;
 }

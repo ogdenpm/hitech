@@ -70,61 +70,33 @@ typedef union {
     struct _sym *ySym;
 } yytype_t;
 
-struct _macro {
-    char *_vText;
-    uint16_t _vArg;
-};
-
+typedef struct {
+    char *body;
+    uint16_t slotCnt;
+    uint16_t argCnt;
+    uint16_t idx;
+} macro_t;
 
 typedef struct {
-    union {
-        int32_t _vNum;
-        struct {
-            char *_vText;
-            uint16_t _vArg;
-        } s;
-        struct {
-            uint16_t _vMaxLoc;
-            uint16_t _vCurLoc;
-        } l;
-    } u1;
-
-    union {
-        uint16_t _psSize;  /* psect size */
-        uint16_t _mArgCnt; /* macro arg cnt*/
-        uint8_t _rType;
-    } u2;
-    union {
-        uint16_t _pFlags;
-        uint16_t _rFlags;
-        struct _sym *_rSym; /* psect name */
-        uint16_t _mIdx;
-    } u3;
-} prop_t;
-
-#define vNum    u1._vNum
-#define vText   u1.s._vText
-#define vArg    u1.s._vArg
-#define vMaxLoc u1.l._vMaxLoc
-#define vCurLoc u1.l._vCurLoc
-
-#define psSize  u2._psSize
-#define mArgCnt u2._mArgCnt
-#define rType   u2._rType
-#define pFlags  u3._pFlags
-#define rSym    u3._rSym
-#define rFlags  u3._rFlags
-#define mIdx    u3._mIdx
+    int32_t val;
+    uint8_t type;
+    struct _sym *sym;
+} rval_t;
 
 typedef struct {
-    int16_t oType;
-    int16_t oVal;
-    prop_t oProp;
-} operand_t;
+    uint16_t maxLoc;
+    uint16_t curLoc;
+    uint16_t size;         /* never set */
+    uint16_t relocability; /* never set */
+} psect_t;
 
 typedef struct _sym {
     char *sName;
-    prop_t sProp;
+    union {
+        macro_t mac;
+        rval_t rv;
+        psect_t psec;
+    };
     uint16_t sFlags;
     union {
         char *irpcList;
@@ -133,18 +105,39 @@ typedef struct _sym {
     struct _sym *sChain;
 } sym_t;
 
+typedef struct {
+    int16_t tType;
+    int16_t tVal;
+    rval_t expr;
+} operand_t;
+
+#define pMaxLoc       psec.maxLoc
+#define pCurLoc       psec.curLoc
+#define pSize         psec.size
+#define pRelocability psec.relocability
+#define rVal          rv.val
+#define rType         rv.type
+#define rSym          rv.sym
+
+#define mBody         mac.body
+#define mSlotCnt      mac.slotCnt
+#define mArgCnt       mac.argCnt
+#define mIdx          mac.idx
+
+#define oVal          expr.val
+#define oType         expr.type
+#define oSym         expr.sym
+
 typedef struct src_ { /* input management structure: file & macro */
     char srcType;
     union {
-        FILE *_srcFp;
-        char *_srcText;
-    } u;
+        FILE *srcFp;
+        char *srcText;
+    };
     int16_t srcLineno;   /* saved lineno */
     int16_t srcControls; /* saved listing controls */
     char *srcName;       /* src file name */
 } src_t;
-#define srcFp   u._srcFp
-#define srcText u._srcText
 
 typedef struct tmpLab_ {
     int16_t tLabel;
@@ -155,14 +148,12 @@ typedef struct tmpLab_ {
 typedef struct {
     sym_t *mSym;
     char **mArgs;
-
 } strstk_t;
 
 /**************************************************************************
  * Prototype functions are in location order
  * +    compiles under VC
  * ++   compiles and appears to work under VC
- * +++  clean under gcc and VC and appears to work
  **************************************************************************/
 typedef kwd_t *(*kwdfptr)(register char *s);
 
@@ -172,15 +163,15 @@ void writeRecords(void);                               /* 9 027C */
 void finishRecords(void);                              /* 11 02E2 */
 void updateMaxLoc(sym_t *si);                          /* 13 037C */
 void addObjByte(int16_t n);                            /* 15 03F2 */
-void addObjRelocWord(register prop_t *pc, uint8_t al); /* 16 044C */
-void addObjRelocByte(register prop_t *pc, uint8_t al); /* 18 052C */
+void addObjRelocWord(register rval_t *pc, uint8_t al); /* 16 044C */
+void addObjRelocByte(register rval_t *pc, uint8_t al); /* 18 052C */
 void initSymRecord(void);                              /* 19 05F2 */
 void addObjSymbol(register sym_t *ps);                 /* 22 0644 */
 void addObjAllSymbols(void);                           /* 24 0804 */
 void addObjEnd(void);                                  /* 25 0864 */
 
 /* expr.c */
-prop_t *evalExpr(void); /* 28 0B1C */
+rval_t *evalExpr(void); /* 28 0B1C */
 
 /* kwd.c */
 int16_t getKwdId(char *p1);   /* 85 311A */
@@ -200,14 +191,14 @@ void putByte(uint16_t n, uint16_t flag);            /* 55 218A */
 void putAddr(uint16_t n, uint16_t flag);            /* 56 21B4 */
 void setHeading(char *text);                        /* 58 232C */
 void topOfPage(void);                               /* 60 2364 */
-void putTaggedAddr(prop_t *sProp, char ch);         /* 63 2462 */
+void putTaggedAddr(rval_t *rval, char ch);          /* 63 2462 */
 void putErrCode(char ch);                           /* 64 24BC */
 void prSymbols(void);                               /* 65 24E0 */
 
 /* macro.c */
 void parseParamAndBody(register sym_t *ps); /* 67 26A6 */
 void parseMacroCall(register sym_t *ps);    /* 68 286E */
-void nextArgSub(void);                        /* 69 2996 */
+void nextArgSub(void);                      /* 69 2996 */
 void openArg(uint16_t id);                  /* 70 2A2E */
 void illegalLocal(void);                    /* 71 2A54 */
 void parseLocal(void);                      /* 72 2A66 */
@@ -228,7 +219,7 @@ void parseElse(void);           /* 92 338E */
 void doPass(void);              /* 94 33CC */
 _Noreturn void syntaxErr(void); /* 100 3B1E */
 
-bool isAbsPsect(sym_t *ps);       /* 106 3DBC */
+bool isAbsPsect(sym_t *ps); /* 106 3DBC */
 
 /* sym.c */
 sym_t *findSymSlot(char *name);                     /* 126 4ECE */
@@ -245,9 +236,9 @@ void delSym(sym_t *si);                             /* 136 51C0 */
 /* tlab.c */
 void initLocalLabels(void);                          /* 137 51D8 */
 void defTmpLabel(int16_t tLabel);                    /* 138 51FE */
-prop_t *findLocalLabel(int16_t nLabel, int16_t tok); /* 139 5270 */
+rval_t *findLocalLabel(int16_t nLabel, int16_t tok); /* 139 5270 */
 
-extern prop_t startAddr;             /* 9799 */
+extern rval_t startAddr;             /* 9799 */
 extern char yytext[100];             /* 9b28 */
 extern int16_t curLineno;            /* 9bbe */
 extern char *curFileName;            /* 9bc0 */
@@ -272,7 +263,7 @@ extern sym_t *curPsect;              /* a298 */
 extern int16_t maxSymLen;            /* a29a */
 extern sym_t *symTable[MAX_SYMBOLS]; /* a2a0 */
 extern int16_t jmpOptCnt;            /* 9e7c */
-extern prop_t retProp;               /* a752 */
+extern rval_t retProp;               /* a752 */
 extern int16_t pageLen;
 extern int16_t localsCnt;
 

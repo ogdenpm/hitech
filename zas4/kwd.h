@@ -4,7 +4,7 @@
  * from the Hi-Tech Z80 C cross compiler v4.11
  *
  * Not a commercial goal of this laborious work is to popularize among
- * potential fans of 8-bit computers the old HI-TECH Z80 C cross compiler V4.11 
+ * potential fans of 8-bit computers the old HI-TECH Z80 C cross compiler V4.11
  * (HI-TECH Software) and extend its life, outside of the MSDOS 16 bit environment
  * for full operation in windows 32/64 and Unix-like operating systems
  *
@@ -103,12 +103,12 @@ typedef struct _kwd {
 #define T_MACRO    66
 #define T_ENDM     67
 #define T_COND     68
-#define G_END      69   // ENDC and ENDIF
+#define G_END      69 // ENDC and ENDIF
 #define G_REG      70
 #define G_CC       71
 #define G_PSECT    72
 #define G_FLOAT    73
-#define T_END      74   // standard END
+#define T_END      74 // standard END
 #define T_MLT      75
 #define T_IN0      76
 #define T_TSTIO    77
@@ -167,8 +167,10 @@ enum {
 #define S_NONPSECT  0
 #define S_GLOBAL    0x10
 #define S_PURE      0x20
-#define S_ABSPSECT  0xc0
+#define S_UNNAMED   0x40
 #define S_ABS       0x80
+#define S_ABSPSECT  (S_UNNAMED | S_ABS)
+
 #define S_PSECT     0x100
 #define S_UNDEF     0x200
 #define S_DEFINED   0x400
@@ -188,5 +190,4 @@ enum {
 
 /* tag flags */
 #define TF_EXT      0x10
-#define TF_REL     0x100
-
+#define TF_REL      0x100

@@ -306,7 +306,9 @@ kwd_t *kwdHashtab[] = { /* 0b4e */
     &kwd[125],
 };
 
-
+#ifdef _MSC_VER
+#pragma warning(disable: 4245)  /* avoid warnings re converting int to uint8_t */
+#endif
 uint8_t invalidChars[] = { /* 0e10 */
     ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    /* 00-07 */
     ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    ~0,    /* 08-0F */
@@ -325,6 +327,9 @@ uint8_t invalidChars[] = { /* 0e10 */
     ~7,    ~6,    ~0x1F, ~0xF,  ~0x1F, ~6,    ~0,    ~0xC,  /* 70-77 */
     ~7,    ~2,    ~0xF,  ~0,    ~0,    ~0,    ~0,    ~0,    /* 78-7F */
 };
+#ifdef _MSC_VER
+#pragma warning(default: 4245)
+#endif
 
 
 kwd_t psectKwd[] = { /* 0e90 */
@@ -435,7 +440,8 @@ static int16_t getTokenId(register char *s, kwdfptr funptr) {
             *t++ = *s++;
     }
     *t = 0;
-    if (!(po = funptr(buf)))
+    po = funptr(buf);
+    if (!po)
         return -1;
     yylval.yTok = po->flags;
     return po->id;

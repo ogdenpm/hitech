@@ -270,9 +270,10 @@ char *parseMacroBody() {
                 *t = '\0';
                 ch = getKwdId(yytext);
                 if (ch == -1) {
-                    if ((ps = findSymSlot(yytext)) && (ps->sFlags & S_MLOCAL)) {
+                    ps = findSymSlot(yytext);
+                    if (ps && (ps->sFlags & S_MLOCAL)) {
                         *pstr++ = 0x7f;
-                        *pstr++ = (char)ps->sProp.vArg;
+                        *pstr++ = (char)ps->mSlotCnt;
                         break;
                     }
                 } else
@@ -364,7 +365,7 @@ done:
 char *getMacroArg() {
     uint16_t n;
     int16_t ch2 = 0; // original wasn't intialised !!!
-    prop_t expr;
+    rval_t expr;
     bool noArg = true;
     int16_t ch;
     int16_t var2;
@@ -377,9 +378,9 @@ char *getMacroArg() {
         GetCh();
         tokType = yylex();
         expr    = *evalExpr();
-        if (expr.rType != 0)
+        if (expr.type != 0)
             error("Macro argument after % must be absolute");
-        sprintf(yytext, "%" PRId32, expr.vNum);
+        sprintf(yytext, "%" PRId32, expr.val);
     } else {
         s = yytext;
         while ((ch = PeekCh()) && ch != ',' && ch != ';' && !Isspace(ch)) {
@@ -1054,7 +1055,7 @@ void tagHex(uint16_t flag) {
     if (!showHex)
         return;
     if (pHexStart[8] == ' ') {
-        hex4(pHexStart + 8, curPsect->sProp.vCurLoc);
+        hex4(pHexStart + 8, curPsect->pCurLoc);
         if (!(curPsect->sFlags & S_ABS))
             pHexStart[12] = '\'';
     }
@@ -1208,18 +1209,18 @@ static void setTitle(char *text) {
 /**************************************************************************
  63 2462 ++
  **************************************************************************/
-void putTaggedAddr(prop_t *sProp, char ch) {
+void putTaggedAddr(rval_t *val, char ch) {
     int16_t var2;
     if (showHex) {
         pHexStart[20] = ch;
         pHexCode      = pHexStart + 8;
-        if (sProp->rType == RT_EXT)
+        if (val->type == RT_EXT)
             var2 = TF_EXT;
-        else if (sProp->rType == RT_REL)
+        else if (val->type == RT_REL)
             var2 = TF_REL;
         else
             var2 = 0;
-        putAddr(sProp->vNum, var2);
+        putAddr((uint16_t)val->val, var2);
     }
 }
 /**************************************************************************
@@ -1271,7 +1272,7 @@ void prSymbols() {
                 xrefType = '#';
             else if ((*ppSym)->sFlags & S_UNDEF)
                 xrefType = '*';
-            else if ((*ppSym)->sProp.rSym)
+            else if ((*ppSym)->rSym)
                 xrefType = '\'';
             else
                 xrefType = ' ';
@@ -1285,7 +1286,7 @@ void prSymbols() {
             ++col;
             if (rowCnt == 0 && pageLen)
                 prHeading();
-            hex4(inBuf, (*ppSym)->sProp.vMaxLoc);
+            hex4(inBuf, (*ppSym)->pMaxLoc);
             inBuf[4] = 0;
             printf(fmt, (*ppSym)->sName, inBuf, xrefType);
         }
