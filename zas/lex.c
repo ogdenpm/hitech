@@ -37,7 +37,7 @@ int16_t macroSize;                                     /* 99ac */
 int16_t macroUsed;                                     /* 99ae */
 bool lstThisLine;                                      /* 99b0 */
 char heading[41];                                      /* 99b1 */
-int16_t hexLineCnt;                                        /* 99da */
+int16_t hexLineCnt;                                    /* 99da */
 src_t srcStack[MAXINCL];                               /* 99dc */
 char *pHexCode;                                        /* 9b26 */
 char yytext[100];                                      /* 9b28 */
@@ -57,7 +57,7 @@ char *pHexStart;                                       /* 9bc8 */
 int16_t srcSP;                                         /* 9bca */
 char inBuf[256];                                       /* 9bcc */
 char hexLines[LIST_FRAGMENT_SIZE * MAX_LIST_FRAGMENT]; /* 9ccc */
-int16_t width;                                             /* 9e16 */
+int16_t width;                                         /* 9e16 */
 
 static char *skipToNextToken(register char *s);       /* 24 1217 +-- */
 static int32_t zatol(register char *s, uint8_t base); /* 25 1276 +-- */
@@ -234,7 +234,7 @@ char *parseMacroBody() {
             break;
         case G_SYM:
             ps = yylval.ySym;
-            if ((ps->sFlags & (S_MACROPARAM|S_UNDEF|S_GLOBAL)) == S_UNDEF) {
+            if ((ps->sFlags & (S_MACROPARAM | S_UNDEF | S_GLOBAL)) == S_UNDEF) {
                 remSym(ps);
                 free(ps->sName);
                 free(ps);
@@ -573,17 +573,17 @@ static void openFile(char *name) {
 /**************************************************************************
  35	openMacro +++
  **************************************************************************/
-void openMacro(register sym_t *pSym) {
+void openMacro(register sym_t *ps) {
     if (srcSP > 0 && srcStack[srcSP].srcType && lineLen > 0)
         srcStack[srcSP].srcText -= lineLen;
     srcStack[srcSP].srcLineno   = curLineno;
     srcStack[srcSP].srcControls = controls;
     if (++srcSP == MAXINCL)
         fatalErr("Macro expansions nested too deep");
-    srcStack[srcSP].srcType = (pSym->sFlags & S_MACROARG) ? 1 : 2;
+    srcStack[srcSP].srcType = (ps->sFlags & S_MACRO) ? 1 : 2;
     srcStack[srcSP].srcName = curFileName;
-    srcStack[srcSP].srcText = pSym->sProp.vText;
-    srcStack[srcSP].srcSym  = pSym;
+    srcStack[srcSP].srcText = ps->mText;
+    srcStack[srcSP].srcSym  = ps;
     lineLen                 = 0;
 }
 
@@ -719,7 +719,7 @@ void tagHex(uint16_t flag) {
     if (!showHex)
         return;
     if (pHexStart[8] == ' ') {
-        hex4(pHexStart + 8, curPsect->sProp.vNum);
+        hex4(pHexStart + 8, curPsect->pCurLoc);
         if ((curPsect->sFlags & S_ABSPSECT) != S_ABSPSECT)
             pHexStart[12] = '\'';
     }
@@ -895,18 +895,18 @@ static void setTitle(char *text) {
 /**************************************************************************
  53 298d +++
  **************************************************************************/
-void putTaggedAddr(prop_t *sProp, int16_t ch) {
+void putTaggedAddr(rval_t *pv, int16_t ch) {
     int16_t var2;
     if (showHex) {
         pHexStart[20] = (char)ch;
         pHexCode      = pHexStart + 8;
-        if (sProp->cExtSym)
+        if (pv->eSym)
             var2 = TF_EXT;
-        else if (sProp->cPsectSym)
+        else if (pv->pSym)
             var2 = TF_REL;
         else
             var2 = 0;
-        putAddr(sProp->vNum, var2);
+        putAddr(pv->val, var2);
     }
 }
 /**************************************************************************
@@ -949,12 +949,12 @@ void prSymbols() {
     maxSymLen = width / (maxSymLen + 8); /* reuse maxSymLen for symbols per line */
     col       = 0;
     while (*ppSym) {
-        if (!((*ppSym)->sFlags & S_MACROARG)) {
+        if (!((*ppSym)->sFlags & S_MACRO)) {
             if ((*ppSym)->sFlags & S_PSECT)
                 xrefType = '#';
             else if ((*ppSym)->sFlags & S_UNDEF)
                 xrefType = '*';
-            else if ((*ppSym)->sProp.cPsectSym)
+            else if ((*ppSym)->sPsym)
                 xrefType = '\'';
             else
                 xrefType = ' ';
@@ -968,7 +968,7 @@ void prSymbols() {
             ++col;
             if (rowCnt == 0)
                 prHeading();
-            hex4(inBuf, (*ppSym)->sProp.vNum);
+            hex4(inBuf, (*ppSym)->sVal);
             inBuf[4] = 0;
             printf(fmt, (*ppSym)->sName, inBuf, xrefType);
         }

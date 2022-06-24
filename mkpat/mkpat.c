@@ -34,7 +34,7 @@ typedef unsigned short word;
 struct {
     int length;
     int pos;
-    int type;
+    int tType;
     uint8_t data[512];
 } record;
 
@@ -50,7 +50,7 @@ uint16_t codebase;
 struct {
     char *name;
     uint16_t offset;
-    uint8_t type;
+    uint8_t tType;
 } labels[MAXLABEL];
 int labelCnt;
 
@@ -97,15 +97,15 @@ bool unpackName(char *name) {
 
 int getRecord(FILE *fp) {
     record.length = getWord(fp);
-    record.type   = getc(fp);
+    record.tType   = getc(fp);
     record.pos    = 0;
-    if (record.type == EOF)
+    if (record.tType == EOF)
         return PAST_END;
     if (record.length > 512)
         return TOO_LONG;
     if (fread(record.data, 1, record.length, fp) != record.length)
         return PAST_END;
-    return record.type;
+    return record.tType;
 }
 
 void dumpPattern(FILE *fpout) {
@@ -138,12 +138,12 @@ void dumpPattern(FILE *fpout) {
     fprintf(fpout, " %02X %04X %04X ", loc - j, crc16(code + j, loc - j), codesize);
 
     for (int i = 0; i < labelCnt; i++)
-        if (labels[i].type == PUBLIC) {
+        if (labels[i].tType == PUBLIC) {
             fprintf(fpout, ":%04X %s", labels[i].offset, labels[i].name);
             for (j = i + 1; j < labelCnt; j++) {
-                if (labels[j].type == PUBLIC && labels[j].offset == labels[i].offset) {
+                if (labels[j].tType == PUBLIC && labels[j].offset == labels[i].offset) {
                     fprintf(fpout, "$%s", labels[j].name);
-                    labels[j].type = 0;
+                    labels[j].tType = 0;
                 }
             }
             putc(' ', fpout);
@@ -153,7 +153,7 @@ void dumpPattern(FILE *fpout) {
         fprintf(fpout, ":0000 ? ");
 
     for (int i = 0; i < labelCnt; i++)
-        if (labels[i].type == EXTERNAL)
+        if (labels[i].tType == EXTERNAL)
             fprintf(fpout, "^%04X %s ", labels[i].offset, labels[i].name);
 
     for (; loc < codesize; loc++)
@@ -173,13 +173,13 @@ void clearLabels() {
     labelCnt = 0;
 }
 
-void addLabel(int offset, char *label, uint8_t type) {
+void addLabel(int offset, char *label, uint8_t tType) {
     for (int i = 0; i < labelCnt; i++) {
         if (strcmp(labels[i].name, label) == 0) {
-            if (type == PUBLIC ||
-                ((labels[i].type & HASDELTA) && code[offset] + code[offset + 1] == 0)) {
+            if (tType == PUBLIC ||
+                ((labels[i].tType & HASDELTA) && code[offset] + code[offset + 1] == 0)) {
                 labels[i].offset = offset;
-                labels[i].type   = type;
+                labels[i].tType   = tType;
             }
             return;
         }
@@ -188,11 +188,11 @@ void addLabel(int offset, char *label, uint8_t type) {
         fprintf(stderr, "Too many labels\n");
         exit(1);
     }
-    if (type != PUBLIC && code[offset] + code[offset + 1])
-        type |= HASDELTA;
+    if (tType != PUBLIC && code[offset] + code[offset + 1])
+        tType |= HASDELTA;
     labels[labelCnt].name   = strdup(label);
     labels[labelCnt].offset = offset;
-    labels[labelCnt++].type = type;
+    labels[labelCnt++].tType = tType;
 }
 
 int doText(char *name) {
@@ -224,18 +224,18 @@ int doText(char *name) {
 void doReloc(char *name, int base) {
     while (record.pos < record.length) {
         int offset = unpackWord(); // assumption is that byte order is 0, 1
-        int type   = unpackByte();
+        int tType   = unpackByte();
         int cplx;
         char label[MAXNAMELEN] = "";
-        if (type != (RCPLX << 4) + 2) {
+        if (tType != (RCPLX << 4) + 2) {
             if (!unpackName(label)) {
                 fprintf(stderr, "%s: unexpected EOF in RELOC record\n", name);
                 exit(1);
             }
         }
-        int size = type & 0xf;
-        type >>= 4;
-        switch (type) {
+        int size = tType & 0xf;
+        tType >>= 4;
+        switch (tType) {
         case RABS:
             break;
         case RCPLX:
@@ -259,12 +259,12 @@ void doReloc(char *name, int base) {
         case RRNAME:
         case RSNAME:
             memset(flags + base + offset - codebase, FIXUP, size);
-            if (type == RNAME && size == 2)
+            if (tType == RNAME && size == 2)
                 addLabel(base + offset - codebase, label, EXTERNAL);
             break;
         default:
             fprintf(stderr, "%s: unsupported reloc - offset=%04X type=%d size=%d psect=%s\n", name, offset,
-                    type, size, label);
+                    tType, size, label);
             break;
         }
     }
@@ -286,15 +286,15 @@ void doSym(char *name) {
 }
 
 bool doModule(char *name, FILE *fpin, FILE *fpout) {
-    int type;
+    int tType;
     int textBase = -1;
 
     memset(flags, UNDEF, codesize ? codesize : sizeof(flags));
     codesize = 0;
     clearLabels();
 
-    while ((type = getRecord(fpin)) != END && type > 0) {
-        switch (type) {
+    while ((tType = getRecord(fpin)) != END && tType > 0) {
+        switch (tType) {
         case TEXT:
             textBase = doText(name);
             break;
@@ -316,15 +316,15 @@ bool doModule(char *name, FILE *fpin, FILE *fpout) {
         case FNCONF:
             break;
         default:
-            fprintf(stderr, "%s: unsupported record type %d\n", name, type);
+            fprintf(stderr, "%s: unsupported record type %d\n", name, tType);
             return false;
         }
     }
-    if (type == END) {
+    if (tType == END) {
         dumpPattern(fpout);
         return true;
     }
-    if (type == TOO_LONG)
+    if (tType == TOO_LONG)
         fprintf(stderr, "%s: record length %d too long\n", name, record.length);
     else
         fprintf(stderr, "%s: unexpected EOF\n", name);

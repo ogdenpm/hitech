@@ -178,9 +178,9 @@ void allocModuleArrays(int cnt, char **pnames) {
 
     cmdLineNames = pnames;
     if ((num_ofiles = cnt) != 0) {
-        moduleFlags    = allocmem(num_ofiles * sizeof(uint8_t));
-        moduleSizes    = allocmem(num_ofiles * sizeof(uint32_t));
-        moduleStdNames = allocmem(num_ofiles * sizeof(char *));
+        moduleFlags    = xalloc(num_ofiles * sizeof(uint8_t));
+        moduleSizes    = xalloc(num_ofiles * sizeof(uint32_t));
+        moduleStdNames = xalloc(num_ofiles * sizeof(char *));
         while (cnt-- >= 0) {
             char *s;
             moduleStdNames[cnt] = fname(cmdLineNames[cnt]);

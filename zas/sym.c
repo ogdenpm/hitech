@@ -35,10 +35,10 @@ int16_t maxSymLen;            /* a29a */
 sym_t *absPsect;              /* a29c */
 int numSymbols;               /* a29e */
 sym_t *symTable[MAX_SYMBOLS]; /* a2a0 */
-prop_t retProp;               /* a752 */
+rval_t retProp;               /* a752 */
 
 static int hash(register char *str, int hashSize);              /* 102 4F35 +-- */
-static int sym_cmpfunc(const void *ppSym1, const void *ppSym2); /* 107 51AD +-- */
+static int sym_cmpfunc(const void *pps1, const void *pps2); /* 107 51AD +-- */
 
 /**************************************************************************
  102	hash	+++
@@ -55,41 +55,41 @@ static int hash(register char *str, int hashSize) {
  103	getSym	+++
  **************************************************************************/
 sym_t *getSym(register char *name, int flags) {
-    sym_t *pSym;
-    sym_t **ppSym;
+    sym_t *psIter;
+    sym_t **pps;
     int16_t nameLen;
 
     if (!(flags & S_PSECT) && crfFp && c_opt != 0)
         fprintf(crfFp, "%s %d\n", name, curLineno);
 
-    ppSym = symTable + hash(name, MAX_SYMBOLS);
-    pSym  = *ppSym;
+    pps = symTable + hash(name, MAX_SYMBOLS);
+    psIter  = *pps;
 
-    while (pSym && ((pSym->sFlags & S_PSECT) != flags || (strcmp(pSym->sName, name) != 0)))
-        pSym = pSym->sChain;
+    while (psIter && ((psIter->sFlags & S_PSECT) != flags || (strcmp(psIter->sName, name) != 0)))
+        psIter = psIter->sChain;
 
-    if (pSym)
-        return pSym;
+    if (psIter)
+        return psIter;
 
     if (++numSymbols == MAX_SYMBOLS)
         fatalErr("Too may symbols");
 
     /* insert new symbol at head of hash chain */
-    pSym         = xalloc(sizeof(sym_t));
-    pSym->sChain = *ppSym;
-    *ppSym       = pSym;
+    psIter         = xalloc(sizeof(sym_t));
+    psIter->sChain = *pps;
+    *pps       = psIter;
     nameLen      = (int16_t)strlen(name);
-    pSym->sName  = xalloc(nameLen + 1); /* insert symbol srcType */
-    strcpy(pSym->sName, name);
+    psIter->sName  = xalloc(nameLen + 1); /* insert symbol srcType */
+    strcpy(psIter->sName, name);
     if (maxSymLen < nameLen)
         maxSymLen = nameLen;
     if ((flags & S_PSECT))
-        pSym->sFlags = flags;
+        psIter->sFlags = flags;
     else {
-        pSym->sFlags        = S_UNDEF;
-        pSym->sProp.cExtSym = pSym;
+        psIter->sFlags = S_UNDEF;
+        psIter->sEsym  = psIter;
     }
-    return pSym;
+    return psIter;
 }
 
 /**************************************************************************
@@ -107,46 +107,46 @@ void *xalloc(size_t size) {
  105	enterAbsPsect	+++
  **************************************************************************/
 void enterAbsPsect() {
-    register sym_t *st;
+    register sym_t *ps;
 
     if ((absPsect = getSym("", S_PSECT)) == 0)
         fatalErr("Can't enter abs psect");
-    st = absPsect;
-    st->sFlags |= S_ABSPSECT | S_GLOBAL;
-    st->sProp.cExtSym = 0;
-    curPsect          = absPsect;
+    ps = absPsect;
+    ps->sFlags |= S_ABSPSECT | S_GLOBAL;
+    ps->sEsym = 0;
+    curPsect  = absPsect;
 }
 
 /**************************************************************************
  106	resetVals	+++
  **************************************************************************/
 void resetVals() {
-    sym_t **ppSym;
-    register sym_t *pSym;
+    sym_t **pps;
+    register sym_t *ps;
 
-    ppSym = symTable;
+    pps = symTable;
     do {
-        for (pSym = *ppSym; pSym; pSym = pSym->sChain)
-            if (pSym && (pSym->sFlags & S_PSECT))
-                pSym->sProp.vNum = 0L;
-    } while (++ppSym < &symTable[MAX_SYMBOLS]);
+        for (ps = *pps; ps; ps = ps->sChain)
+            if (ps && (ps->sFlags & S_PSECT))
+                ps->sVal = 0L;
+    } while (++pps < &symTable[MAX_SYMBOLS]);
     curPsect = absPsect;
 }
 
 /**************************************************************************
  107	sym_cmpfunc	sub_51adh	+++
  **************************************************************************/
-static int sym_cmpfunc(const void *ppSym1, const void *ppSym2) {
-    register sym_t const *pSym1 = *(sym_t const **)ppSym1;
-    sym_t const *pSym2          = *(sym_t const **)ppSym2;
+static int sym_cmpfunc(const void *pps1, const void *pps2) {
+    register sym_t const *ps1 = *(sym_t const **)pps1;
+    sym_t const *ps2          = *(sym_t const **)pps2;
 
-    if (pSym2 == pSym1)
+    if (ps2 == ps1)
         return 0;
-    if (pSym1 == 0)
+    if (ps1 == 0)
         return 1;
-    if (pSym2 == 0)
+    if (ps2 == 0)
         return -1;
-    return strcmp(pSym1->sName, pSym2->sName);
+    return strcmp(ps1->sName, ps2->sName);
 }
 
 /**************************************************************************
@@ -157,18 +157,18 @@ void sortSymbols() {
     sym_t **pSlot;
     sym_t **pEmptySlot;
     sym_t *tmpPSym;
-    register sym_t *pSym;
+    register sym_t *psIter;
 
     pEmptySlot = pSlot = symTable;
     /* raise all of the hash chained symbols to the top level, using free slots */
     while (pSlot < &symTable[MAX_SYMBOLS]) {
-        pSym = *pSlot;
-        while ((pSym && pSym->sChain)) {
+        psIter = *pSlot;
+        while ((psIter && psIter->sChain)) {
             while (*pEmptySlot) /* find the first free slot */
                 ++pEmptySlot;
-            *pEmptySlot     = pSym->sChain; /* move the first chained symbol to its own slot */
-            tmpPSym         = pSym;
-            pSym            = pSym->sChain; /* continue with next symbol */
+            *pEmptySlot     = psIter->sChain; /* move the first chained symbol to its own slot */
+            tmpPSym         = psIter;
+            psIter            = psIter->sChain; /* continue with next symbol */
             tmpPSym->sChain = 0;            /* remove the chain from the original sym */
         }
         ++pSlot;
@@ -179,41 +179,41 @@ void sortSymbols() {
 /**************************************************************************
  109	remSym	+++
  **************************************************************************/
-sym_t *remSym(register sym_t *pSym) {
+sym_t *remSym(register sym_t *ps) {
     sym_t **pSlot;
-    sym_t *ps;
+    sym_t *psIter;
 
-    pSlot = &symTable[hash(pSym->sName, MAX_SYMBOLS)];
-    if (*pSlot == pSym) {
-        *pSlot = pSym->sChain;
-        return pSym;
+    pSlot = &symTable[hash(ps->sName, MAX_SYMBOLS)];
+    if (*pSlot == ps) {
+        *pSlot = ps->sChain;
+        return ps;
     }
-    for (ps = *pSlot; ps->sChain && ps->sChain != pSym; ps = ps->sChain)
+    for (psIter = *pSlot; psIter->sChain && psIter->sChain != ps; psIter = psIter->sChain)
         ;
 
-    if (!ps)
+    if (!psIter)
         fatalErr("REMSYM error");
-    ps->sChain = pSym->sChain; /* remove from the chain */
-    return pSym;
+    psIter->sChain = ps->sChain; /* remove from the chain */
+    return ps;
 }
 
 /**************************************************************************
  110	addSym	+++
  **************************************************************************/
-void addSym(register sym_t *pSym) {
-    sym_t **pSlot = &symTable[hash(pSym->sName, MAX_SYMBOLS)];
-    pSym->sChain  = *pSlot;
-    *pSlot        = pSym;
+void addSym(register sym_t *ps) {
+    sym_t **pSlot = &symTable[hash(ps->sName, MAX_SYMBOLS)];
+    ps->sChain  = *pSlot;
+    *pSlot        = ps;
 }
 
 /**************************************************************************
  111	dupSym	+++
  **************************************************************************/
-sym_t *dupSym(register sym_t *pSym) {
+sym_t *dupSym(register sym_t *ps) {
     sym_t *pNewSym;
 
     pNewSym         = xalloc(sizeof(sym_t));
-    *pNewSym        = *pSym;
+    *pNewSym        = *ps;
     pNewSym->sChain = 0;
     return pNewSym;
 }

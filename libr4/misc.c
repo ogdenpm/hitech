@@ -1,6 +1,6 @@
 #include "libr.h"
 
-void *allocmem(size_t size) {
+void *xalloc(size_t size) {
     void *p;
 
     if ((p = malloc(size)) == NULL)

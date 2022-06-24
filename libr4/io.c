@@ -163,13 +163,13 @@ void visitModules(mfuncptr action) {
 
 void visitSymbols(sfuncptr action) {
     int cnt;
-    int type;
+    int tType;
 
     for (cnt = symCnt; cnt; cnt--) {
-        if ((type = fgetc(libraryFp)) == EOF)
+        if ((tType = fgetc(libraryFp)) == EOF)
             unexp_eof();
         readName(moduleBuf);
-        action((char *)moduleBuf, type);
+        action((char *)moduleBuf, tType);
     }
     symbolsRead = true;
 }

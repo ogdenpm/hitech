@@ -55,7 +55,7 @@ void defTmpLabel(int16_t tLabel) {
         if (++tmpLabelPtr == &tmpLabelTab[MAX_TMP])
             fatalErr("Too many temporary labels");
         tmpLabelPtr->tLabel = tLabel;
-        tmpLabelPtr->tLoc   = curPsect->sProp.vNum;
+        tmpLabelPtr->tLoc   = curPsect->pCurLoc;
         tmpLabelPtr->tPsect = curPsect;
         if (phase == 0)
             highLabel = tmpLabelPtr;
@@ -67,7 +67,7 @@ void defTmpLabel(int16_t tLabel) {
 /**************************************************************************
  114 546a +++
  **************************************************************************/
-prop_t *findLocalLabel(int16_t nLabel, int tok) {
+rval_t *findLocalLabel(int16_t nLabel, int tok) {
     register tmpLabel_t *iy = lowLabel;
     if (tok == G_FWD) {
         do {
@@ -79,12 +79,12 @@ prop_t *findLocalLabel(int16_t nLabel, int tok) {
             if (--iy < tmpLabelTab)
                 goto undef;
     }
-    retProp.vNum      = iy->tLoc;
-    retProp.cPsectSym = iy->tPsect;
+    retProp.val      = iy->tLoc;
+    retProp.pSym = iy->tPsect;
     return &retProp;
 undef:
     error("Undefined temporary label");
-    retProp.cPsectSym = absPsect;
-    retProp.vNum      = 0;
+    retProp.pSym = absPsect;
+    retProp.val      = 0;
     return &retProp;
 }

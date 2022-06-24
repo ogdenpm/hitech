@@ -26,13 +26,13 @@
  **************************************************************************/
 void visitSymbols(vsfuncptr action) {
     char moduleBuf[100];
-    int cnt, type;
+    int cnt, tType;
 
     for (cnt = symCnt; cnt != 0; --cnt) {
-        if ((type = fgetc(libraryFp)) == -1)
+        if ((tType = fgetc(libraryFp)) == -1)
             unexp_eof();
         readName(moduleBuf);
-        action(moduleBuf, type); /* <- chkModuleNeeded(char * offset, int relocType) */
+        action(moduleBuf, tType); /* <- chkModuleNeeded(char * offset, int relocType) */
     }
 }
 

@@ -258,14 +258,14 @@ void dumpMem(mem_t* mp, char *psect) {
         }
         char num[9];
         int size = SIZE(mp->loc[i].flags);
-        int type = TYPE(mp->loc[i].flags);
-        if (size > 4  || type == 3 || type == 4 || type == 7 || type == 8 || type > RSNAME) {
-            printf("\nFixup(%d) Size(%d) not supported\n", type, size);
+        int tType = TYPE(mp->loc[i].flags);
+        if (size > 4  || tType == 3 || tType == 4 || tType == 7 || tType == 8 || tType > RSNAME) {
+            printf("\nFixup(%d) Size(%d) not supported\n", tType, size);
             size = 1;
-            type = RABS;
+            tType = RABS;
         } else if (size == 0) {
             size = 1;
-            type = RABS;
+            tType = RABS;
         }
         
         for (int j = 0, k = size; k--; j += 2) {
@@ -277,7 +277,7 @@ void dumpMem(mem_t* mp, char *psect) {
         }
         char *rname = mp->loc[i].rname ? mp->loc[i].rname : "(abs)";
         int sep = i % 16 == 0 && i % 8 ? 2 : 0;
-        if (chCnt + strlen(num) + (type != RABS ? strlen(rname) + 2 : 0) + sep >= LINELIMIT || (i % 16 == 0 && chCnt)) {
+        if (chCnt + strlen(num) + (tType != RABS ? strlen(rname) + 2 : 0) + sep >= LINELIMIT || (i % 16 == 0 && chCnt)) {
             putchar('\n');
             chCnt = 0;
         }
@@ -576,17 +576,17 @@ void parseComplex(uint8_t **pp) {
 // also modified the type test to avoid << 4
 void relocHandler() {
     uint8_t *p;
-    uint8_t type;
+    uint8_t tType;
     bool heading = false;
 
     for (p = recBuf; p < recBuf + recLen;) {
-        type = p[2] >> 4;
-        if (type == COMPLEX || type == RELBITS_COMPLEX) {
+        tType = p[2] >> 4;
+        if (tType == COMPLEX || tType == RELBITS_COMPLEX) {
             if (!heading) {
                 printf("\t%d\tRELOC\t%u\n", recNum, recLen);
                 heading = true;
             }
-            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[type], p[2] & 0xf);
+            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[tType], p[2] & 0xf);
             p += 3;
             parseComplex(&p);
         } else if (curMem) {
@@ -597,7 +597,7 @@ void relocHandler() {
                 printf("\t%d\tRELOC\t%u\n", recNum, recLen);
                 heading = true;
             }
-            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[type], p + 3, p[2] & 0xf);
+            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[tType], p + 3, p[2] & 0xf);
             p += strlen((char *)p + 3) + 4;
         }
     }
@@ -641,21 +641,21 @@ void lr_relocHandler() {
 }
 
 void fninfoHandler() {
-    int type;
+    int tType;
 
     for (uint8_t *p = recBuf; p < recBuf + recLen;) {
         printf("\t\t");
-        type = *p++;
-        switch (type) {
+        tType = *p++;
+        switch (tType) {
         case 4: // FNADDR
         case 6: // FNROOT
-            printf("%s\t%s\n", fninfoNames[type], p);
+            printf("%s\t%s\n", fninfoNames[tType], p);
             p += strlen((char *)p) + 1;
             break;
         case 1: // FNCALL
         case 2: // FNARG
         case 9: // FNBREAK
-            printf("%s\t%s -> ", fninfoNames[type], p);
+            printf("%s\t%s -> ", fninfoNames[tType], p);
             p += strlen((char *)p) + 1;
             printf("%s\n", p);
             p += strlen((char *)p) + 1;

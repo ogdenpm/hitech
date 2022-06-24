@@ -9,14 +9,14 @@ uint8_t listModuleType;
 bool listModuleFound;
 bool listUndefinedOpt;
 
-static void checkToList(char *testName, int type) {
+static void checkToList(char *testName, int tType) {
 
-    if (type == 0 ? listDefinedOpt : listUndefinedOpt) {
+    if (tType == 0 ? listDefinedOpt : listUndefinedOpt) {
         if (strcmp(listModuleName, testName) == 0 ||
             (*testName == '_' && strcmp(listModuleName, testName + 1) == 0)) {
 
             listModuleFound = 1;
-            listModuleType  = type;
+            listModuleType  = tType;
         }
     }
 }
@@ -63,13 +63,13 @@ void listModules(char *key, char *name) {
     visitModules(listOneModule); /* Print name obj name from library with the key m */
 }
 
-static void printSymbol(char *name, int type) {
+static void printSymbol(char *name, int tType) {
 
     if (curColumn >= columns) {
         printf("\t\t");
         curColumn = 0;
     }
-    printf("%c %-12.12s", ((type >= 7) ? '?' : symbolTypes[type]), name);
+    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), name);
     if (++curColumn >= columns)
         printf("\n");
     else

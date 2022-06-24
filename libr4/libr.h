@@ -148,7 +148,7 @@ _Noreturn void badFormat(char *name, char *fmt, ...);
 void noModule(int id);
 _Noreturn void finish(int name);
 _Noreturn void sigintHandler(int name);
-void *allocmem(size_t name);
+void *xalloc(size_t name);
 void parseIdentRec(void);
 uint16_t get16ao(uint8_t *name);
 void addSymbol(char *name, uint8_t loFlags);

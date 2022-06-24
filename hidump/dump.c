@@ -406,16 +406,16 @@ void parseComplex(uint8_t **pp) {
 // also modified the type test to avoid << 4
 void relocHandler() {
     uint8_t *p;
-    uint8_t type;
+    uint8_t tType;
 
     for (p = recBuf; p < recBuf + recLen;) {
-        type = p[2] >> 4;
-        if (type == COMPLEX || type == RELBITS_COMPLEX) {
-            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[type], p[2] & 0xf);
+        tType = p[2] >> 4;
+        if (tType == COMPLEX || tType == RELBITS_COMPLEX) {
+            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[tType], p[2] & 0xf);
             p += 3;
             parseComplex(&p);
         } else {
-            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[type], p + 3, p[2] & 0xf);
+            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[tType], p + 3, p[2] & 0xf);
             p += strlen((char *)p + 3) + 4;
         }
     }
@@ -459,21 +459,21 @@ void lr_relocHandler() {
 }
 
 void fninfoHandler() {
-    int type;
+    int tType;
 
     for (uint8_t *p = recBuf; p < recBuf + recLen;) {
         printf("\t\t");
-        type = *p++;
-        switch (type) {
+        tType = *p++;
+        switch (tType) {
         case 4: // FNADDR
         case 6: // FNROOT
-            printf("%s\t%s\n", fninfoNames[type], p);
+            printf("%s\t%s\n", fninfoNames[tType], p);
             p += strlen((char *)p) + 1;
             break;
         case 1: // FNCALL
         case 2: // FNARG
         case 9: // FNBREAK
-            printf("%s\t%s -> ", fninfoNames[type], p);
+            printf("%s\t%s -> ", fninfoNames[tType], p);
             p += strlen((char *)p) + 1;
             printf("%s\n", p);
             p += strlen((char *)p) + 1;

@@ -306,12 +306,12 @@ void wrRecord() {
 /**************************************************************************
  9	chkAddRecordItem	ok++ (nau)
  **************************************************************************/
-void chkAddRecordItem(uint8_t type, size_t len) {
+void chkAddRecordItem(uint8_t tType, size_t len) {
     /* can add if same record type and it fits else flush */
-    if (nonTextRecBuf[RECORD_TYPE] == type && nonTextRecBuf + 512 >= nonTextRecPtr + len)
+    if (nonTextRecBuf[RECORD_TYPE] == tType && nonTextRecBuf + 512 >= nonTextRecPtr + len)
         return;
     wrRecord();
-    nonTextRecBuf[RECORD_TYPE] = type;
+    nonTextRecBuf[RECORD_TYPE] = tType;
 }
 
 /**************************************************************************

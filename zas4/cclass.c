@@ -41,13 +41,13 @@ char ccClass[] = { /* 016b */
                    _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
                    _S,      _Z,      _Z,      _Z,      _L,      _Z,      _Z,      _Z,   // 20
                    _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
-                   _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, _D | _H, //30
-                   _D | _H, _D | _H, _Z,      _Z,      _Z,      _Z,      _Z,      _L,
-                   _Z,      _U | _H, _U | _H, _U | _H, _U | _H, _U | _H, _U | _H, _U,   //40 
+                   _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, //30
+                   _D | _X, _D | _X, _Z,      _Z,      _Z,      _Z,      _Z,      _L,
+                   _Z,      _U | _X, _U | _X, _U | _X, _U | _X, _U | _X, _U | _X, _U,   //40 
                    _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,
                    _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,   // 50
                    _U,      _U,      _U,      _Z,      _Z,      _Z,      _Z,      _L,
-                   _Z,      _L | _H, _L | _H, _L | _H, _L | _H, _L | _H, _L | _H, _L,   // 60
+                   _Z,      _L | _X, _L | _X, _L | _X, _L | _X, _L | _X, _L | _X, _L,   // 60
                    _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,
                    _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,   // 70
                    _L,      _L,      _L,      _Z,      _Z,      _Z,      _Z,      _Z

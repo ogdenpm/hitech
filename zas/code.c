@@ -49,22 +49,22 @@ char *pTextData;       /* 9791 */
 char *pRelocData;      /* 9793 */
 char *pEndTextRecord;  /* 9795 */
 char *pSymData;        /* 9797 */
-prop_t startAddr;      /* 9799 */
+rval_t startAddr;      /* 9799 */
 
 #ifdef CPM
 static int nameCmp(register char *str1, char *str2); /* 1 013D +++ */
 #endif
 static void initRecords();                                                     /* 3 01E1 +++ */
 static void writeTextRecord();                                                 /* 4 0238 +++ */
-static void add_reloc(register prop_t *pc, uint16_t relocSize, size_t offset); /* 7 02F1 +-- */
+static void add_reloc(register rval_t *pv, uint16_t relocSize, size_t offset); /* 7 02F1 +-- */
 static _Noreturn void objWriteErr();                                           /* 11 067C +-- */
 static void addObjSymbol(register sym_t *ps);                                  /* 12 0685 +-- */
 static void initSymRecord(void);                                               /* 13 078B +-- */
 static void writeSymRecord(void);                                              /* 14 0797 +-- */
 static void nextSymRecord(void);                                               /* 15 07ED +-- */
 static void addObjPsect(register sym_t *ps);                                   /* 16 07F2 +-- */
-static void i16tole(char *p1, int16_t p2);                                     /* 18 0A09 +-- */
-static void u32tole(char *p1, uint32_t p2);                                    /* 19 0A32 +-- */
+static void i16tole(char *buf, int16_t val);                                   /* 18 0A09 +-- */
+static void u32tole(char *buf, uint32_t val);                                  /* 19 0A32 +-- */
 
 /**************************************************************************
  1	013d +++ (not used)
@@ -98,7 +98,7 @@ static void initRecords() {
 
     textRecord[2] = 1; /* TEXT record */
     pPsect        = curPsect;
-    u32tole(textRecord + 3, pPsect->sProp.vNum);                           /* write offset */
+    u32tole(textRecord + 3, pPsect->pCurLoc);                              /* write offset */
     strcpy(textRecord + 7, curPsect->sName);                               /* write psect srcType */
     pTextData = pEndTextRecord = textRecord + 8 + strlen(curPsect->sName); /* calc start of data */
     relocRecord[2]             = 3;
@@ -149,19 +149,19 @@ void finishRecords() {
  * optimiser avoids ex de,hl by swapping test
  **************************************************************************/
 
-static void add_reloc(register prop_t *pc, uint16_t relocSize, size_t offset) {
+static void add_reloc(register rval_t *pv, uint16_t relocSize, size_t offset) {
     size_t nameLen;
     char relocType;
     bool textWritten;
     char *name;
 
     textWritten = false;
-    if (pc->cExtSym) {
+    if (pv->eSym) {
         relocType = R_RNAME;
-        name      = pc->cExtSym->sName;
-    } else if (pc->cPsectSym) {
+        name      = pv->eSym->sName;
+    } else if (pv->pSym) {
         relocType = R_RPSECT;
-        name      = pc->cPsectSym->sName;
+        name      = pv->pSym->sName;
     } else
         return;
 
@@ -182,77 +182,76 @@ static void add_reloc(register prop_t *pc, uint16_t relocSize, size_t offset) {
     return;
 }
 
-
-    /**************************************************************************
- 8	03d0 +++
- **************************************************************************/
+/**************************************************************************
+8	03d0 +++
+**************************************************************************/
 void addObjByte(int16_t n) {
     if (phase != 2)
-        curPsect->sProp.vNum++;
+        curPsect->pCurLoc++;
     else {
         if (controls)
             putByte(n, 0);
         if (pEndTextRecord == &textRecord[512])
             finishRecords();
-        curPsect->sProp.vNum++;
+        curPsect->pCurLoc++;
         *pEndTextRecord++ = (char)n;
-        if (curPsect->sProp.psSize < curPsect->sProp.vNum)
-            curPsect->sProp.psSize = curPsect->sProp.vNum;
+        if (curPsect->pSize < curPsect->pCurLoc)
+            curPsect->pSize = curPsect->pCurLoc;
     }
 }
 
 /**************************************************************************
  9	0461 +++
  **************************************************************************/
-void addObjRelocWord(register prop_t *pc) {
+void addObjRelocWord(register rval_t *pv) {
     uint16_t flags;
     if (phase != 2)
-        curPsect->sProp.vNum += 2;
+        curPsect->pCurLoc += 2;
     else {
-        if (pc->cExtSym)
+        if (pv->eSym)
             flags = TF_EXT;
-        else if (pc->cPsectSym)
+        else if (pv->pSym)
             flags = TF_REL;
         else
             flags = 0;
         if (controls)
-            putAddr(pc->vNum, flags);
+            putAddr(pv->val, flags);
         if (pEndTextRecord >= &textRecord[511])
             finishRecords();
-        curPsect->sProp.vNum += 2;
-        *pEndTextRecord++ = pc->vNum;
-        *pEndTextRecord++ = pc->vNum >> 8;
-        if (curPsect->sProp.psSize < curPsect->sProp.vNum)
-            curPsect->sProp.psSize = curPsect->sProp.vNum;
-        add_reloc(pc, 2, pEndTextRecord - pTextData - 2);
+        curPsect->pCurLoc += 2;
+        *pEndTextRecord++ = pv->val;
+        *pEndTextRecord++ = pv->val >> 8;
+        if (curPsect->pSize < curPsect->pCurLoc)
+            curPsect->pSize = curPsect->pCurLoc;
+        add_reloc(pv, 2, pEndTextRecord - pTextData - 2);
     }
 }
 
 /**************************************************************************
  10 055a +++
  **************************************************************************/
-void addObjRelocByte(register prop_t *pc) {
+void addObjRelocByte(register rval_t *pv) {
     uint16_t flags;
     if (phase != 2)
-        curPsect->sProp.vNum += 1L;
+        curPsect->pCurLoc += 1L;
     else {
-        if (!s_opt && (pc->vNum >= 256 || pc->vNum < -128))
+        if (!s_opt && (pv->val >= 256 || pv->val < -128))
             error("Size error");
-        if (pc->cExtSym)
+        if (pv->eSym)
             flags = TF_EXT;
-        else if (pc->cPsectSym)
+        else if (pv->pSym)
             flags = TF_REL;
         else
             flags = 0;
         if (controls)
-            putByte(pc->vNum, flags);
+            putByte(pv->val, flags);
         if (pEndTextRecord == &textRecord[512])
             finishRecords();
-        curPsect->sProp.vNum++;
-        *pEndTextRecord++ = pc->vNum;
-        if (curPsect->sProp.psSize < curPsect->sProp.vNum)
-            curPsect->sProp.psSize = curPsect->sProp.vNum;
-        add_reloc(pc, 1, pEndTextRecord - pTextData - 1);
+        curPsect->pCurLoc++;
+        *pEndTextRecord++ = pv->val;
+        if (curPsect->pSize < curPsect->pCurLoc)
+            curPsect->pSize = curPsect->pCurLoc;
+        add_reloc(pv, 1, pEndTextRecord - pTextData - 1);
     }
 }
 
@@ -269,15 +268,15 @@ static _Noreturn void objWriteErr() {
 static void addObjSymbol(register sym_t *ps) {
     size_t len = strlen(ps->sName) + 2;
     char *var4;
-    if (ps->sProp.cPsectSym)
-        len += strlen(ps->sProp.cPsectSym->sName);
+    if (ps->sPsym)
+        len += strlen(ps->sPsym->sName);
     if (pSymData + len + 6 >= &textRecord[512])
         nextSymRecord();
-    u32tole(pSymData, ps->sProp.vNum);
+    u32tole(pSymData, ps->sVal);
     i16tole(pSymData + 4, ps->sFlags);
-    if (ps->sProp.cPsectSym) {
-        strcpy(pSymData + 6, ps->sProp.cPsectSym->sName);
-        var4 = pSymData + 7 + strlen(ps->sProp.cPsectSym->sName);
+    if (ps->sPsym) {
+        strcpy(pSymData + 6, ps->sPsym->sName);
+        var4 = pSymData + 7 + strlen(ps->sPsym->sName);
     } else {
         var4    = pSymData + 6;
         *var4++ = 0;
@@ -326,9 +325,9 @@ static void addObjPsect(register sym_t *ps) {
     len += 5;
     if (fwrite(relocRecord, 1, len, objFp) != len)
         objWriteErr();
-    if (ps->sProp.vNum > ps->sProp.psSize) {
+    if (ps->pCurLoc > ps->pSize) {
         relocRecord[2] = 1; /* TEXT */
-        u32tole(relocRecord + 3, ps->sProp.vNum);
+        u32tole(relocRecord + 3, ps->pCurLoc);
         strcpy(relocRecord + 7, ps->sName);
         len = strlen(ps->sName) + 5;
         i16tole(relocRecord, (int16_t)len);
@@ -348,7 +347,7 @@ void addObjAllSymbols() {
         if ((*ppSym)->sFlags & S_PSECT) {
             (*ppSym)->sFlags &= S_PTYPEMASK;
             addObjPsect(*ppSym);
-        } else if (!((*ppSym)->sFlags & S_MACROARG)) {
+        } else if (!((*ppSym)->sFlags & S_MACRO)) {
             if (!x_opt || ((*ppSym)->sFlags & (S_GLOBAL | S_UNDEF))) {
                 if ((*ppSym)->sFlags & S_UNDEF)
                     (*ppSym)->sFlags = S_GLOBAL + S_EXTERN;
@@ -363,19 +362,19 @@ void addObjAllSymbols() {
 /**************************************************************************
  18	i16tole	0a09h	+++
  **************************************************************************/
-static void i16tole(char *p1, int16_t p2) {
-    *p1++ = (char)p2;
-    *p1   = p2 >> 8;
+static void i16tole(char *buf, int16_t val) {
+    *buf++ = (char)val;
+    *buf   = val >> 8;
 }
 
 /**************************************************************************
  19	u32tole	sub-0a32h	+++
  **************************************************************************/
-static void u32tole(char *p1, uint32_t p2) {
-    *p1++ = p2;
-    *p1++ = p2 >> 8;
-    *p1++ = p2 >> 16;
-    *p1   = p2 >> 24;
+static void u32tole(char *buf, uint32_t val) {
+    *buf++ = val;
+    *buf++ = val >> 8;
+    *buf++ = val >> 16;
+    *buf   = val >> 24;
 }
 
 /**************************************************************************
@@ -383,12 +382,12 @@ static void u32tole(char *p1, uint32_t p2) {
  **************************************************************************/
 void addObjEnd() {
     size_t len;
-    if (startAddr.cPsectSym) {
+    if (startAddr.pSym) {
         textRecord[2] = 5; /* START */
-        len           = strlen(startAddr.cPsectSym->sName) + 5;
-        strcpy(textRecord + 7, startAddr.cPsectSym->sName);
+        len           = strlen(startAddr.pSym->sName) + 5;
+        strcpy(textRecord + 7, startAddr.pSym->sName);
         i16tole(textRecord, (int16_t)len);
-        u32tole(textRecord + 3, startAddr.vNum);
+        u32tole(textRecord + 3, startAddr.val);
         if (fwrite(textRecord, 1, len + 3, objFp) != len + 3)
             objWriteErr();
     }

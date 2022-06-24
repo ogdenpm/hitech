@@ -416,13 +416,13 @@ static int16_t getTokenId(register char *s, kwdfptr funptr) {
 /**************************************************************************
  67	getKwdId	+++
  **************************************************************************/
-int16_t getKwdId(char *p1) {
-    return getTokenId(p1, findKwd);
+int16_t getKwdId(char *s) {
+    return getTokenId(s, findKwd);
 }
 
 /**************************************************************************
  68	getPsectId	+++
  **************************************************************************/
-int16_t getPsectId(char *p1) {
-    return getTokenId(p1, findPsect);
+int16_t getPsectId(char *s) {
+    return getTokenId(s, findPsect);
 }

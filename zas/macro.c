@@ -58,23 +58,23 @@ void parseParamAndBody(register sym_t *ps) {
         }
     }
     if (phase != 0) {
-        if (ps->sProp.vArg) {
-            for (var42 = 0; var42 < ps->sProp.mArgCnt;)
-                free(ps->sProp.vArg[var42++]);
-            free(ps->sProp.vArg);
+        if (ps->mArgs) {
+            for (var42 = 0; var42 < ps->mArgCnt;)
+                free(ps->mArgs[var42++]);
+            free(ps->mArgs);
         }
-        if (cntParam != ps->sProp.mArgCnt)
+        if (cntParam != ps->mArgCnt)
             error("Phase error in macro args");
     }
     if (cntParam) {
-        ps->sProp.vArg = xalloc(cntParam * sizeof(sym_t));
+        ps->mArgs = xalloc(cntParam * sizeof(sym_t));
     } else
-        ps->sProp.vArg = 0;
-    ps->sProp.mArgCnt = cntParam;
+        ps->mArgs = 0;
+    ps->mArgCnt = cntParam;
     while (cntParam--)
-        ps->sProp.vArg[cntParam] = var3e[cntParam];
+        ps->mArgs[cntParam] = var3e[cntParam];
     skipLine();
-    ps->sProp.vText = parseMacroBody();
+    ps->mText = parseMacroBody();
 }
 /**************************************************************************
 57 2dc5
@@ -82,14 +82,14 @@ void parseParamAndBody(register sym_t *ps) {
 void parseMacroCall(register sym_t *ps) {
     int var2;
     char *var4;
-    if (ps->sFlags & S_MACROARG) {
-        for (var2 = 0; var2 < ps->sProp.mArgCnt; var2++) {
+    if (ps->sFlags & S_MACRO) {
+        for (var2 = 0; var2 < ps->mArgCnt; var2++) {
             if (!(var4 = getMacroArg()))
                 var4 = "";
 
-            ps->sProp.vArg[var2]->sProp.vStr = xalloc(strlen(var4) + 1);
-            strcpy(ps->sProp.vArg[var2]->sProp.vStr, var4);
-            addSym(ps->sProp.vArg[var2]);
+            ps->mArgs[var2]->mText = xalloc(strlen(var4) + 1);
+            strcpy(ps->mArgs[var2]->mText, var4);
+            addSym(ps->mArgs[var2]);
         }
         skipLine();
     }
@@ -101,9 +101,9 @@ void parseMacroCall(register sym_t *ps) {
  **************************************************************************/
 void freeMacro(register sym_t *ps) {
     int16_t var2 = 0;
-    while (var2 < ps->sProp.mArgCnt) {
-        free(ps->sProp.vArg[var2]->sProp.vText);
-        remSym(ps->sProp.vArg[var2]);
+    while (var2 < ps->mArgCnt) {
+        free(ps->mArgs[var2]->mText);
+        remSym(ps->mArgs[var2]);
         var2++;
     }
 }

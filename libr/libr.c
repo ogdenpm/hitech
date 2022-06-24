@@ -188,10 +188,10 @@ long conv_btou32 P((uchar * p1));
 void readName P((char *p1));
 void writeName P((char *p1));
 void unexp_eof P((void));
-void checkToList P((char *p1, int type));
+void checkToList P((char *p1, int tType));
 void listOneModule P((char *p1, long dummy));
 void listModules P((char *key, char *name));
-void printSymbol P((char *name, int type));
+void printSymbol P((char *name, int tType));
 void printObjAndSymbols P((char *p1, long dummy));
 void listWithSymbols P((void));
 int main P((int argc, char **argv));
@@ -215,7 +215,7 @@ void badFormat P((char *name, char *fmt, ...));
 void noModule P((char *p1, uint dummy));
 void finish P((int p1));
 void sigintHandler P((int p1));
-char *allocmem P((int p1));
+char *xalloc P((int p1));
 void parseIdentRec P((void));
 uint get_modu16 P((uchar * p1));
 void addSymbol P((uchar * name, int flags));
@@ -272,8 +272,8 @@ void allocModuleArrays(int p1, char **p2) {
 
     cmdLineNames = p2;
     if ((num_ofiles = p1) != 0) {
-        moduleFlags = allocmem(num_ofiles);
-        moduleSizes = (int *)allocmem(num_ofiles * sizeof(int));
+        moduleFlags = xalloc(num_ofiles);
+        moduleSizes = (int *)xalloc(num_ofiles * sizeof(int));
     }
 }
 
@@ -527,13 +527,13 @@ void visitModules(void (*funptr)(char *, long)) {
  **************************************************************************/
 void visitSymbols(void (*action)(char *, int)) {
     int cnt;
-    int type;
+    int tType;
 
     for (cnt = symCnt; cnt; cnt--) {
-        if ((type = fgetc(libraryFp)) == -1)
+        if ((tType = fgetc(libraryFp)) == -1)
             unexp_eof();
         readName(moduleBuf);
-        action(moduleBuf, type);
+        action(moduleBuf, tType);
     }
     symbolsRead = 1;
 }
@@ -723,16 +723,16 @@ void unexp_eof() {
 /**************************************************************************
  31	checkToList	ok++
  **************************************************************************/
-void checkToList(char *p1, int type) {
+void checkToList(char *p1, int tType) {
 
-    if (((char)type == 0 ? listDefinedOpt : listUndefinedOpt) == 0)
+    if (((char)tType == 0 ? listDefinedOpt : listUndefinedOpt) == 0)
         return;
     if (strcmp(listModuleName, p1) != 0) {
         if (*p1 != '_' || strcmp(listModuleName, p1 + 1) != 0)
             return;
     }
     listModuleFound = 1;
-    listModuleType = type;
+    listModuleType = tType;
 }
 
 /**************************************************************************
@@ -780,13 +780,13 @@ void listModules(char *key, char *name) {
 /**************************************************************************
  34	printSymbol	ok++	Print symbol name with the key s
  **************************************************************************/
-void printSymbol(char *name, int type) {
+void printSymbol(char *name, int tType) {
 
     if (curColumn >= columns) {
         printf("\t\t");
         curColumn = 0;
     }
-    printf("%c %-12.12s", ((type >= 7) ? '?' : symbolTypes[type]), name);
+    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), name);
     if (++curColumn >= columns) {
         printf("\n");
         return;
@@ -1023,7 +1023,7 @@ void sigintHandler(int p1) {
 /**************************************************************************
  47	allocmem	sub_1304h	ok
  **************************************************************************/
-char *allocmem(int p1) {
+char *xalloc(int p1) {
     char *l1;
     register char *st;
 
@@ -1095,7 +1095,7 @@ void addSymbol(uchar *name, int flags) {
     st = curSymPtr;
     if ((st->flags = flags) != 6)
         hasNonExtern = 1;
-    strcpy((curSymPtr->name = allocmem(strlen(name) + 1)), name);
+    strcpy((curSymPtr->name = xalloc(strlen(name) + 1)), name);
 
     ++curSymPtr;
 }

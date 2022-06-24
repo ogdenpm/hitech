@@ -42,7 +42,7 @@ void addSymbol(char *name, uint8_t flags) {
     ps = curSymPtr;
     if ((ps->flags = flags) != 6)
         hasNonExtern = true;
-    strcpy((curSymPtr->name = allocmem(strlen(name) + 1)), name);
+    strcpy((curSymPtr->name = xalloc(strlen(name) + 1)), name);
 
     ++curSymPtr;
 }

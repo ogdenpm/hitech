@@ -159,12 +159,14 @@ enum {
 /* symbol flags */
 #define S_NONPSECT   0
 #define S_GLOBAL     0x10
-#define S_ABSPSECT   0xc0
+#define S_UNNAMED    0x40
+#define S_ABS        0x80
+#define S_ABSPSECT   (S_UNNAMED | S_ABS)
 #define S_PSECT      0x100
 #define S_UNDEF      0x200
 #define S_DEFINED    0x400
 
-#define S_MACROARG   0x1000
+#define S_MACRO   0x1000
 #define S_MACROPARAM 0x2000
 
 #define S_EXTERN     6
