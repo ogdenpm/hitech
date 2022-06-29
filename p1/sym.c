@@ -1,16 +1,19 @@
 #include "p1.h"
 
+sym_t *word_a291;   /* as91 */
+sym_t *s25FreeList; /* a293 */
+sym_t **hashtab;    /* a295 */
+s12_t *p12_a297;      /* a297 */
+uint8_t byte_a299;    /* a299 */
+uint8_t byte_a29a;    /* a29a */
+uint8_t byte_968b;    /* 968b */
+int16_t word_968c;    /* 968c */
+int16_t tmpLabelId;   /* 968e */
 
-int16_t word_a291;  /* as91 */
-s25_t *s25FreeList; /* a293 */
-s25_t **hashtab;    /* a295 */
-void *word_a297;    /* a297 */
-uint8_t byte_a299;  /* a299 */
-uint8_t byte_a29a;  /* a29a */
-uint8_t byte_968b; /* 968b */
-int16_t word_968c; /* 968c */
-int16_t tmpLabelId; /* 968e */
-
+sym_t **lookup(char *buf);
+sym_t *nodeAlloc(char *s);
+void reduceNodeRef(register sym_t *pn);
+void sub_583a(register args_t *st);
 
 /**************************************************
  * 103: 4D92 PMO
@@ -18,68 +21,182 @@ int16_t tmpLabelId; /* 968e */
 void sub_4d92() {
 
     s25FreeList = word_a291 = 0;
-    hashtab                 = xalloc(271 * sizeof(hashtab[0]));
+    hashtab                 = xalloc(HASHTABSIZE * sizeof(hashtab[0]));
 }
-
 
 /**************************************************
  * 104: 4DA7 PMO (to check)
  **************************************************/
-s25_t *lookup(char *buf) {
+sym_t **lookup(char *buf) {
     uint8_t type;
     int16_t crc;
     char *s;
-    s25_t *ps;
-    register s25_t *cp;
+    sym_t **ps;
+    register sym_t *cp;
     for (crc = 0, s = buf; *s; s++)
         crc = crc * 2 + *s;
-    for (ps = hashtab[crc % 271]; cp = ps->n_chain; ps = &cp->nMemberList) {
+    for (ps = &hashtab[crc % 271]; (cp = *ps); ps = &cp->nMemberList) {
         if (buf && strcmp(cp->nVName, buf) == 0) {
             type = cp->m20;
-            if (byte_8f86 != (type == D_STRUCT || type == D_UNION ? 1 : 0) && byte_8f86 == (type != D_MEMBER ? 1 : 0) || type == 0)
-                    break;
+            if ((byte_8f85 == (type == D_STRUCT || type == D_UNION) &&
+                 byte_8f86 == (type == D_MEMBER)) ||
+                type == 0)
+                break;
         }
     }
     return ps;
-
 }
-
 
 /**************************************************
  * 105: 4E90 PMO
  **************************************************/
-s25_t *sub_4e90(register char *buf) {
-    s25_t *ps = lookup(buf);
-    if (ps->n_chain == 0)
-        ps->n_chain = nodeAlloc(buf);
+sym_t *sub_4e90(register char *buf) {
+    sym_t **ps = lookup(buf);
+    if (*ps == 0)
+        *ps = nodeAlloc(buf);
     if (crfFp && buf)
         fprintf(crfFp, "%s %d\n", buf, lineNo);
-    return ps->n_chain;
+    return *ps;
 }
 
 /**************************************************
- * 106: 4EED
+ * 106: 4EED PMO
  **************************************************/
-
+sym_t *sub_4eed(register sym_t *st, int16_t p2, s8_t *p3, sym_t *p4) {
+    sym_t **ppSym;
+    char *var4;
+    int16_t var6;
+    if (st->m20) {
+        if (depth == st->m21 &&
+            (p2 != D_MEMBER || (st->m20 == D_MEMBER && p4 == st->nMemberList))) {
+            var4 = 0;
+            if (p2 != st->m20)
+                var4 = "storage class";
+            else if (st->m18 & 0x10) {
+                if (!sub_591d(p3, &st->attr))
+                    var4 = "type";
+                if (p3->c7 == ANODE) {
+                    if (p3->i_args && !st->attr.i_args)
+                        var4 = "arguments";
+                    else if (p3->i_args) {
+                        if (st->attr.i_args->cnt != p3->i_args->cnt)
+                            var4 = "no. of arguments";
+                        else {
+                            var6 = p3->i_args->cnt;
+                            while (var6--) {
+                                if (!sub_591d(&p3->i_args->s8array[var6],
+                                              &st->attr.i_args->s8array[var6])) {
+                                    var4 = "arguments";
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } // 4fea
+            if (var4)
+                prError("%s: %s redeclared", st->nVName, var4);
+            else if (p3->c7 == ENODE && p3->i_expr && p3->i_expr != st->attr.i_expr) {
+                sub_2569(st->attr.i_expr);
+                st->attr.i_expr = p3->i_expr;
+            } else if (p3->c7 == ANODE) {
+                if (!st->attr.i_args)
+                    st->attr.i_args = p3->i_args;
+                else if (p3->i_args && p3->i_args != st->attr.i_args) {
+                    sub_583a(st->attr.i_args);
+                    st->attr.i_args = p3->i_args;
+                }
+            } // 50d1
+            return st;
+        } // 50d7
+        ppSym        = lookup(st->nVName);
+        *ppSym       = nodeAlloc(st->nVName);
+        (*ppSym)->m8 = st;
+        st          = *ppSym;
+    } // 5116
+    switch (st->m20 = p2) {
+    case DT_USHORT:
+    case DT_INT:
+    case DT_UINT:
+        st->attr.i_labelId = newTmpLabel();
+        return st;
+    case D_CONST:
+        st->m18 |= 0x10;
+        /* FALLTHRU */
+    case DT_LONG:
+    case DT_ULONG:
+        st->nMemberList = p4;
+        break;
+    case T_TYPEDEF:
+        break;
+    default:
+        st->m18 |= 0x10;
+        break;
+    }
+    st->attr = *p3;
+    return st;
+}
 /**************************************************
- * 107: 516C
+ * 107: 516C PMO
  **************************************************/
-
-/**************************************************
- * 108: 51CF
- **************************************************/
-void sub_51cf(s25_t *ps) {
+void sub_516c(register sym_t *st) {
+    if (st && !(st->m18 & 0x80)) {
+        if (st->m18 & 1)
+            prError("identifier redefined: %s", st->nVName);
+        st->m18 |= 1;
+        if (crfFp && st->nVName) {
+            fprintf(crfFp, "#%s %d\n", st->nVName, lineNo);
+        }
+    }
 }
 
 /**************************************************
- * 109: 51E7
+ * 108: 51CF PMO
  **************************************************/
+void sub_51cf(register sym_t *st) {
+    if (st)
+        st->m18 |= 2;
+}
+
+/**************************************************
+ * 109: 51E7 PMO
+ **************************************************/
+void sub_51e7() {
+    int16_t var2;
+    int16_t var4;
+    args_t *var6;
+    register sym_t *st;
+    var6 = curFuncNode->attr.i_args;
+    st   = p25_a28f;
+    while (st) {
+    }
+    if (!var6)
+        return;
+    var4 = 0;
+    var2 = var6->cnt;
+    if (var2 == 1 && sub_5a76(var6->s8array, DT_VOID) && !p25_a28f)
+        return;
+    st = p25_a28f;
+    while (st && var2--) {
+        if (var6->s8array[var4].dataType == DT_VARGS) {
+            st   = NULL;
+            var2 = 0;
+            break;
+        } else if (!sub_591d(&var6->s8array[var4], &st->attr))
+            break;
+        st = st->nMemberList;
+        var4++;
+    }
+    if (st || (var2 && var6->s8array[var4].dataType != DT_VARGS))
+        prError("argument list conflicts with prototype");
+    var2 = 1;
+}
 
 /**************************************************
  * 110: 5356 PMO
  **************************************************/
 bool releaseNodeFreeList() {
-    register s25_t *st;
+    register sym_t *st;
 
     if (s25FreeList) {
         while ((st = s25FreeList)) {
@@ -95,18 +212,18 @@ char blank[] = "";
 /**************************************************
  * 111: 5384 PMO
  **************************************************/
-s25_t *nodeAlloc(char *s) {
-    register s25_t *pn;
+sym_t *nodeAlloc(char *s) {
+    register sym_t *pn;
     static int16_t nodeCnt;
 
     if (s25FreeList) {
         pn          = s25FreeList;
         s25FreeList = pn->nMemberList;
-        blkclr(pn, sizeof(s25_t));
+        blkclr(pn, sizeof(sym_t));
     } else {
-        pn = xalloc(sizeof(s25_t));
+        pn = xalloc(sizeof(sym_t));
     }
-    pn->m21     = inFunc;
+    pn->m21     = depth;
     pn->nRefCnt = 1;
     pn->nodeId  = ++nodeCnt;
     if (s) {
@@ -120,28 +237,22 @@ s25_t *nodeAlloc(char *s) {
 /**************************************************
  * 112: 540C PMO
  **************************************************/
-void reduceNodeRef(register s25_t *pn) {
+void reduceNodeRef(register sym_t *pn) {
 
     if (--pn->nRefCnt == 0) {
-        switch (pn->m20) {
-        default:
-            if (pn->n_c7 == 2)
-                sub_583a(pn->n_i2);
-            else if (pn->n_c7 == 1)
-                sub_2569(pn->n_i2);
-            if (pn->n_dataType == DT_POINTER)
-                reduceNodeRef(pn->n_chain);
-        case 0:
-        case D_LABEL:
-        case D_STRUCT:
-        case D_UNION:
-        case D_ENUM:
-            if (pn->nVName != blank)
-                free(pn->nVName);
-            pn->nMemberList = s25FreeList;
-            s25FreeList     = pn;
-            break;
+        if (pn->m20 != 0 && pn->m20 != D_LABEL && pn->m20 != D_STRUCT && pn->m20 != D_UNION &&
+            pn->m20 != D_ENUM) {
+            if (pn->a_c7 == ANODE)
+                sub_583a(pn->a_args);
+            else if (pn->a_c7 == ENODE)
+                sub_2569(pn->a_expr);
+            if (pn->a_dataType == DT_POINTER)
+                reduceNodeRef(pn->a_nextSym);
         }
+        if (pn->nVName != blank)
+            free(pn->nVName);
+        pn->nMemberList = s25FreeList;
+        s25FreeList     = pn;
     }
 }
 
@@ -151,7 +262,7 @@ void reduceNodeRef(register s25_t *pn) {
 void enterScope() {
 
     prFuncBrace(T_LBRACE);
-    ++inFunc;
+    ++depth;
 }
 
 /**************************************************
@@ -160,108 +271,101 @@ void enterScope() {
 void exitScope() {
 
     checkScopeExit();
-    --inFunc;
+    --depth;
     prFuncBrace(T_RBRACE);
 }
 
 /**************************************************
- * 115: 54C0
+ * 115: 54C0 PMO
  **************************************************/
 void checkScopeExit() {
-    char *ch;
-    s25_t **l2;
-    char l3;
-    char *l4;
-    register s25_t *st;
+    sym_t **ppSym;
+    sym_t **var4;
+    uint8_t var5;
+    char *var7;
+    register sym_t *st;
 
-    ch = hashtab;
-    while (ch < 542 + hashtab) { /* m21: */
-        l2 = ch;                   /* m1:  */
-        while ((st = *l2) != 0) {  /* m20: */
-            if (st->m21 == inFunc) {
-                l4 = 0;
-                l3 = st->m20;
+    for (ppSym = hashtab; ppSym < &hashtab[HASHTABSIZE]; ppSym++) {
+        var4 = ppSym;
+        while ((st = *var4)) {
+            if (st->m21 == depth) {
+                var7 = 0;
+                var5 = st->m20;
                 if ((st->m18 & 3) == 2) {
-                    switch (l3) {
-                    case 7:
-                        l4 = "label";
-                        break; /* m4:  */
-                    case 8:
-                    case 9:
-                    case 0x1f:
+                    switch (var5) {
+                    case D_LABEL:
+                        var7 = "label";
+                        break;
+                    case D_STRUCT:
+                    case D_UNION:
+                    case T_EXTERN:
                         break;
                     default:
-                        l4 = "variable";
+                        var7 = "variable";
                         break;
                     }
-                    if (l4 != 0)
-                        prError("undefined %s: %s", l4, st->nVName); /* m3:  */
-                } else if ((inFunc == 0) && (l3 == 0x2a)) {          /* m5:  */
-                    if (bittst(st->m18, 1) == 0) {                   /* m6:  */
-                        switch (l3) {
-                        case 0:
-                            break;
-                        case 6:
-                            l4 = 0;
-                            break; /* m17: */
-                        case 7:
-                            l4 = "label";
-                            break; /* m8:  */
-                        case 8:
-                            l4 = "structure";
-                            break; /* m11: */
-                        case 9:
-                            l4 = "union";
-                            break; /* m12: */
-                        case 10:
-                            l4 = "member";
-                            break; /* m13: */
-                        case 11:
-                            l4 = "enum";
-                            break; /* m14: */
-                        case 12:
-                            l4 = "constant";
-                            break; /* m15: */
-                        case 45:
-                            l4 = "typedef";
-                            break; /* m16: */
-                        default:
-                            if (bittst(st->m18, 0) != 0) {
-                                l4 = "variable definition";
-                            } else {
-                                l4 = "variable declaration"; /* m16: */
-                            }
-                            break;
+                    if (var7)
+                        prError("undefined %s: %s", var7, st->nVName);
+                } else if ((depth || var5 == T_STATIC) && !(st->m18 & 1)) { /* 5555  */
+                    switch (var5) {
+                    case D_LABEL:
+                        var7 = "label";
+                        break;
+                    case D_STRUCT:
+                        var7 = "structure";
+                        break;
+                    case D_UNION:
+                        var7 = "union";
+                        break;
+                    case D_MEMBER:
+                        var7 = "member";
+                        break;
+                    case D_ENUM:
+                        var7 = "enum";
+                        break;
+                    case D_CONST:
+                        var7 = "constant";
+                        break;
+                    case T_TYPEDEF:
+                        var7 = "typedef";
+                        break;
+                    case D_6:
+                        var7 = 0;
+                        break;
+                    default:
+                        if (var5) {
+                            if (st->m18 & 1)
+                                var7 = "variable definition";
+                            else
+                                var7 = "variable declaration";
                         }
-                        if (l4 != 0)
-                            prWarning("unused %s: %s", l4, st->nVName); /* m9:  */
+                        break;
                     }
-                }
-                *l2 = st->m8; /* m10: */
+                    if (var7)
+                        prWarning("unused %s: %s", var7, st->nVName);
+
+                } // 55d2
+                *var4 = st->m8;
                 reduceNodeRef(st);
-            } else {
-                l2 = st->m8; /* m19: */
-            }
+            } else
+                var4 = &st->m8;
         }
-        ch = ch + 2; /* l1 += 2; */
     }
-    l2 = &word_a291;
-    while ((st = *l2) != 0) {    /* m24: */
-        if (st->m21 == inFunc) { /* m22: */
-            *l2 = st->m8;
+    var4 = &word_a291;
+    while ((st = *var4)) {
+        if (st->m21 == depth) {
+            *var4 = st->m8;
             reduceNodeRef(st);
-        } else {
-            l2 = &st->m8; /* m23: */
-        }
+        } else
+            var4 = &st->m8;
     }
 }
 
-s25_t *word_a291;
 /**************************************************
  * 116: 56A4 PMO
  **************************************************/
-s25_t *sub_56a4() {
-    register s25_t *st;
+sym_t *sub_56a4() {
+    register sym_t *st;
 
     st = nodeAlloc(0);
     st->m18 |= 0x83;
@@ -273,8 +377,8 @@ s25_t *sub_56a4() {
 /**************************************************
  * 117: 56CD PMO
  **************************************************/
-s25_t *findMember(s25_t *p1, char *p2) {
-    register s25_t *st;
+sym_t *findMember(sym_t *p1, char *p2) {
+    register sym_t *st;
 
     st = p1->nMemberList;
     for (;;) {
@@ -291,7 +395,7 @@ s25_t *findMember(s25_t *p1, char *p2) {
 /**************************************************
  * 118: 573B PMO
  **************************************************/
-void sub_573b(register s25_t *st, FILE *fp) {
+void sub_573b(register sym_t *st, FILE *fp) {
 
     if (st) {
         if (st->m18 & 0x80)
@@ -312,40 +416,79 @@ int16_t newTmpLabel() {
 /**************************************************
  * 120: 578D PMO
  **************************************************/
-s10_t *sub_578d(register s10_t *p) {
-    s10_t *var2;
+args_t *sub_578d(register args_t *p) {
+    args_t *var2;
     s8_t *var4;
     int16_t var6;
     if (!p)
         return p;
-    var2 = xalloc((p->cnt - 1) * sizeof(s8_t) + sizeof(s10_t));
+    var2 = xalloc((p->cnt - 1) * sizeof(s8_t) + sizeof(args_t));
     var6 = var2->cnt = p->cnt;
     while (var6--) {
         var4  = &var2->s8array[var6];
         *var4 = p->s8array[var6];
         if (var4->dataType == DT_POINTER)
-            var4->u1.chain->nRefCnt++;
+            var4->i_nextSym->nRefCnt++;
     }
     return var2;
 }
 
 /**************************************************
- * 121: 583A
+ * 121: 583A PMO
  **************************************************/
-sub_583a() {
+void sub_583a(register args_t *st) {
+    s8_t *var2;
+    if (st) {
+        for (var2 = st->s8array; st->cnt--; var2++) {
+            if (var2->c7 == ANODE && var2->i_args)
+                sub_583a(var2->i_args);
+            if (var2->dataType == DT_POINTER)
+                reduceNodeRef(var2->i_nextSym);
+        }
+        free(st);
+    }
 }
 
 /**************************************************
- * 122: 58BD
+ * 122: 58BD PMO
  **************************************************/
-void sub_588d() {
+void sub_58bd(register s8_t *st, s8_t *p2) {
+    *p2 = *st;
+    if (p2->c7 == ENODE)
+        p2->i_expr = sub_21c7(p2->i_expr);
+    else if (p2->c7 == ANODE)
+        p2->i_args = sub_578d(p2->i_args);
 }
 
 /**************************************************
- * 123: 591D
+ * 123: 591D PMO
  **************************************************/
-bool sub_591d(s8_t *p1, s8_t *p2) {
-    // types same?
+bool sub_591d(register s8_t *st, s8_t *p2) {
+    int16_t var2;
+
+    if (st == p2)
+        return true;
+    if (p2->c7 != st->c7 || p2->dataType != st->dataType || p2->i4 != st->i4)
+        return false;
+    switch (st->dataType) {
+    case DT_ENUM:
+    case DT_STRUCT:
+        break;
+    case DT_POINTER:
+        return sub_591d(p2->i_nextInfo, st->i_nextInfo);
+    case DT_UNION:
+        if (st->c7 != ANODE || !st->i_args || !p2->i_args)
+            return true;
+        if (st->i_args->cnt != p2->i_args->cnt)
+            return false;
+        var2 = st->i_args->cnt;
+        do {
+            if (var2-- == 0)
+                return true;
+        } while (sub_591d(&st->i_args->s8array[var2], &p2->i_args->s8array[var2]));
+        return false;
+    }
+    return p2->i_nextSym == st->i_nextSym;
 }
 
 /**************************************************
@@ -360,35 +503,36 @@ bool sub_5a4a(register s8_t *st) {
  **************************************************/
 bool sub_5a76(register s8_t *st, uint8_t p2) {
 
-    return st->dataType == p2 && st->i4 == 0 && st->c7 == 0;
+    return st->dataType == p2 && st->i4 == 0 && st->c7 == SNODE;
 }
 
 /**************************************************
  * 126: 5AA4 PMO
  **************************************************/
 bool sub_5aa4(register s8_t *st) {
-    return st->c7 == 0 && (((st->i4 & 1) && st->c7 == 0) || st->dataType < DT_VOID);
+    return st->c7 == SNODE && (((st->i4 & 1) && st->c7 == SNODE) || st->dataType < DT_VOID);
 }
 
 /**************************************************
  * 127: 5AD5 PMO
  **************************************************/
 bool sub_5ad5(register s8_t *st) {
-    return st->c7 == 0 && st->i4 == 0 && st->dataType < DT_ENUM;
+    return st->c7 == SNODE && st->i4 == 0 && st->dataType < DT_ENUM;
 }
 
 /**************************************************
  * 128: 5B08 PMO
  **************************************************/
 bool sub_5b08(register s8_t *st) {
-    return (st->c7 == 0 && st->i4 == 0 && st->dataType < DT_FLOAT);
+    return (st->c7 == SNODE && st->i4 == 0 && st->dataType < DT_FLOAT);
 }
 
 /**************************************************
  * 129: 5B38 PMO
  **************************************************/
 bool sub_5b38(register s8_t *st) {
-    return st->c7 == 0 && st->i4 == 0 && (st->dataType == DT_FLOAT || st->dataType == DT_DOUBLE);
+    return st->c7 == SNODE && st->i4 == 0 &&
+           (st->dataType == DT_FLOAT || st->dataType == DT_DOUBLE);
 }
 
 /**************************************************
@@ -403,11 +547,11 @@ bool isValidDimType(register s8_t *st) {
  * 131: 5B99 PMO
  **************************************************/
 void sub_5b99(register s8_t *st) {
-    if (st->c7 == 2)
+    if (st->c7 == ANODE)
         st->c7 = 0;
     else
         st->i4 >>= 1;
 
     if (sub_5a76(st, 0x16))
-        *st = st->ps25->attr;
+        *st = st->i_sym->attr;
 }

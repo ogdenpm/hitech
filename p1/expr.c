@@ -1,29 +1,59 @@
 #include "p1.h"
 
-s13_t *p13List    = &s13_9d1b; /* 8bc7 */
-int16_t strId     = 0;         /* 8bd7 */
-uint8_t byte_8f85 = 0;         /* 8f85 */
-uint8_t byte_8f86 = 0;         /* 8f86 */
+s2_t *p2List      = &s2_9cf3[20]; /* 8bc7 */
+int16_t strId     = 0;            /* 8bd7 */
+uint8_t byte_8f85 = 0;            /* 8f85 */
+bool byte_8f86    = false;        /* 8f86 */
 
 int16_t word_968c;  /* 968c */
 int16_t tmpLabelId; /* 968e */
 
-s13_t **s13SP;   /* 9cf1 */
-s13_t *s13_9cf3; /* 9cf3 */
+expr_t **s13SP;    /* 9cf1 */
+s2_t s2_9cf3[20]; /* 9cf3 */
 char pad9d00[27];
-s13_t s13_9d1b; /* 9d1b */
-s13_t s13_9d28; /* 9d28 */
+expr_t s13_9d1b; /* 9d1b */
+expr_t s13_9d28; /* 9d28 */
 
-s13_t *s13FreeList; /* 9d35 */
+expr_t *s13FreeList; /* 9d35 */
 uint8_t byte_9d37;  /* 9d37 */
-s13_t *s13Stk[20];  /* 9d38 */
+expr_t *s13Stk[20];  /* 9d38 */
+
+/* expr.c */
+expr_t *sub_0817(register s8_t *st);
+bool sub_0aed(register expr_t *st);
+int16_t sub_0b93(register expr_t *st);
+bool sub_10a8(void);
+expr_t *sub_1340(register expr_t *st, expr_t *p2);
+expr_t *allocFConst(char *fltStr);
+expr_t *sub_1b94(register expr_t *st);
+expr_t *sub_1bf7(register expr_t *st, s8_t *p2);
+expr_t *sub_1ccc(expr_t *p1, uint8_t p2);
+expr_t *sub_1d02(register expr_t *st);
+uint8_t sub_1d5a(register s8_t *st, s8_t *p2);
+expr_t *sub_1df0(register expr_t *st);
+expr_t *sub_1e37(register expr_t *st);
+expr_t *sub_1e58(register expr_t *st);
+expr_t *sub_1ebd(register expr_t *st);
+bool sub_1ef1(register expr_t *st);
+expr_t *sub_1f5d(register expr_t *st, s8_t *p2, int16_t p3);
+expr_t *s13Alloc(uint8_t tok);
+expr_t *sub_225a(uint8_t p1, register expr_t *st, expr_t *p3);
+expr_t *sub_23b4(uint8_t tok, register expr_t *st, expr_t *p3);
+expr_t *allocSConst(void);
+void complexErr(void);
+expr_t *popExpr(void);
+void sub_2529(uint8_t p1);
+uint8_t sub_255d(void);
+
+
+
 
 /**************************************************
  * 17: 07F5 PMO
  **************************************************/
-s25_t *sub_07f5(char p1) {
+expr_t *sub_07f5(char p1) {
     char l1;
-    register s25_t *st;
+    register expr_t *st;
 
     l1        = byte_9d37;
     byte_9d37 = p1;
@@ -35,21 +65,21 @@ s25_t *sub_07f5(char p1) {
 /**************************************************
  * 18: 0817 PMO
  **************************************************/
-s13_t *sub_0817(register s8_t *st) {
+expr_t *sub_0817(register s8_t *st) {
     int16_t var2;
     int16_t var4;
-    s13_t *var6;
+    expr_t *var6;
     uint8_t tok;
-    s13_t *arr[128];
+    expr_t *arr[128];
 
-    if (st && st->c7 != 2 && st->i4 == 1 && st->dataType == DT_POINTER && st->u1.chain8->c7 == 2)
-        st = st->u1.chain8;
-    else if (st->c7 != 2)
+    if (st && st->c7 != ANODE && st->i4 == 1 && st->dataType == DT_POINTER && st->i_nextInfo->c7 == ANODE)
+        st = st->i_nextInfo;
+    else if (st->c7 != ANODE)
         prError("function or function pointer required");
 
-    if (st && st->c7 == 2 && st->ps10) {
-        var4 = st->ps10->cnt;
-        st   = st->ps10->s8array;
+    if (st && st->c7 == ANODE && st->i_args) {
+        var4 = st->i_args->cnt;
+        st   = st->i_args->s8array;
     } else {
         st   = NULL;
         var4 = 0;
@@ -58,7 +88,7 @@ s13_t *sub_0817(register s8_t *st) {
     var2     = 0;
     ungetTok = tok = yylex();
     for (;;) {
-        if (st && st->dataType == DT_24) {
+        if (st && st->dataType == DT_VARGS) {
             var4 = 0;
             st   = 0;
         }
@@ -68,7 +98,7 @@ s13_t *sub_0817(register s8_t *st) {
                 var4 = 0;
                 st   = NULL;
             }
-            var6 = sub_1441(T_60, sub_07f5(3));
+            var6 = sub_1441(T_60, sub_07f5(3), 0);
             if (var6) {
                 if (st && var4-- == 0) {
                     prError("too many arguments");
@@ -76,7 +106,7 @@ s13_t *sub_0817(register s8_t *st) {
                     var4 = 0;
                 }
                 if (st)
-                    var6 = sub_1f5d(var6, st++);
+                    var6 = sub_1f5d(var6, st++, 1);
                 else
                     var6 = sub_1d02(var6);
                 arr[var2++] = var6;
@@ -88,7 +118,7 @@ s13_t *sub_0817(register s8_t *st) {
         }
         break;
     }
-    if ((var4 != 1 || var2 != 0 || !sub_5a76(st, DT_VOID)) && var4 && st->dataType != DT_24)
+    if ((var4 != 1 || var2 != 0 || !sub_5a76(st, DT_VOID)) && var4 && st->dataType != DT_VARGS)
         prError("too few arguments");
 
     if (var2 == 0)
@@ -104,8 +134,8 @@ s13_t *sub_0817(register s8_t *st) {
 /**************************************************
  * 19: 0A83 PMO
  **************************************************/
-s13_t *sub_0a83(uint8_t n) {
-    register s13_t *st;
+expr_t *sub_0a83(uint8_t n) {
+    register expr_t *st;
 
     byte_9d37 = n;
     if ((st = sub_1441(T_60, sub_0bfc(), 0))) { /* PMO added dummy arg3 */
@@ -125,7 +155,7 @@ s13_t *sub_0a83(uint8_t n) {
 /**************************************************
  * 20: 0AED PMO
  **************************************************/
-bool sub_0aed(register s13_t *st) {
+bool sub_0aed(register expr_t *st) {
     uint8_t type, flags;
 
     if (st == 0)
@@ -135,7 +165,7 @@ bool sub_0aed(register s13_t *st) {
         return sub_5a76(&st->attr, DT_ENUM);
     if (type == T_SIZEOF)
         return true;
-    if (type == D_ADDRESSOF && sub_0b93(st->t_ps25))
+    if (type == D_ADDRESSOF && sub_0b93(st->t_next))
         return true;
     flags = opTable[(type - 60)].uc4;
     if (!(flags & 0x10))
@@ -148,12 +178,12 @@ bool sub_0aed(register s13_t *st) {
 /**************************************************
  * 21: 0B93 PMO
  **************************************************/
-int16_t sub_0b93(register s13_t *st) {
+int16_t sub_0b93(register expr_t *st) {
     uint8_t type;
 
     type = st->tType;
     if (type == T_ID)
-        return st->t_ps25->m20 == T_EXTERN || st->t_ps25->m20 == T_STATIC;
+        return st->t_pSym->m20 == T_EXTERN || st->t_pSym->m20 == T_STATIC;
     if (type == T_DOT)
         return sub_0b93(st->t_next);
     if (type == T_69)
@@ -162,33 +192,227 @@ int16_t sub_0b93(register s13_t *st) {
 }
 
 /**************************************************
- * 22: 0BFC
+ * 22: 0BFC PMO
  **************************************************/
-s13_t *sub_0bfc() {
+expr_t *sub_0bfc() {
+    s8_t var8;
+    expr_t *varA FORCEINIT;
+    s2_t *varC;
+    expr_t **varE;
+    uint8_t tok;
+    uint8_t tok2;
+    uint8_t var11;
+    uint8_t var12;
+    bool var13;
+    uint8_t var14;
+    uint8_t var15;
+    int16_t var17;
+//    int16_t var19;
+    register sym_t *st;
+
+    varE = s13SP;
+    varC = p2List;
+    sub_2529(T_60);
+    var11 = 0;
+//    var19 = 0;
+    for (;;) {
+        var13 = byte_8f86 = p2List->type1 == T_DOT || p2List->type1 == T_POINTER;
+        tok               = yylex();
+        byte_8f86         = false;
+        if (tok < T_60 || tok >= T_128) {
+            ungetTok = tok;
+            tok      = T_60;
+        }
+        if (opTable[tok - T_60].uc4 & 1) {
+            if (var11)
+                goto error;
+            switch (tok) {
+            case T_ID: // c9a
+                st = yylval.ySym;
+                if (!var13) {
+                    if (st->m20 == 0) {
+                        if (peekCh() == '(') {
+                            var8.c7       = 2;
+                            var8.dataType = DT_INT;
+                            var8.i_sym       = 0;
+                            var8.i4       = 0;
+                            st            = sub_4eed(st, T_EXTERN, &var8, 0);
+                            st->m18 |= 0x42;
+                            st->m21 = 0;
+                            sub_0493(st);
+
+                        } else {
+                            prError("undefined identifier: %s", st->nVName);
+                            st->m20           = T_STATIC;
+                            st->attr.dataType = DT_INT;
+                            st->m18           = 0x11;
+                        }
+                    } else {
+                        var17 = st->m18;
+                        if (!(var17 & 0x10))
+                            prError("not a variable identifier: %s", st->nVName);
+                        else if (st->m20 == T_EXTERN && !(var17 & 0x100))
+                            sub_0493(st);
+                    }
+                    sub_51cf(st);
+                } // d57
+                varA = allocId(st);
+                break;
+            case T_ICONST: // d75
+                varA = sub_1b4b(yylval.yNum, DT_INT);
+                break;
+            case T_LCONST: // d90
+                varA = sub_1b4b(yylval.yNum, DT_LONG);
+                break;
+            case T_FCONST: // da5
+                varA = allocFConst(yylval.yStr);
+                break;
+            case T_SCONST: // dae
+                varA       = allocSConst();
+                varA->t_i2 = strChCnt;
+                sub_053f(varA, yylval.yStr);
+                free(yylval.yStr);
+                break;
+            case S_TYPE:
+                goto error;
+            }
+            // d63
+            pushS13(varA);
+            var11 = true;
+            continue;
+        } // dfa
+        switch (tok) {
+        case T_LPAREN:
+            ungetTok = tok2 = yylex();
+            if (tok == S_TYPE || (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF)) {
+                if (var11)
+                    goto error;
+                sub_5dd1(0, &var8);
+                sub_516c(st = sub_69ca(T_79, &var8, 0, 0));
+                sub_51cf(st);
+                tok2 = yylex();
+                if (tok2 != T_RPAREN)
+                    goto error;
+                var8 = st->attr;
+                pushS13(allocSType(&var8));
+                if (p2List->type1 == T_SIZEOF) {
+                    p2List->type2 = T_EQ;
+                    var11         = true;
+                    continue;
+                } else
+                    tok = T_79;
+            } else if (var11) {
+                sub_2529(T_61);
+                pushS13(sub_0817(&(*s13SP)->attr));
+            }
+            break;
+        case T_60:
+            break;
+        case T_LBRACK:
+            if (!var11)
+                goto error;
+            tok   = T_64;
+            var11 = false;
+            break;
+        case T_RPAREN:
+        case T_RBRACK:
+            if (!var11)
+                goto error;
+            break;
+        case T_INC:
+        case T_DEC:
+            if (var11)
+                tok++;
+            break;
+        default:
+            if (opTable[tok - T_60].uc4 & 4 && !var11)
+                tok -= 11;
+            var14 = (opTable[tok - T_60].uc4 & 2) != 0;
+            if (var14 != var11)
+                goto error;
+            var11 = false;
+            break;
+        }
+        // f23
+        var15 = opTable[tok - T_60].c3;
+        if ((byte_9d37 < 3 || tok != T_COMMA) &&
+            (byte_9d37 == 1 && tok == T_COLON && p2List->type1 != T_QUEST))
+            var15 = 5;
+        // f8e
+        do {
+            var12 = 0;
+            if (p2List->type1 < var15 ||
+                (p2List->type2 == var15 && (opTable[tok - T_60].uc4 & 8))) {
+                switch (tok) {
+                case T_75:
+                case T_77:
+                    var15 = 0x1f;
+                    break;
+                case T_LPAREN:
+                case T_64:
+                    var15 = 4;
+                    break;
+                }
+                sub_2529(tok);
+                p2List->type2 = var15;
+            } else {
+                if (p2List->type1 == T_60) { // 1058
+                    if (tok != T_60)
+                        ungetTok = tok;
+                    varA = popExpr();
+                    if (!varA || s13SP != varE)
+                        goto error;
+                    else
+                        goto done;
+                } else if (p2List->type1 == T_LPAREN && tok != T_RPAREN) {
+                    expectErr(")");
+                    ungetTok = tok;
+                } else if (p2List->type1 == T_64 && tok != T_RBRACK) {
+                    expectErr("]");
+                    ungetTok = tok;
+                } else
+                    var12 = 1;
+                // 1037
+                if (sub_10a8())
+                    goto error;
+            }
+        } while (var12);
+    }
+error:
+    prError("expression syntax");
+    skipStmt(tok);
+    while (s13SP != varE)
+        sub_2569(popExpr());
+    varA = NULL;
+
+done:
+    s13SP  = varE;
+    p2List = varC;
+    return varA;
 }
 
 /**************************************************
  * 23: 10A8 PMO
  **************************************************/
 bool sub_10a8() {
-    s13_t *l1;
-    s13_t *l2;
+    expr_t *l1;
+    expr_t *l2;
     uint8_t tok;
-    register s13_t *st;
+    register expr_t *st FORCEINIT;
 
     if ((tok = sub_255d()) == T_LPAREN)
         return false;
 
     l1 = NULL;
     if (tok != T_120 &&
-        (((opTable[tok - T_60].uc4 & 2) && (l1 = popS13()) == NULL) || (st = popS13()) == NULL))
+        (((opTable[tok - T_60].uc4 & 2) && (l1 = popExpr()) == NULL) || (st = popExpr()) == NULL))
         return true;
 
     switch (tok) {
     case T_64:
         sub_2529(T_69);
-        p13List[1] = T_EQ;
-        tok        = T_PLUS;
+        p2List->type2 = T_EQ;
+        tok           = T_PLUS;
         if (isValidDimType(&l1->attr))
             l1 = sub_1ccc(l1, DT_CONST);
         else
@@ -214,23 +438,23 @@ bool sub_10a8() {
         }
         if (st->tType != S_TYPE && st->tType != T_ID) {
             l2            = allocSType(&st->attr);
-            l2->attr.ps25 = NULL; /* PMO to check one of several options */
+            l2->attr.i_sym = NULL; /* PMO to check one of several options */
             l2->attr.c7   = 0;
-            if (st->attr.c7 == 1) {
+            if (st->attr.c7 == ENODE) {
                 l2  = sub_1441(T_SIZEOF, l2, 0);
-                l1  = sub_1ccc(sub_21c7(st->attr.ps13), DT_UINT);
+                l1  = sub_1ccc(sub_21c7(st->attr.i_expr), DT_UINT);
                 tok = T_STAR;
             }
             sub_2569(st);
             st = l2;
-        } else if (st->tType == S_TYPE && st->attr.c7 == 1) {
-            l1  = sub_1ccc(sub_21c7(st->attr.ps13), DT_UINT);
+        } else if (st->tType == S_TYPE && st->attr.c7 == ENODE) {
+            l1  = sub_1ccc(sub_21c7(st->attr.i_expr), DT_UINT);
             st  = sub_1441(T_SIZEOF, st, 0);
             tok = T_STAR;
         }
         break;
     case T_COMMA:
-        if (p13List->tType != T_LPAREN || p13List->t_ca[1] != T_61)
+        if (p2List[0].type1 != T_LPAREN || p2List[1].type1 != T_61)
             tok = T_114;
         break;
     case T_79:
@@ -247,19 +471,19 @@ bool sub_10a8() {
 /**************************************************
  * 24: 1340 PMO
  **************************************************/
-s13_t *sub_1340(register s13_t *st, s13_t *p2) {
-    s25_t *var2;
-    s25_t *var4;
+expr_t *sub_1340(register expr_t *st, expr_t *p2) {
+    sym_t *var2;
+    sym_t *var4;
 
     if (!sub_5a76(&st->attr, DT_STRUCT) && !sub_5a76(&st->attr, DT_UNION))
         prError("struct/union required");
     else if (p2->tType != T_ID)
         prError("struct/union member expected");
-    else if ((var4 = st->attr.ps25) == 0)
+    else if ((var4 = st->attr.i_sym) == 0)
         ;
     else if (var4->m18 & 1)
         prError("undefined struct/union: %s", var4->nVName);
-    else if ((var2 = findMember(var4, p2->t_ps25->nVName))) {
+    else if ((var2 = findMember(var4, p2->t_pSym->nVName))) {
         sub_51cf(var2);
         st       = s13Alloc(T_126);
         st->t_i0 = var2->m14;
@@ -273,10 +497,10 @@ s13_t *sub_1340(register s13_t *st, s13_t *p2) {
 /**************************************************
  * 25: 1441 PMO
  **************************************************/
-s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
+expr_t *sub_1441(uint8_t p1, register expr_t *lhs, expr_t *rhs) {
     s8_t tmpExpr;
-    s13_t *savedLhs;
-    s13_t *minusLhs;
+    expr_t *savedLhs;
+    expr_t *minusLhs FORCEINIT;
     bool hasRhs;
     bool minusLhsValid;
     int16_t opFlags;
@@ -293,7 +517,7 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
     }
     minusLhsValid = false;
     opFlags       = opTable[p1 - 60].i5;
-    if (p1 == D_ADDRESSOF && lhs->tType == T_ID && (lhs->t_ps25->m18 & 4))
+    if (p1 == D_ADDRESSOF && lhs->tType == T_ID && (lhs->t_pSym->m18 & 4))
         prError("can't take address of register variable");
 
     if (!(opFlags & 0x100))
@@ -302,7 +526,7 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
         rhs = sub_1e37(rhs);
 
     if (p1 == T_61) {
-        if ((lhs->attr.i4 & 1) && lhs->attr.c7 == 0)
+        if ((lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE)
             lhs = sub_1441(T_69, lhs, 0); /* dummy 3rd arg */
     } else
         lhs = sub_1df0(lhs);
@@ -311,14 +535,14 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
         rhs = sub_1df0(rhs);
     if ((opFlags & 0x2000) && sub_1ef1(lhs) == 0) {
         if (p1 == D_ADDRESSOF) {
-            if (lhs->tType == D_ADDRESSOF && lhs->t_next->attr.c7 == 1)
+            if (lhs->tType == D_ADDRESSOF && lhs->t_next->attr.c7 == ENODE)
                 return lhs;
             else
                 prError("can't take this address");
         } else
             prError("only lvalues may be assigned to or modified");
     }
-    if ((opFlags & 0x4000) && (lhs->attr.i4 & 1) && lhs->attr.c7)
+    if ((opFlags & 0x4000) && (lhs->attr.i4 & 1) && lhs->attr.c7 != SNODE)
         prError("pointer required");
     if (!(opFlags & 3)) {
         if (sub_5a76(&lhs->attr, DT_2))
@@ -334,7 +558,7 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
         break;
     case T_121:
         tmpExpr    = curFuncNode->attr;
-        tmpExpr.c7 = 0;
+        tmpExpr.c7 = SNODE;
         if (sub_5a76(&tmpExpr, DT_VOID))
             prError("void function cannot return value");
         else
@@ -346,31 +570,32 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
             lhs = sub_1b94(lhs);
         if ((opFlags & 1))
             rhs = sub_1b94(rhs);
-    } else if ((opFlags & 4) && (lhs->attr.i4 & 1) && lhs->attr.c7 == 0 &&
+    } else if ((opFlags & 4) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE &&
                sub_5b08(&rhs->attr)) // 16e1
         rhs = sub_1ccc(sub_1441(T_STAR, rhs, sub_1ebd(lhs)),
                        (rhs->attr.dataType & DT_UNSIGNED) ? DT_UCONST : DT_CONST);
-    else if (p1 == T_PLUS && (rhs->attr.i4 & 1) && rhs->attr.c7 == 0 &&
+    else if (p1 == T_PLUS && (rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE &&
              sub_5b08(&lhs->attr)) { // 1740
         savedLhs = lhs;
         lhs      = rhs;
         rhs      = sub_1ccc(sub_1441(T_STAR, savedLhs, sub_1ebd(lhs)),
                        (rhs->attr.dataType & DT_UNSIGNED) ? DT_UCONST : DT_CONST);
-    } else if ((opFlags & 8) && (lhs->attr.i4 & 1) && lhs->attr.c7 == 0 &&
-               (!hasRhs || ((rhs->attr.i4 & 1) && rhs->attr.c7 == 0))) { // 17ab
+    } else if ((opFlags & 8) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE &&
+               (!hasRhs || ((rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE))) { // 17ab
         if (!(opFlags & 0x8000) || (!sub_5a4a(&lhs->attr) && !sub_5a4a(&rhs->attr))) {
             if (hasRhs && !sub_591d(&lhs->attr, &rhs->attr))
                 prWarning("operands of %.3s not same pointer type", opStr);
             else if (p1 == T_MINUS) {
                 minusLhs      = lhs;
                 minusLhsValid = true;
-                rhs           = sub_1ccc(rhs, lhs->attr.c7, sub_1ccc(lhs, DT_CONST));
+                lhs           = sub_1ccc(lhs, DT_CONST);
+                rhs           = sub_1ccc(rhs, DT_CONST);
             }
         }
     } else if ((opFlags & 0x30) && sub_5ad5(&lhs->attr) &&
                (!hasRhs || sub_5ad5(&rhs->attr))) { // 187a
         if (opFlags & 0x40) {
-            var13 = sub_1da5(&lhs->attr, &rhs->attr);
+            var13 = sub_1d5a(&lhs->attr, &rhs->attr);
             lhs   = sub_1ccc(lhs, var13);
             rhs   = sub_1ccc(rhs, var13);
         } // 18fa
@@ -389,9 +614,9 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
             prError("simple type required for %.3s", opStr);
         else if (opFlags & 0x1000) { // 1a11
             if ((opFlags & 0x8000)) {
-                if (sub_2105(lhs) && (rhs->attr.i4 & 1) || rhs->attr.c7 == 0)
+                if (sub_2105(lhs) && (rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE)
                     lhs = sub_1bf7(lhs, &rhs->attr);
-                else if (sub_2105(rhs) && (lhs->attr.i4 & 1) && lhs->attr.c7 == 0)
+                else if (sub_2105(rhs) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE)
                     rhs = sub_1bf7(rhs, &lhs->attr);
             } // 1a95
             if (!sub_591d(&lhs->attr, &rhs->attr))
@@ -412,8 +637,8 @@ s13_t *sub_1441(uint8_t p1, register s13_t *lhs, s13_t *rhs) {
 /**************************************************
  * 26: 1B4B PMO
  **************************************************/
-s13_t *sub_1b4b(long num, uint8_t p2) {
-    register s13_t *st;
+expr_t *sub_1b4b(long num, uint8_t p2) {
+    register expr_t *st;
 
     st                = allocIConst(num);
     st->attr.dataType = p2;
@@ -423,8 +648,8 @@ s13_t *sub_1b4b(long num, uint8_t p2) {
 /**************************************************
  * 27: 1B70 PMO
  **************************************************/
-s13_t *allocFConst(char *fltStr) {
-    register s13_t *st;
+expr_t *allocFConst(char *fltStr) {
+    register expr_t *st;
 
     st                = s13Alloc(T_FCONST);
     st->t_s           = fltStr;
@@ -435,7 +660,7 @@ s13_t *allocFConst(char *fltStr) {
 /**************************************************
  * 28: 1B94 PMO
  **************************************************/
-s13_t *sub_1b94(register s13_t *st) {
+expr_t *sub_1b94(register expr_t *st) {
 
     if (!sub_5aa4(&st->attr))
         prError("logical type required");
@@ -446,38 +671,33 @@ s13_t *sub_1b94(register s13_t *st) {
 }
 
 /**************************************************
- * 29: 1BF7
+ * 29: 1BF7 PMO
  **************************************************/
-s13_t *sub_1bf7(register s13_t *st, s8_t *p2) {
-    s13_t *var2;
+expr_t *sub_1bf7(register expr_t *st, s8_t *p2) {
+    expr_t *var2;
 
-    if (st->tType == 0x3D) {
-        if ((var2 = st->m1.s[0])->m0 == 0x73) {
-            if (bittst(var2->m1.a[0]->m18, 6) != 0) {
-                prWarning("%s() declared implicit int16_t", var2->m1.a[0]->nVName);
+    if (st->tType == T_61 && (var2 = st->t_next)->tType == T_ID && (var2->t_pSym->m18 & 0x40)) {
+        prWarning("%s() declared implicit int", var2->t_pSym->nVName);
+        var2->t_pSym->m18 &= ~0x40;
+    }
 
-                var2->m1.a[0]->m18 &= 0xBF; /* Error */
-            }
-        }
+    if (!sub_591d(&st->attr, p2)) {
+        if (st->tType != T_ICONST || inData(st))
+            st = sub_23b4(T_124, st, allocSType(p2));
+        st->attr = *p2;
     }
-    if (sub_591d(&st->m5, p2) == 0) { /* m1:  */
-        if ((st->m0 != 0x74) || (st < __Hbss)) {
-            st = sub_23b4(0x7C, st, allocSType(p2)); /* m2:  */
-        }
-        st->m5 = *p2; /* m3:  */
-    }
-    return st; /* m4:  */
+    return st;
 }
 
 /**************************************************
  * 30: 1CCC PMO
  **************************************************/
-s13_t *sub_1ccc(s13_t *p1, uint8_t p2) {
+expr_t *sub_1ccc(expr_t *p1, uint8_t p2) {
     s8_t st;
 
     st.dataType = p2;
     st.i4       = 0;
-    st.i2       = 0;
+    st.i_sym      = 0;
     st.c7       = 0;
     return sub_1bf7(p1, &st);
 }
@@ -485,7 +705,7 @@ s13_t *sub_1ccc(s13_t *p1, uint8_t p2) {
 /**************************************************
  * 31: 1D02 PMO
  **************************************************/
-s13_t *sub_1d02(register s13_t *st) {
+expr_t *sub_1d02(register expr_t *st) {
 
     if (st->tType == T_COMMA || st->tType == 120)
         return st;
@@ -499,38 +719,34 @@ s13_t *sub_1d02(register s13_t *st) {
 }
 
 /**************************************************
- * 32: 1D5A
+ * 32: 1D5A PMO
  **************************************************/
-char sub_1d5a(register struct xxx *st, struct xxx *p2) {
-    uint8_t l1;
+uint8_t sub_1d5a(register s8_t *st, s8_t *p2) {
+    bool mkUnsigned;
     uint8_t l2;
 
-    l1 = (bittst(st->m7, 0) == 0) && (bittst(p2->m7, 0) == 0) ? 0 : 1;
-    l2 = st->m7;
-    if (l2 < p2->m7)
-        l2 = p2->m7;
-    if (l2 < 8)
-        l2 = 8;
-    if (l2 == 0xE || l2 == 0x10)
-        return 0x10;
-    if (l2 == 0x12)
-        l2 = 8;
-    if (l1 != 0) {
-        return (char)l2 | 1;
-    } else {
-        return l2;
-    }
+    mkUnsigned = (st->dataType & DT_UNSIGNED) || (p2->dataType & DT_UNSIGNED);
+    l2         = st->dataType;
+    if (l2 < p2->dataType)
+        l2 = p2->dataType;
+    if (l2 < DT_INT)
+        l2 = DT_INT;
+    if (l2 == DT_FLOAT || l2 == DT_DOUBLE)
+        return DT_DOUBLE;
+    if (l2 == DT_ENUM)
+        l2 = DT_INT;
+    return mkUnsigned ? l2 | 1 : l2;
 }
 
 /**************************************************
  * 33: 1DF0 ?PMO
  **************************************************/
-s13_t *sub_1df0(register s13_t *st) {
+expr_t *sub_1df0(register expr_t *st) {
 
-    if (st->tType = T_ID && st->attr.c7 == 2) {
+    if (st->tType == T_ID && st->attr.c7 == ANODE) {
         st->attr.dataType = 0x16;
-        st->attr.c7       = 0;
-        st->t_ps25        = st->attr.ps25; /* TO CHECK one of several options */
+        st->attr.c7       = SNODE;
+        st->t_pSym        = st->attr.i_sym; /* TO CHECK one of several options */
         st->attr.i4       = 0;
         return sub_1e58(st);
     }
@@ -540,9 +756,9 @@ s13_t *sub_1df0(register s13_t *st) {
 /**************************************************
  * 34: 1E37 PMO
  **************************************************/
-s13_t *sub_1e37(register s13_t *st) {
+expr_t *sub_1e37(register expr_t *st) {
 
-    if (st->attr.c7 == 1)
+    if (st->attr.c7 == ENODE)
         st = sub_1e58(st);
     return st;
 }
@@ -550,13 +766,13 @@ s13_t *sub_1e37(register s13_t *st) {
 /**************************************************
  * 35: 1E58 PMO
  **************************************************/
-s13_t *sub_1e58(register s13_t *st) {
-    s13_t *pi;
+expr_t *sub_1e58(register expr_t *st) {
+    expr_t *pi;
 
     pi          = sub_23b4(0x46, st, 0); /* PMO missing 3rd arg. added 0 */
     pi->attr    = st->attr;
-    pi->attr.i2 = 0;
-    pi->attr.c7 = 0;
+    pi->attr.i_sym = 0;
+    pi->attr.c7 = SNODE;
     sub_5be1(&pi->attr);
     return pi;
 }
@@ -564,7 +780,7 @@ s13_t *sub_1e58(register s13_t *st) {
 /**************************************************
  * 36: 1EBD PMO
  **************************************************/
-s13_t *sub_1ebd(register s13_t *st) {
+expr_t *sub_1ebd(register expr_t *st) {
     st = allocSType(&st->attr);
     st->attr.i4 >>= 1;
     return sub_1441(T_SIZEOF, st, 0); /* PMO fixed missing 3rd arg */
@@ -573,15 +789,15 @@ s13_t *sub_1ebd(register s13_t *st) {
 /**************************************************
  * 37: 1EF1 PMO
  **************************************************/
-bool sub_1ef1(register s13_t *st) {
+bool sub_1ef1(register expr_t *st) {
 
     switch (st->tType) {
-    case 0x45:
+    case T_69:
         return true;
     case T_ID:
-        return (st->t_ps25->m18 & 0x10) && st->t_ps25->m20 != T_EXTERN && st->attr.c7 == 0;
+        return (st->t_pSym->m18 & 0x10) && st->t_pSym->m20 != T_EXTERN && st->attr.c7 == SNODE;
     case T_DOT:
-        return st->attr.c7 == 0 && sub_1ef1(st->t_next);
+        return st->attr.c7 == SNODE && sub_1ef1(st->t_next);
     }
     return false;
 }
@@ -589,7 +805,7 @@ bool sub_1ef1(register s13_t *st) {
 /**************************************************
  * 38: 1F5D PMO
  **************************************************/
-s13_t *sub_1f5d(register s13_t *st, s8_t *p2, int16_t p3) {
+expr_t *sub_1f5d(register expr_t *st, s8_t *p2, int16_t p3) {
     s8_t *pAttr;
 
     pAttr = &st->attr;
@@ -597,14 +813,14 @@ s13_t *sub_1f5d(register s13_t *st, s8_t *p2, int16_t p3) {
         if (sub_5ad5(pAttr) && sub_5ad5(p2)) {
             if (sub_5b08(p2) && sub_5b38(pAttr))
                 prWarning("implicit conversion of float to integer");
-        } else if (!(p2->i4 & 1) && p2->c7 == 0 && sub_5b08(pAttr)) {
+        } else if (!(p2->i4 & 1) && p2->c7 == SNODE && sub_5b08(pAttr)) {
             if (p3 == 0 && (sub_5a76(pAttr, DT_CONST) || sub_5a76(pAttr, DT_UCONST)))
                 return st;
             if (!sub_2105(st))
                 prWarning("illegal conversion of integer to pointer");
-        } else if ((pAttr->i4 & 1) && pAttr->c7 == 0 && sub_5b08(p2))
+        } else if ((pAttr->i4 & 1) && pAttr->c7 == SNODE && sub_5b08(p2))
             prWarning("illegal conversion of pointer to integer");
-        else if ((pAttr->i4 & 1) && pAttr->c7 == 0 && (p2->i4 & 1) && p2->c7 == 0) {
+        else if ((pAttr->i4 & 1) && pAttr->c7 == SNODE && (p2->i4 & 1) && p2->c7 == SNODE) {
             if (!sub_5a4a(pAttr) && !sub_5a4a(p2))
                 prWarning("illegal conversion between pointer types");
         } else
@@ -616,12 +832,12 @@ s13_t *sub_1f5d(register s13_t *st, s8_t *p2, int16_t p3) {
 /**************************************************
  * 39: 2105 PMO
  **************************************************/
-bool sub_2105(register s13_t *st) {
+bool sub_2105(register expr_t *st) {
 
     switch (st->tType) {
-    case 0x74:
+    case T_ICONST:
         return st->t_ul == 0; /* long */
-    case 0x7c:
+    case T_124:
         return sub_5b08(&st->attr) && sub_2105(st->t_next);
     }
     return false;
@@ -631,7 +847,7 @@ bool sub_2105(register s13_t *st) {
  * 40: 2157 PMO
  **************************************************/
 bool s13ReleaseFreeList() {
-    register s13_t *st;
+    register expr_t *st;
 
     if (s13FreeList == 0)
         return false;
@@ -645,15 +861,15 @@ bool s13ReleaseFreeList() {
 /**************************************************
  * 41: 2186 PMO
  **************************************************/
-s13_t *s13Alloc(uint8_t tok) {
-    register s13_t *st;
+expr_t *s13Alloc(uint8_t tok) {
+    register expr_t *st;
 
     if (s13FreeList != 0) {
         st          = s13FreeList;
         s13FreeList = st->t_next;
-        blkclr(st, sizeof(s13_t));
+        blkclr(st, sizeof(expr_t));
     } else
-        st = xalloc(sizeof(s13_t));
+        st = xalloc(sizeof(expr_t));
     st->tType         = tok;
     st->attr.dataType = DT_VOID;
     return st;
@@ -662,8 +878,8 @@ s13_t *s13Alloc(uint8_t tok) {
 /**************************************************
  * 42: 21C7 PMO
  **************************************************/
-s13_t *sub_21c7(register s13_t *st) {
-    s13_t *l1;
+expr_t *sub_21c7(register expr_t *st) {
+    expr_t *l1;
     uint16_t l2;
 
     l1  = s13Alloc(0);
@@ -680,8 +896,8 @@ s13_t *sub_21c7(register s13_t *st) {
 /**************************************************
  * 43: 225A PMO
  **************************************************/
-s13_t *sub_225a(uint8_t p1, register s13_t *st, s13_t *p3) {
-    s13_t *l1;
+expr_t *sub_225a(uint8_t p1, register expr_t *st, expr_t *p3) {
+    expr_t *l1;
 
     if (p1 == T_124 && st->tType == T_ICONST) {
         st->attr = p3->attr;
@@ -721,8 +937,8 @@ s13_t *sub_225a(uint8_t p1, register s13_t *st, s13_t *p3) {
 /**************************************************
  * 44: 23B4 PMO
  **************************************************/
-s13_t *sub_23b4(uint8_t tok, register s13_t *st, s13_t *p3) {
-    s13_t *pi;
+expr_t *sub_23b4(uint8_t tok, register expr_t *st, expr_t *p3) {
+    expr_t *pi;
 
     pi = s13Alloc(tok);
     if (tok != T_120) {
@@ -736,11 +952,11 @@ s13_t *sub_23b4(uint8_t tok, register s13_t *st, s13_t *p3) {
 /**************************************************
  * 45: 240E PMO
  **************************************************/
-s13_t *allocId(register s25_t *st) {
-    s13_t *pi;
+expr_t *allocId(register sym_t *st) {
+    expr_t *pi;
 
     pi         = s13Alloc(T_ID);
-    pi->t_ps25 = st;
+    pi->t_pSym = st;
     if ((st->m18 & 0x10) || st->m20 == D_MEMBER)
         pi->attr = st->attr;
     return pi;
@@ -749,8 +965,8 @@ s13_t *allocId(register s25_t *st) {
 /**************************************************
  * 46: 245D PMO
  **************************************************/
-s13_t *allocSConst() {
-    register s13_t *st;
+expr_t *allocSConst() {
+    register expr_t *st;
 
     st                = s13Alloc(T_SCONST);
     st->attr.dataType = DT_CHAR;
@@ -762,8 +978,8 @@ s13_t *allocSConst() {
 /**************************************************
  * 47: 248A PMO
  **************************************************/
-s13_t *allocIConst(long p1) {
-    register s13_t *st;
+expr_t *allocIConst(long p1) {
+    register expr_t *st;
 
     st      = s13Alloc(T_ICONST);
     st->t_l = p1;
@@ -773,8 +989,8 @@ s13_t *allocIConst(long p1) {
 /**************************************************
  * 48: 24B6 PMO
  **************************************************/
-s13_t *allocSType(s8_t *p1) {
-    register s13_t *st;
+expr_t *allocSType(s8_t *p1) {
+    register expr_t *st;
 
     st       = s13Alloc(S_TYPE);
     st->attr = *p1;
@@ -792,19 +1008,19 @@ void complexErr() {
 /**************************************************
  * 50: 24E7 PMO
  **************************************************/
-void pushS13(s13_t *p1) {
+void pushS13(expr_t *p1) {
 
     if (s13SP == s13Stk)
         complexErr();
-    *--s13SP = p1;
+    *(--s13SP) = p1;
 }
 
 /**************************************************
  * 51: 250A PMO
  **************************************************/
-s13_t *popS13() {
+expr_t *popExpr() {
 
-    if (s13SP != s13Stk[20])
+    if (s13SP != &s13Stk[20])
         return *(s13SP++);
     return NULL;
 }
@@ -813,13 +1029,13 @@ s13_t *popS13() {
  * 52: 2529 PMO
  **************************************************/
 void sub_2529(uint8_t p1) {
-    register s13_t *st;
+    register s2_t *st;
 
-    if (p13List == s13_9cf3)
+    if (p2List == s2_9cf3)
         complexErr();
-    (--p13List)->tType = p1;
-    st                 = p13List;
-    st->t_ca[0]        = opTable[p1 - 60].c3;
+    (--p2List)->type1 = p1;
+    st                = p2List;
+    st->type2         = opTable[p1 - 60].c3;
 }
 
 /**************************************************
@@ -827,13 +1043,13 @@ void sub_2529(uint8_t p1) {
  **************************************************/
 uint8_t sub_255d() {
 
-    return (p13List++)->tType;
+    return (p2List++)->type1;
 }
 
 /**************************************************
- * 54: 2569 PMO (to fix __Hbss)
+ * 54: 2569 PMO
  **************************************************/
-void sub_2569(register s13_t *st) {
+void sub_2569(register expr_t *st) {
     uint8_t type;
 
     if (st) {
@@ -843,7 +1059,7 @@ void sub_2569(register s13_t *st) {
             if (!(opTable[type - 60].uc4 & 2))
                 sub_2569(st->t_alt);
         }
-        if (st >= __Hbss) {
+        if (!inData(st)) {
             if (type == T_FCONST)
                 free(st->t_s);
             st->t_next  = s13FreeList; /* m2: */
@@ -853,12 +1069,12 @@ void sub_2569(register s13_t *st) {
 }
 
 /**************************************************
- * 55: 25F7 PMO (to fix __Hbss)
+ * 55: 25F7 PMO
  **************************************************/
-s13_t *sub_25f7(register s13_t *st) {
+expr_t *sub_25f7(register expr_t *st) {
 
     if (st) {
-        if (st >= __Hbss && st->tType == T_ICONST) {
+        if (!inData(st) && st->tType == T_ICONST) {
             st->t_ul += 1;
         } else if (st->tType == T_PLUS)
             st->t_alt = sub_25f7(st->t_alt);

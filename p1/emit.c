@@ -2,7 +2,10 @@
 
 int16_t word_9caf; /*9caf */
 char ca9CB1[64];   /* 9cb1 */
-
+void sub_013d(register FILE *p);
+void sub_01c1(register sym_t *p);
+void sub_0470(expr_t *p);
+void sub_05f1(register expr_t *st);
 
 /**************************************************
  * 1: 013D PMO
@@ -18,16 +21,16 @@ void sub_013d(register FILE *p) {
     word_9caf = lineNo;
     strcpy(ca9CB1, srcFile);
     if (s_opt != 0)
-        sub_3429();
+        emitSrcInfo();
 }
 
 /**************************************************
  * 2: 01C1 PMO
  **************************************************/
-void sub_01c1(register s25_t *p) {
+void sub_01c1(register sym_t *p) {
 
-    if (p->n_c7 == 1)
-        sub_0470(p->n_ps13);
+    if (p->a_c7 == ENODE)
+        sub_0470(p->a_expr);
     else
         putchar('1');
 }
@@ -35,10 +38,11 @@ void sub_01c1(register s25_t *p) {
 /**************************************************
  * 3: 01EC PMO
  **************************************************/
-void sub_01ec(register s25_t *p) {
+void sub_01ec(register sym_t *p) {
 
-    if (p->n_dataType == DT_POINTER && !p->n_i4 && p->n_chain->n_c7 != 2 && !(p->n_chain->m18 & 0x100))
-        sub_0493(p->n_chain);
+    if (p->a_dataType == DT_POINTER && !p->a_i4 && p->a_nextSym->a_c7 != ANODE &&
+        !(p->a_nextSym->m18 & 0x100))
+        sub_0493(p->a_nextSym);
 }
 
 /**************************************************
@@ -64,7 +68,7 @@ void emitLabelDef(int16_t p) {
 /**************************************************
  * 6: 0273 PMO
  **************************************************/
-void sub_0273(register s25_t *st) {
+void sub_0273(register sym_t *st) {
 
     if (st) {
         sub_013d(stdout);
@@ -83,7 +87,7 @@ void sub_02a6(case_t *p1) {
 
     if (p1) {
         sub_013d(stdout);
-        printf("[\\ ");    /* CASE */
+        printf("[\\ "); /* CASE */
         sub_0470(p1->switchExpr);
         putchar('\n');
         caseCnt = p1->caseCnt;
@@ -101,8 +105,8 @@ void sub_02a6(case_t *p1) {
 /**************************************************
  * 8: 0353 PMO
  **************************************************/
-void sub_0353(s25_t *p, char c) {
-    register s25_t *st;
+void sub_0353(sym_t *p, char c) {
+    register sym_t *st;
 
     if (p) {
         for (st = p->nMemberList; st != p; st = st->nMemberList)
@@ -110,17 +114,17 @@ void sub_0353(s25_t *p, char c) {
 
         sub_013d(stdout);
         putchar('[');
-        if (c == 8)
+        if (c == D_STRUCT)
             putchar('s'); /* STRUCT */
         else
             putchar('u'); /* UNION */
-        printf(" S%d", p->n_i0);
+        printf(" S%d", p->a_labelId);
         st = p->nMemberList;
         for (st = p->nMemberList; st != p; st = st->nMemberList) {
             if ((st->m18 & 0x400))
                 printf(" :%d", st->m16);
             putchar(' ');
-            sub_7454(st);
+            sub_7454(&st->attr);
             putchar(' ');
             sub_01c1(st);
         }
@@ -131,7 +135,7 @@ void sub_0353(s25_t *p, char c) {
 /**************************************************
  * 9: 042D PMO
  **************************************************/
-void sub_042d(register s13_t *p) {
+void sub_042d(register expr_t *p) {
 
     sub_013d(stdout);
     printf("[e "); /* EXPR */
@@ -144,7 +148,7 @@ void sub_042d(register s13_t *p) {
 /**************************************************
  * 10: 0470 PMO
  **************************************************/
-void sub_0470(s13_t *p) {
+void sub_0470(expr_t *p) {
 
     if (p)
         sub_05f1(p);
@@ -155,7 +159,7 @@ void sub_0470(s13_t *p) {
 /**************************************************
  * 11: 0493 PMO
  **************************************************/
-void sub_0493(register s25_t *st) {
+void sub_0493(register sym_t *st) {
     char c;
 
     if (st) {
@@ -165,7 +169,7 @@ void sub_0493(register s25_t *st) {
         printf("[v "); /* VAR */
         sub_573b(st, stdout);
         putchar(' ');
-        sub_7454(st);
+        sub_7454(&st->attr);
         putchar(' ');
         if (st->m18 & 1)
             sub_01c1(st);
@@ -184,7 +188,7 @@ void sub_0493(register s25_t *st) {
 /**************************************************
  * 12: 053F PMO
  **************************************************/
-void sub_053f(register s13_t *st, char *pc) {
+void sub_053f(register expr_t *st, char *pc) {
     int16_t var2;
 
     sub_013d(tmpFp);
@@ -199,7 +203,7 @@ void sub_053f(register s13_t *st, char *pc) {
 /**************************************************
  * 13: 05B5 PMO
  **************************************************/
-void sub_05b5(s13_t *p1) {
+void sub_05b5(expr_t *p1) {
 
     sub_013d(stdout);
     sub_0470(p1);
@@ -209,7 +213,7 @@ void sub_05b5(s13_t *p1) {
 /**************************************************
  * 14: 05D3 PMO
  **************************************************/
-void sub_05d3(s13_t *p1) {
+void sub_05d3(expr_t *p1) {
 
     sub_013d(stdout);
     sub_0470(p1);
@@ -219,16 +223,16 @@ void sub_05d3(s13_t *p1) {
 /**************************************************
  * 15: 05F1 PMO
  **************************************************/
-void sub_05f1(register s13_t *st) {
+void sub_05f1(register expr_t *st) {
     t8_t *var2;
-    s25_t *var4;
-    s13_t *var6;
+    sym_t *var4;
+    expr_t *var6;
 
     var2 = &opTable[st->tType - T_60];
-    if (var2->uc6 & 1) {
+    if (var2->uc4 & 1) {
         switch (st->tType) {
         case T_ID:
-            var4 = st->t_ps25;
+            var4 = st->t_pSym;
             if (var4->m20 == D_CONST) {
                 printf(". `");
                 sub_573b(var4->nMemberList, stdout);
@@ -261,11 +265,11 @@ void sub_05f1(register s13_t *st) {
             printf("-> ");
         if (st->tType == T_SIZEOF) {
             if ((var6 = st->t_next)->tType == T_ID) {
-                if (!(var6->t_ps25->m18 & 1)) {
+                if (!(var6->t_pSym->m18 & 1)) {
                     printf("* # ");
                     sub_7454(&var6->attr);
                     putchar(' ');
-                    sub_01c1(var6->t_ps25);
+                    sub_01c1(var6->t_pSym);
                     putchar(' ');
                     sub_7454(&st->attr);
                 }
@@ -286,12 +290,10 @@ void sub_05f1(register s13_t *st) {
     }
 }
 
-
 /**************************************************
  * 16: 07E3 PMO
  **************************************************/
 void sub_07e3() {
-
-    s13SP   = &s13Stk[20];
+    s13SP       = &s13Stk[20];
     s13FreeList = 0;
 }

@@ -21,6 +21,14 @@ bool lInfoEmitted;   /* 9df2 */
 int16_t startTokCnt; /* 9df3 */
 int16_t ungetCh;     /*  9df5 */
 
+uint8_t parseNumber(int16_t ch);
+uint8_t parseName(int16_t ch);
+void parseAsm(void);
+void parseString(int16_t ch);
+int16_t getCh(void);
+void prErrMsg(void);
+int16_t skipWs(void);
+int8_t escCh(int16_t ch);
 
 /**************************************************
  * 56: 2671 PMO
@@ -35,7 +43,7 @@ uint8_t yylex() {
         tok      = ungetTok;
         ungetTok = 0;
         if (tok == T_ID && byte_8f86)
-            yylval.ySym = sub_49e0(nameBuf);
+            yylval.ySym = sub_4e90(nameBuf);
         return tok;
     }
     for (;;) {
@@ -70,6 +78,7 @@ uint8_t yylex() {
                     if (crfFp)
                         fprintf(crfFp, "~%s\n", srcFile);
                 }
+                break;
             } else {
                 s = buf;
                 do {
@@ -85,6 +94,7 @@ uint8_t yylex() {
                 } else
                     fatalErr("illegal '#' directive");
             }
+            /* FALLTHRU */
         case '"':
             parseString('"');
             return T_SCONST;
@@ -118,7 +128,7 @@ uint8_t yylex() {
             ch = getCh();
             if (ch == '-')
                 return T_DEC;
-            if (ch = '>')
+            if (ch == '>')
                 return T_POINTER;
 
             ungetCh = ch;
@@ -486,7 +496,7 @@ int16_t getCh() {
 void prErrMsg() {
     register char *iy;
     if (!lInfoEmitted) {
-        iy = inFunc ? curFuncNode->nVName : "";
+        iy = depth ? curFuncNode->nVName : "";
 
         if (strcmp(srcFile, lastEmitSrc) || strcmp(iy, lastEmitFunc)) {
             fprintf(stderr, "%s:", srcFile);
@@ -507,8 +517,8 @@ void prErrMsg() {
  **************************************************/
 void prMsgAt(register char *buf) {
     int16_t i;
-    int16_t col;
-    prErrMsg(buf);
+    uint16_t col;
+    prErrMsg();
     if (!*buf)
         fputs(buf, stderr);
     else {
@@ -635,7 +645,7 @@ void expect(uint8_t etok, char *msg) {
 
     if ((tok = yylex()) == etok)
         return;
-    expectedErr(msg);
+    expectErr(msg);
     skipStmt(tok);
 }
 

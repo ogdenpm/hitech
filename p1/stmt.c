@@ -1,15 +1,35 @@
 #include "p1.h"
 
+void parseStmt(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
+void parseStmtGroup(int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
+void parseStmtAsm(void);
+void parseStmtWhile(case_t *p3);
+void parseStmtDo(case_t *p3);
+void parseStmtIf(int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
+void parseStmtSwitch(int16_t p1);
+void parseStmtFor(case_t *p1);
+void parseStmtBreak_Continue(int16_t label);
+void parseStmtDefault(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
+void parseStmtCase(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
+void parseStmtReturn(void);
+void parseStmtGoto(void);
+void parseStmtLabel(register sym_t *ps, int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
+sym_t *sub_4ca4(register sym_t *ps);
+void sub_4ce8(int16_t n);
+void sub_4d15(int16_t n, register expr_t *st, char c);
+void sub_4d67(register expr_t *st);
+
+
 /**************************************************
  * 84: 409B PMO
  **************************************************/
-void sub_489b() {
+void sub_409b() {
     uint8_t tok;
     sub_5c19(6);
     sub_51e7();
     tok = yylex();
     if (tok != T_LBRACE) {
-        expectErr('{');
+        expectErr("{");
         skipStmt(tok);
     }
     sub_0273(curFuncNode);
@@ -30,7 +50,7 @@ void sub_489b() {
  * 85: 4126 PMO
  **************************************************/
 void parseStmt(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4) {
-    s13_t *var3;
+    expr_t *var3;
     uint8_t tok;
 
     tok = yylex();
@@ -159,7 +179,7 @@ void parseStmtWhile(case_t *p3) {
     int16_t continueLabel;
     int16_t breakLabel;
     int16_t loopLabel;
-    register s13_t *pe;
+    register expr_t *pe;
 
     tok = yylex();
     if (tok != T_LPAREN) {
@@ -175,9 +195,9 @@ void parseStmtWhile(case_t *p3) {
         ungetTok = tok;
     }
     parseStmt(continueLabel, breakLabel = newTmpLabel(), p3, 0);
-    sub_258h(continueLabel);
+    emitLabelDef(continueLabel);
     sub_4d15(loopLabel, pe, 1);
-    sub_258h(breakLabel);
+    emitLabelDef(breakLabel);
     unreachable = false;
 }
 
@@ -189,7 +209,7 @@ void parseStmtDo(case_t *p3) {
     int16_t continueLabel;
     int16_t breakLabel;
     int16_t loopLabel;
-    register s13_t *pe;
+    register expr_t *pe;
 
     continueLabel = newTmpLabel();
     breakLabel          = newTmpLabel();
@@ -225,7 +245,7 @@ void parseStmtIf(int16_t p1, int16_t p2, case_t *p3, int16_t *p4) {
     uint16_t endElseLabel;
     uint16_t endIfLabel;
     uint8_t endifUnreachable;
-    register s13_t *pe;
+    register expr_t *pe;
 
     if ((tok = yylex()) != T_LPAREN) {
         expectErr("(");
@@ -263,7 +283,7 @@ void parseStmtSwitch(int16_t p1) {
     int16_t haveBreak;
     int16_t cnt;
     case_t caseInfo;
-    register s25_t *ps;
+    register s8_t *ps;
 
     tok = yylex();
     if (tok != T_LPAREN) {
@@ -273,9 +293,9 @@ void parseStmtSwitch(int16_t p1) {
     haveBreak           = 0;
     caseInfo.defLabel   = 0;
     caseInfo.caseCnt    = 0;
-    caseInfo.switchExpr = sub_1441(0x3c, sub_0bfc());
-    ps                  = caseInfo.switchExpr->attr.ps25;
-    if (!sub_5a76(ps, DT_ENUM) && (!sub_5b08(ps) || ps->n_dataType >= DT_LONG))
+    caseInfo.switchExpr = sub_1441(T_60, sub_0bfc(), 0);
+    ps                  = caseInfo.switchExpr->attr.i_info;
+    if (!sub_5a76(ps, DT_ENUM) && (!sub_5b08(ps) || ps->dataType >= DT_LONG))
         prError("illegal type for switch expression");
     tok = yylex();
     if (tok != T_RPAREN) {
@@ -312,9 +332,9 @@ void parseStmtFor(case_t *p1) {
     int16_t condLabel;
     int16_t haveCond;
     uint8_t tok;
-    s13_t *condExpr;
-    s13_t *stepExpr;
-    register s13_t *st;
+    expr_t *condExpr;
+    expr_t *stepExpr;
+    register expr_t *st;
 
     haveCond = false;
     tok      = yylex();
@@ -323,7 +343,7 @@ void parseStmtFor(case_t *p1) {
     tok = yylex();
     if (tok != T_SEMI) {
         ungetTok = tok;
-        st       = sub_1441(0x3c, sub_0bfc());
+        st       = sub_1441(T_60, sub_0bfc(), 0);
         sub_042d(st);
         sub_2569(st);
         expect(T_SEMI, ";");
@@ -339,7 +359,7 @@ void parseStmtFor(case_t *p1) {
     tok = yylex();
     if (tok != T_RPAREN) {
         ungetTok = tok;
-        stepExpr = sub_1441(0x3c, sub_0bfc());
+        stepExpr = sub_1441(T_60, sub_0bfc(), 0);
         tok      = yylex();
         if (tok != T_RPAREN) {
             expectErr(")");
@@ -396,9 +416,9 @@ void parseStmtDefault(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4) 
         else
             emitLabelDef(p3->defLabel = newTmpLabel());
     else
-        peError("'default' not in switch");
+        prError("'default' not in switch");
     unreachable = false;
-    sub_4126(p1, p2, p3, p4);
+    parseStmt(p1, p2, p3, p4);
 }
 
 /**************************************************
@@ -406,10 +426,10 @@ void parseStmtDefault(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4) 
  **************************************************/
 void parseStmtCase(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4) {
     uint8_t tok;
-    s13_t *var3;
+    expr_t *var3;
     int16_t caseLabel;
     int16_t caseIdx;
-    s13_t **var9;
+    expr_t **var9;
 
     var3 = sub_0a83(1);
     if ((tok = yylex()) != T_COLON) {
@@ -418,7 +438,7 @@ void parseStmtCase(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4) {
     }
     emitLabelDef(caseLabel = newTmpLabel());
     if (p3) {
-        if (caseIdx = p3->caseCnt++ == 255)
+        if ((caseIdx = p3->caseCnt++) == 255)
             fatalErr("Too many cases in switch");
         var9                               = &p3->caseOptions[caseIdx].caseVal;
         p3->caseOptions[caseIdx].caseLabel = caseLabel;
@@ -441,7 +461,7 @@ void parseStmtReturn() {
     uint8_t tok;
     if ((tok = yylex()) != T_SEMI) {
         ungetTok = tok;
-        sub_4d67(sub_1441(0x3c, sub_0bfc()));
+        sub_4d67(sub_1441(T_60, sub_0bfc(), 0));
         if (yylex() != T_SEMI) {
             expectErr(";");
             ungetTok = tok;
@@ -457,14 +477,14 @@ void parseStmtReturn() {
  **************************************************/
 void parseStmtGoto() {
     uint8_t tok;
-    register s25_t *ps;
+    register sym_t *ps;
     tok = yylex();
     if (tok != T_ID)
         expectErr("label identifier");
     else {
         ps = sub_4ca4(yylval.ySym);
         if (ps) {
-            sub_4ce8(ps->n_i0);
+            sub_4ce8(ps->a_labelId);
             ps->m18 |= 2;
         }
         unreachable = true;
@@ -477,27 +497,27 @@ void parseStmtGoto() {
 /**************************************************
  * 98: 4C57 PMO
  **************************************************/
-void parseStmtLabel(register s25_t *ps, int16_t p1, int16_t p2, case_t *p3, int16_t *p4) {
+void parseStmtLabel(register sym_t *ps, int16_t p1, int16_t p2, case_t *p3, int16_t *p4) {
     ps = sub_4ca4(ps);
     if (ps) {
-        emitLabelDef(ps->n_i0);
+        emitLabelDef(ps->a_labelId);
         ps->m18 |= 1;
     }
     unreachable = false;
-    sub_4126(p1, p2, p3, p4);
+    parseStmt(p1, p2, p3, p4);
 }
 
 /**************************************************
  * 99: 4CA4 PMO
  **************************************************/
-s25_t *sub_4ca4(register s25_t *ps) {
+sym_t *sub_4ca4(register sym_t *ps) {
     if (ps->m20) {
         if (ps->m20 != D_LABEL) {
             prError("not a label identifier: %s", ps->nVName);
             return NULL;
         }
     } else {
-        ps      = sub_4eed(ps, D_LABEL);
+        ps      = sub_4eed(ps, D_LABEL, 0, 0);
         ps->m21 = 1;
     }
     return ps;
@@ -507,8 +527,8 @@ s25_t *sub_4ca4(register s25_t *ps) {
  * 100: 4CE8 PMO
  **************************************************/
 void sub_4ce8(int16_t n) {
-    register s13_t *st;
-    st = sub_1441(0x7a, allocIConst(n));
+    register expr_t *st;
+    st = sub_1441(T_122, allocIConst(n), 0);
     sub_042d(st);
     sub_2569(st);
 }
@@ -516,13 +536,13 @@ void sub_4ce8(int16_t n) {
 /**************************************************
  * 101: 4D15 PMO
  **************************************************/
-void sub_4d15(int16_t n, register s13_t *st, char c) {
+void sub_4d15(int16_t n, register expr_t *st, char c) {
 
     if (st) {
         if (c == 0)
-            st = sub_1441(0x48, st);
+            st = sub_1441(T_LNOT, st, 0);
 
-        st = sub_1441(0x7b, st, allocIConst(n));
+        st = sub_1441(T_123, st, allocIConst(n));
         sub_042d(st);
         sub_2569(st);
     }
@@ -531,10 +551,10 @@ void sub_4d15(int16_t n, register s13_t *st, char c) {
 /**************************************************
  * 102: 4D67 PMO
  **************************************************/
-void sub_4d67(register s13_t *st) {
+void sub_4d67(register expr_t *st) {
 
     if (st) {
-        st = sub_1441(0x79, st);
+        st = sub_1441(T_121, st, 0);
         sub_042d(st);
         sub_2569(st);
     }

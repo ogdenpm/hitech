@@ -142,6 +142,8 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <DisableSpecificWarnings>
+      </DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -159,9 +161,14 @@
   <ItemGroup>
     <ClCompile Include="cclass.c" />
     <ClCompile Include="emit.c" />
-    <ClCompile Include="expr.c" />
+    <ClCompile Include="expr.c">
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4703</DisableSpecificWarnings>
+    </ClCompile>
     <ClCompile Include="lex.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="memchk.c" />
     <ClCompile Include="op.c" />
     <ClCompile Include="program.c" />
     <ClCompile Include="stmt.c" />

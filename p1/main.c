@@ -14,11 +14,26 @@ bool l_opt;               /* a083 */
 FILE *tmpFp;              /* a084 */
 char inBuf[512];          /* a086 */
 int16_t errCnt;           /* a286 */
+
+int main(int argc, char *argv[]);
+#ifdef CPM
+void prMsg(char *p1, int p2, int p3);
+#else
+void prMsg(char *fmt, va_list args);
+
+#endif
+void copyTmp(void);
+void closeFiles(void);
+void sub_3abf(void);
+
 /**************************************************
  * 71: 367E PMO
  **************************************************/
 int main(int argc, char *argv[]) {
     register char *st;
+#ifdef _WIN32
+    initMemAddr(); /* force definition of _Hbss and _Ldata */
+#endif
     for (--argc, ++argv; argc && *argv[0] == '-'; --argc, argv++) {
         switch (argv[0][1]) {
         case 'E':
@@ -197,7 +212,7 @@ void prWarning(char *fmt, ...) {
 /**************************************************
  * 76: 39F3 PMO
  **************************************************/
-void expectedErr(char *p) {
+void expectErr(char *p) {
 
     prError("%s expected", p);
 }
@@ -213,7 +228,7 @@ void copyTmp(void) {
     if ((tmpFp = fopen(tmpFile, "r")) != NULL)
         fatalErr("Can't reopen %s", tmpFile);
 
-    while (ch = fgetc(tmpFp) != EOF)
+    while ((ch = fgetc(tmpFp)) != EOF)
         fputc(ch, stdout);
 }
 

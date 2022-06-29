@@ -1,15 +1,55 @@
-#pragma once
+#ifndef _P1_H
+#define _P1_H
+
 #include "cclass.h"
 #include "stdio.h"
 #include "tok.h"
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
 #include <stdarg.h>
-
-#define rindex  strrchr
+#include <stdlib.h>
+#include <string.h>
+#ifdef __GNUC__
+#include <unistd.h>
+#endif
+#if defined(__STDC__) || defined(__STDC_VERSION__)
+#include <stdbool.h>
+#include <stdint.h>
+#if __STDC_VERSION__ < 201112L
+#define _Noreturn
+#endif
+#if __STDC_VERSION__ >= 201710L
+#define register
+#endif
+#else
+typedef unsigned short uint16_t;
+typedef short int16_t;
+typedef unsigned char uint8_t;
+typedef char int8_t;
+typedef unsigned long uint32_t;
+typedef long int32_t;
+#ifndef bool
+#define bool char
+#define true 1
+#define false 0
+#endif
+#define _Noreturn
+#endif
+/* in certain functions the GCC and MSVC compilers reasonably complain that
+ * certain variables may be used before being initialised
+ * this macro forces a 0 initialisation which will cause
+ * exceptions if the variable is used, rather than rely on
+ * random data
+ */
+#ifdef CPM
+#define FORCEINIT
+#else
+#define FORCEINIT    = 0
+/* map some old HiTech functions */
+#define rindex       strrchr
 #define blkclr(p, s) memset(p, 0, s);
+#endif
+
+#define HASHTABSIZE 271
+
 /*
  *	Structural declarations
  */
@@ -18,84 +58,93 @@ typedef union {
     char *yStr;
     int32_t yNum;
     uint8_t yVal;
-    struct _s25 *ySym;
+    struct _sym *ySym;
 } YYTYPE;
 
 typedef struct _s8 {
     union {
-        struct _s25 *chain;
-        struct _s8 *chain8;
-        char *s0;
-        int16_t i0;
+        struct _sym *_nextSym;
+        struct _s8 *_nextInfo;
+        int16_t _labelId;
     } u1;
     union {
-        int16_t i2;
-        struct _s25 *ps25;
-        struct _s13 *ps13;
-        struct _s10 *ps10;
-    };
+        struct _sym *_pSym;
+        struct _expr *_pExpr;
+        struct _args *_pArgs;
+        struct _s8 *_pInfo;
+    } u2;
     int16_t i4;
     uint8_t dataType;
     char c7;
 } s8_t;
 
-typedef struct _s25 {
+#define i_nextSym  u1._nextSym
+#define i_nextInfo u1._nextInfo
+#define i_labelId  u1._labelId
+
+#define i_sym      u2._pSym
+#define i_expr     u2._pExpr
+#define i_args     u2._pArgs
+#define i_info     u2._pInfo
+
+typedef struct _sym {
     s8_t attr;
+    struct _sym *m8;
+    struct _sym *nMemberList;
+    int16_t nodeId;
+    int16_t m14;
+    int16_t m16;
+    int16_t m18;
+    char m20;
+    char m21;
+    char nRefCnt;
+    char *nVName;
+} sym_t;
 
-    char *m8;                 /*  8h  8	*/
-                              /*  9h  9	*/
-    struct _s25 *nMemberList; /* 0Ah 10	*/
-                              /* 0Bh 11	*/
-    int16_t nodeId;           /* 0Ch 12	*/
-    int16_t m14;              /* 0Eh 14	*/
-                              /* 0Fh 15	*/
-    int16_t m16;              /* 10h 16	*/
-                              /* 11h 17	*/
-    int16_t m18;                  /* 12h 18  ok	*/
-                              /* 13h 19	*/
-    char m20;                 /* 14h 20	*/
-    char m21;                 /* 15h 21  ok	*/
-    char nRefCnt;             /* 16h 22  ok	*/
-    char *nVName;             /* 17h 23  ok	*/
-                              /* 18h 24	*/
-                              /* 1Dh 29	*/
-} s25_t;
-
-#define n_i0    attr.u1.i0
-#define n_i2    attr.i2
-#define n_i4    attr.i4
-#define n_dataType   attr.dataType
-#define n_c7    attr.c7
-#define n_chain attr.u1.chain
-#define n_ps13  attr.ps13
-#define n_ps25  attr.ps25
-#define n_s0    nso.u1.s0
+#define a_labelId  attr.i_labelId
+#define a_i4       attr.i4
+#define a_dataType attr.dataType
+#define a_c7       attr.c7
+#define a_nextSym  attr.i_nextSym
+#define a_expr     attr.i_expr
+#define a_sym      attr.i_sym
+#define a_info     attr.i_info
+#define a_args     attr.i_args
 
 typedef struct {
     char s0[3];
     char c3;
     uint8_t uc4;
     int16_t i5;
-    uint8_t uc6;
     uint8_t c7;
 } t8_t;
 
-typedef struct _s10 {
+typedef struct _args {
     int16_t cnt;
     s8_t s8array[1];
-} s10_t;
+} args_t;
 
-typedef struct _s13 {
+typedef struct _s12 {
+    sym_t *p25;
+    s8_t *p8;
+    sym_t *p25_1;
+    uint16_t i6;
+    uint8_t uc8;
+    bool uc9;
+    bool uca;
+    bool ucb;
+} s12_t;
+
+typedef struct _expr {
     uint8_t tType;
     union {
         unsigned long _t_ul;
         long _t_l;
         char *_t_s;
-        char _t_ca[2];
-        struct _s25 *_t_ps25;
+        struct _sym *_t_pSym;
         struct {
-            struct _s13 *_t_next;
-            struct _s13 *_t_alt;
+            struct _expr *_t_next;
+            struct _expr *_t_alt;
         } s1;
         struct {
             int16_t _t_i0;
@@ -110,48 +159,47 @@ typedef struct _s13 {
 #define t_alt  u1.s1._t_alt
 #define t_i0   u1.s2._t_i0
 #define t_i2   u1.s2._t_i2
-#define t_ps25 u1._t_ps25
-#define t_ca    u1._t_ca
+#define t_pSym u1._t_pSym
 
     s8_t attr;
-} s13_t;
+} expr_t;
 
 typedef struct {
-    s13_t *caseVal;
+    expr_t *caseVal;
     int16_t caseLabel;
 } s4_t;
 
 typedef struct {
-    s13_t *switchExpr;
+    expr_t *switchExpr;
     int16_t caseCnt;
     int16_t defLabel;
     s4_t caseOptions[255];
 } case_t;
 
+typedef struct {
+    uint8_t type1;
+    uint8_t type2;
+} s2_t;
 
-
-
-extern s13_t **p13List;         /* 8bc7 */
-extern int16_t strId;             /* 8bd7 */
+extern s2_t *p2List;          /* 8bc7 */
+extern int16_t strId;         /* 8bd7 */
 extern uint8_t byte_8f85;     /* 8f85 */
-extern uint8_t byte_8f86;     /* 8f86 */
+extern bool byte_8f86;        /* 8f86 */
 extern char *keywords[];      /* 8f87 */
 extern char *tmpFile;         /* 91db */
-extern t8_t opTable[68];        /* 9271 */
-extern uint8_t byte_8f85;     /* 9f85 */
-extern uint8_t byte_8f86;     /* 8f86 */
+extern t8_t opTable[68];      /* 9271 */
 extern uint8_t byte_968b;     /* 968b */
 extern int16_t word_968c;     /* 968c */
-extern int16_t tmpLabelId;     /* 968e */
+extern int16_t tmpLabelId;    /* 968e */
 extern int16_t word_9caf;     /* 9caf */
 extern char ca9CB1[64];       /* 9cb1 */
-extern s13_t **s13SP;       /* 9cf1 */
-extern s13_t *s13_9cf3[20];   /* 9cf3 */
-extern s13_t s13_9d1b;        /* 9d1b */
-extern s13_t s13_9d28;        /* 9d28 */
-extern s13_t *s13FreeList;    /* 9d35 */
+extern expr_t **s13SP;        /* 9cf1 */
+extern s2_t s2_9cf3[20];      /* 9cf3 */
+extern expr_t s13_9d1b;       /* 9d1b */
+extern expr_t s13_9d28;       /* 9d28 */
+extern expr_t *s13FreeList;   /* 9d35 */
 extern uint8_t byte_9d37;     /* 9d37 */
-extern char s13Stk[40];       /* 9d38 */
+extern expr_t *s13Stk[20];    /* 9d38 */
 extern char lastEmitSrc[64];  /* 9d60 */
 extern bool sInfoEmitted;     /* 9da0 */
 extern int16_t inCnt;         /* 9da1 */
@@ -175,53 +223,54 @@ extern char *srcFileArg;      /* a081 */
 extern bool l_opt;            /* a083 */
 extern FILE *tmpFp;           /* a084 */
 extern char inBuf[512];       /* a086 */
-extern int16_t errCnt;            /* a286 */
-extern bool inFunc;           /* a288 */
+extern int16_t errCnt;        /* a286 */
+extern uint8_t depth;         /* a288 */
 extern uint8_t byte_a289;     /* a289 */
-extern uint8_t unreachable;     /* a28a */
+extern bool unreachable;      /* a28a */
 extern int16_t word_a28b;     /* a28b */
-extern s25_t *curFuncNode;    /* a28d */
-extern int16_t pn_a28f;         /* ad8f */
-extern int16_t word_a291;         /* as91 */
-extern s25_t *s25FreeList;    /* a293 */
-extern s25_t **hashtab;     /* a295 */
-extern void *word_a297;       /* a297 */
+extern sym_t *curFuncNode;    /* a28d */
+extern sym_t *p25_a28f;       /* ad8f */
+extern sym_t *word_a291;      /* as91 */
+extern sym_t *s25FreeList;    /* a293 */
+extern sym_t **hashtab;       /* a295 */
+extern s12_t *p12_a297;       /* a297 */
 extern uint8_t byte_a299;     /* a299 */
 extern uint8_t byte_a29a;     /* a29a */
 
-
 /* emit.c */
-void sub_013d(register FILE *p);
-void sub_01c1(register s25_t *p);
-void sub_01ec(register s25_t *p);
+void sub_01ec(register sym_t *p);
 void prFuncBrace(uint8_t tok);
-void sub_0258(int16_t p);
-void sub_0273(register s25_t *st);
+void emitLabelDef(int16_t p);
+void sub_0273(register sym_t *st);
 void sub_02a6(case_t *p1);
-void sub_0353(s25_t *p, char c);
-void sub_042d(register s13_t *p);
-void sub_0470(s13_t *p);
-void sub_0493(register s25_t *st);
-void sub_053f(register s13_t *st, char *pc);
-void sub_05b5(s13_t *p1);
-void sub_05d3(s13_t *p1);
-void sub_05f1(register s13_t *st);
+void sub_0353(sym_t *p, char c);
+void sub_042d(register expr_t *p);
+void sub_0493(register sym_t *st);
+void sub_053f(register expr_t *st, char *pc);
+void sub_05b5(expr_t *p1);
+void sub_05d3(expr_t *p1);
 void sub_07e3(void);
 
 /* expr.c */
+expr_t *sub_07f5(char p1);
+expr_t *sub_0a83(uint8_t n);
+expr_t *sub_0bfc(void);
+expr_t *sub_1441(uint8_t p1, register expr_t *lhs, expr_t *rhs);
+expr_t *sub_1b4b(long num, uint8_t p2);
+bool sub_2105(register expr_t *st);
+bool s13ReleaseFreeList(void);
+expr_t *sub_21c7(register expr_t *st);
+expr_t *allocId(register sym_t *st);
+expr_t *allocIConst(long p1);
+expr_t *allocSType(s8_t *p1);
+void pushS13(expr_t *p1);
+void sub_2569(register expr_t *st);
+expr_t *sub_25f7(register expr_t *st);
 
 /* lex.c */
 uint8_t yylex(void);
-uint8_t parseNumber(int16_t ch);
-uint8_t parseName(int16_t ch);
-void parseAsm(void);
-void parseString(int16_t ch);
-int16_t getCh(void);
-void prErrMsg(void);
 void prMsgAt(register char *buf);
 void emitSrcInfo(void);
-int16_t skipWs(void);
-int8_t escCh(int16_t ch);
 int16_t peekCh(void);
 void skipStmt(uint8_t tok);
 void expect(uint8_t etok, char *msg);
@@ -230,48 +279,69 @@ void skipToSemi(void);
 /* main.c */
 int main(int argc, char *argv[]);
 #ifdef CPM
-void prMsg(char *p1, int p2, int p3);
 void prError(char *p1, int p2, int p3);
 void fatalErr(char *p1, char *p2);
 void prWarning(char *p1, int p2, int p3);
 #else
-void prMsg(char *fmt, va_list args);
 void prError(char *fmt, ...);
 void fatalErr(char *fmt, ...);
 void prWarning(char *fmt, ...);
 #endif
-void expectedErr(char *p);
-void copyTmp(void);
-void closeFiles(void);
+void expectErr(char *p);
 void *xalloc(unsigned size);
-void sub_3abf(void);
 
 /* program.c */
-
-
+void sub_3adf(void);
+void sub_3c7e(sym_t *p1);
 
 /* stmt.c */
-void sub_489b(void);
-void parseStmt(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
-void parseStmtGroup(int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
-void parseStmtAsm(void);
-void parseStmtWhile(case_t *p3);
-void parseStmtDo(case_t *p3);
-void parseStmtIf(int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
-void parseStmtSwitch(int16_t p1);
-void parseStmtFor(case_t *p1);
-void parseStmtBreak_Continue(int16_t label);
-void parseStmtDefault(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
-void parseStmtCase(int16_t p1, int16_t p2, register case_t *p3, int16_t *p4);
-void parseStmtReturn(void);
-void parseStmtGoto(void);
-void parseStmtLabel(register s25_t *ps, int16_t p1, int16_t p2, case_t *p3, int16_t *p4);
-s25_t *sub_4ca4(register s25_t *ps);
-void sub_4ce8(int16_t n);
-void sub_4d15(int16_t n, register s13_t *st, char c);
-void sub_4d67(register s13_t *st);
+void sub_409b(void);
 
 /* sym.c */
-
+void sub_4d92(void);
+sym_t *sub_4e90(register char *buf);
+sym_t *sub_4eed(register sym_t *st, int16_t p2, s8_t *p3, sym_t *p4);
+void sub_516c(register sym_t *st);
+void sub_51cf(register sym_t *st);
+void sub_51e7(void);
+bool releaseNodeFreeList(void);
+void enterScope(void);
+void exitScope(void);
+void checkScopeExit(void);
+sym_t *sub_56a4(void);
+sym_t *findMember(sym_t *p1, char *p2);
+void sub_573b(register sym_t *st, FILE *fp);
+int16_t newTmpLabel(void);
+args_t *sub_578d(register args_t *p);
+void sub_58bd(register s8_t *st, s8_t *p2);
+bool sub_591d(register s8_t *st, s8_t *p2);
+bool sub_5a4a(register s8_t *st);
+bool sub_5a76(register s8_t *st, uint8_t p2);
+bool sub_5aa4(register s8_t *st);
+bool sub_5ad5(register s8_t *st);
+bool sub_5b08(register s8_t *st);
+bool sub_5b38(register s8_t *st);
+bool isValidDimType(register s8_t *st);
+void sub_5b99(register s8_t *st);
 
 /* type.c */
+void sub_5be1(register s8_t *st);
+void sub_5c19(uint8_t p1);
+uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr);
+sym_t *sub_60db(uint8_t p1);
+sym_t *sub_6360(void);
+sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4);
+void sub_7454(register s8_t *st);
+
+#ifdef CPM
+extern char _Hbss;
+#define inData(p) (((char *)p) < &_Hbss)
+#else
+extern const char *_Ldata;
+extern const char *_Hbss;
+#ifdef _WIN32
+void initMemAddr();
+#endif
+#define inData(p) (_Ldata <= ((const char *)p) && ((const char *)p) < _Hbss)
+#endif
+#endif

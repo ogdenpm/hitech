@@ -1,318 +1,218 @@
 #include "p1.h"
 
-bool inFunc;        /* a288 */
+uint8_t depth;      /* a288 */
 uint8_t byte_a289;  /* a289 */
-bool unreachable;  /* a28a */
+bool unreachable;   /* a28a */
 int16_t word_a28b;  /* a28b */
-s25_t *curFuncNode; /* a28d */
-s25_t *pn_a28f;     /* ad8f */
+sym_t *curFuncNode; /* a28d */
+sym_t *p25_a28f;    /* ad8f */
+
+
+int16_t sub_3d24(register sym_t *st, uint8_t p2);
 
 /**************************************************
  * 81: 3ADF
  **************************************************/
 void sub_3adf() {
-    char tok; /* (ix+-1)    */ /* local variables are some structure  */
-    uint8_t var2;              /* (ix+-2)    */
-    int16_t var6;              /* (ix+-3)    */
-    /* (ix+-4)    */
-    int16_t var7; /* (ix+-5)    */
-    /* (ix+-6)    */
-    int16_t l5; /* (ix+-7)    */
-    /* (ix+-8)    */
-    int16_t *l6; /* (ix+-9)    */
-    s8_t varA;
-    /* (ix+-10) A */
-    uint8_t varB; /* (ix+-11) B */
-    uint8_t varC; /* (ix+-12) C */
+    char tok;
+    uint8_t scType;
+    s8_t attr;
+    uint8_t varb;
+    uint8_t scFlags;
 
-    register s25_t *st; /* possibly a different structure */
+    register sym_t *st;
 
-    varC = sub_5dd1(&var2, &varA);
+    scFlags = sub_5dd1(&scType, &attr);
     if ((tok = yylex()) == T_SEMI)
         return;
     ungetTok = tok;
-    varB     = 1;
+    varb     = true;
 
     for (;;) {
-        pn_a28f = 0;
-        st      = sub_69ca(var2, &varA, varC & 0xFE);
-        tok     = yylex();
+        p25_a28f = 0;
+        st       = sub_69ca(scType, &attr, scFlags & ~1, 0);
+        tok      = yylex();
 
-        if (st && (st->m18 & 0x10) && st->n_c7 == 2) {
-            if (varB && tok != T_COMMA && tok != T_SEMI && var2 != T_TYPEDEF) {
-                byte_a289 = st->n_c7 == 2 && st->n_i4 == 0 && (st->n_dataType == DT_VOID || st->n_dataType == DT_INT);
-                ungetTok  = tok;
+        if (st && (st->m18 & 0x10) && st->a_c7 == ANODE) {
+            if (varb && tok != T_COMMA && tok != T_SEMI && scType != T_TYPEDEF) {
+                byte_a289 = st->a_c7 == ANODE && st->a_i4 == 0 &&
+                            (st->a_dataType == DT_VOID || st->a_dataType == DT_INT);
+                ungetTok = tok;
                 sub_516c(st);
                 sub_0493(st);
                 curFuncNode = st;
                 sub_409b();
                 return;
             }
-            if (pn_a28f && !(pn_a28f->m18 & 0x10))
-                expectedErr("function body");
-
-            ++inFunc;
+            if (p25_a28f && !(p25_a28f->m18 & 0x10))
+                expectErr("function body");
+            ++depth;
             checkScopeExit();
-            --inFunc;
-            ??PMO
+            --depth;
             sub_0493(st);
-            goto m13;
-        }
-        if (tok == 0x64) { /* m8: */
-            if (var2 == 0x2D) {
+        } else if (tok == T_EQ) {
+            if (scType == T_TYPEDEF)
                 prError("illegal initialisation");
-            }
-            sub_516c(st); /* m9: */
+            sub_516c(st);
             sub_0493(st);
             sub_3c7e(st);
             tok = yylex();
-            goto m13;
-        }
-        if (st != 0) { /* m10: */
-            if (bittst(varC, 0) != 0 && st->m20 != T_EXTERN) {
-                sub_516c(st); /* m11: */
+        } else if (st) {
+            if ((scFlags & 1) || st->m20 != T_EXTERN) {
+                sub_516c(st);
                 sub_0493(st);
-            } else {
-                sub_01ec(st); /* m12: */
-            }
+            } else
+                sub_01ec(st);
         }
-    m13:
-        if (tok == 0x73)
-            goto m14;
-        if (tok == 0x50)
-            goto m14;
-        goto m16;
-
-    m14:
-        expectedErr(",");
-        ungetTok = tok;
-
-    m15:
-        varC = 0;
+        if (tok == T_ID || tok == T_STAR) {
+            expectErr(",");
+            ungetTok = tok;
+        } else if (tok != T_COMMA)
+            break;
+        varb = false;
     }
 
-m16:
-    if (tok == 0x71)
-        goto m15;
-    if (tok == 2)
-        return;
-    expectedErr(";");
-    while (3 < tok) {  /* m18: */
-        tok = yylex(); /* m17: */
+    if (tok != T_SEMI) {
+        expectErr(";");
+        while (tok > T_RBRACE)
+            tok = yylex();
     }
-    /*#endif*/
 }
 
 /**************************************************
- * 82: 3C7E
+ * 82: 3C7E PMO
  **************************************************/
-void sub_3c7e(s25_t *p1) {
-    struct xxx *ch;
+void sub_3c7e(sym_t *p1) {
+    int16_t var2;
+    register sym_t *st;
 
-    if (p1 != 0) {
+    if (p1) {
         printf("[i ");
         sub_573b(p1, stdout);
         putchar('\n');
-        st = p1;
-        ch = sub_3d24(st, 1);
-        if (bittst(ch, 7) != 0) {
+        st   = p1;
+        var2 = sub_3d24(st, 1);
+        if (var2 & 0x8000) {
             prError("initialisation syntax");
             skipToSemi();
-            /* goto m2; */
-        } else if (st->m7 == 1) { /* m1: */
-            if (st->m2 != 0) {
-                if (sub_2105(st->m2) != 0) {
-                    sub_2569(st->m2);
-                    st->m2 = allocIConst(ch);
-                }
-            }
+        } else if (st->a_c7 == ENODE && st->a_expr && sub_2105(st->a_expr)) {
+            sub_2569(st->a_expr);
+            st->a_expr = allocIConst(var2);
         }
-        printf("]\n"); /* m2: */
-        return;
-    }
-    skipToSemi(); /* m3: */
+        printf("]\n");
+    } else
+        skipToSemi();
 }
 
 /**************************************************
  * 83: 3D24
  **************************************************/
-int16_t sub_3d24(register struct xxx *st, char p2) {
-    int16_t ch;
-    char l2;
-    s13_t *l3;
-    char l4;
-    s13_t *l5;
-    int16_t l6;
-    char l7;
-    s13_t *l8;
-    char l9;
+int16_t sub_3d24(register sym_t *st, uint8_t p2) {
+    int16_t var2;
+    uint8_t tok;
+    char *var5;
+    bool haveLbrace;
+    sym_t *var8;
+    sym_t *vara;
+    bool varb;
+    expr_t *vard;
+    bool vare;
 
-    ch = -1;
-    if (p2 != 0) {
-        if (st->m8 == 1) {
-            if (st->m4 != 0) {
-                printf(":U ..\n");
-                /*
-                        l2 = sub_2671();
-                        l4 = (l2 == 4);
-                        if(l4 != 0) l2 = sub_2671();
-                */
-                if ((l4 = ((l2 = yylex()) == 4)) != 0)
-                    l2 = yylex();
-                if (l2 == 0x76) { /* m2: */
-                    if (st->m6 == 0) {
-                        if (((int16_t)(st->m7) & 0xFE) == 4) {
-                            ch = st->m7 & 0xFE; /* ERROR */
-                            l3 = word_9dcb;
-                            while (ch < strChCnt) {                  /* m4: */
-                                printf("-> %d `c\n", (char)*(l3++)); /* m3: */
-                                ++ch;
-                            }
-                            free(word_9dcb);
-                            if (sub_2105(st->m4) != 0) {
-                                printf("-> %d `c\n", 0);
-                                ++ch;
-                            }
-                            if (l4 != 0)
-                                l2 = yylex(); /* m5: */
-                        m6:
-                            if (l4 != 0) {
-                                if (l2 != 3) {
-                                    expectedErr("}");
-                                    ch = -1;
-                                }
-                            }
-                            printf("..\n"); /* m7: */
-                            goto m34;
-                        }
-                    }
-                }
-                if (l4 == 0) { /* m8: */
-                    expectedErr("{");
-                    goto m6;
-                }
-                ungetTok = l2; /* m9: */
-                if (st->m6 != 0 && st->m7 != 0x16) {
-                    p2 = 0; /* m10: */
-                } else {
-                    st = st->m1;
-                }
-                ch = 0; /* m11: */
-                for (;;) {
-                    if (bittst(sub_3d24(st, p2), 7) != 0)
-                        goto m6; /* m12: */
-                    ++ch;
-                    l2 = yylex();
-                    if (l2 == 3)
-                        goto m6;
-                    if (l2 != 0x71)
-                        goto m6;
-                    l2 = yylex();
-                    if (l2 == 3)
-                        goto m6;
-                    ungetTok = l2;
-                } /* goto m12; */
+    var2 = -1;
+    if (p2 && st->a_c7 == ENODE && st->a_expr) {
+        printf(":U ..\n");
+        if ((haveLbrace = ((tok = yylex()) == T_LBRACE)))
+            tok = yylex();
+        if (tok == T_SCONST && st->attr.i4 == 0 && (st->attr.dataType & ~1) == 4) {
+            var2 = 0;
+            var5 = yylval.yStr;
+            while (var2 < strChCnt) {
+                printf("-> %d `c\n", *var5++);
+                ++var2;
+            }
+            free(yylval.yStr);
+            if (sub_2105(st->a_expr)) {
+                printf("-> %d `c\n", 0);
+                ++var2;
+            }
+            if (haveLbrace)
+                tok = yylex();
+        } else if (!haveLbrace) // 3e4a
+            expectErr("{");
+        else {
+            ungetTok = tok;
+            if (st->a_i4 == 0 && st->a_dataType == DT_POINTER)
+                st = st->a_nextSym;
+            else
+                p2 = 0;
+            var2 = 0;
+            for (;;) {
+                if (sub_3d24(st, p2) & 0x8000)
+                    break;
+                var2++;
+                if ((tok = yylex()) != T_RBRACE && tok != T_COMMA && (tok = yylex()) != T_RBRACE)
+                    break;
+                ungetTok = tok;
             }
         }
+        // 3e22
+        if (haveLbrace && tok != T_RBRACE) {
+            expectErr("}");
+            var2 = -1;
+            printf("..\n");
+        }
+    } else if ((p2 == 0 || st->a_c7 != ENODE) && st->a_i4 == 0) { // 3ec6
+        if (st->a_dataType == DT_STRUCT) {
+            if (p2)
+                printf(":U ..\n");
+            printf(":U ..\n");
+            if ((var8 = st->a_sym)) {
+                varb = (tok = yylex()) == T_LBRACE;
+                if (!varb)
+                    ungetTok = tok;
+                vara = var8->nMemberList;
+                do {
+                    if ((sub_3d24(vara, 1) & 0x8000))
+                        break;
+                    vara = vara->nMemberList;
+                    if (!var8)
+                        break;
+                    if ((tok = yylex()) != T_COMMA) {
+                        ungetTok = tok;
+                        break;
+                    }
+                } while (!varb || (ungetTok = tok = yylex()) != T_RBRACE);
+                // 3f7c:
+                if (varb) {
+                    if ((tok = yylex()) == T_COMMA)
+                        tok = yylex();
+                    if (tok != T_RBRACE)
+                        expectErr("}");
+                    else
+                        var2 = 1;
+                } else
+                    var2 = 1;
+            } // 3fcd
+            printf("..\n");
+            if (p2)
+                printf("..\n");
+        }
+    } else if ((p2 && st->attr.c7 == ENODE) || st->attr.c7 == ANODE ||
+        (!(st->a_i4 & 1) && st->attr.dataType >= T_AUTO))
+        prError("illegal initialisation");
+    else {
+        vare = (tok = yylex()) == T_LBRACE;
+        if (!vare)
+            ungetTok = tok;
+        vard          = allocSType(&st->attr);
+        vard->attr.c7 = SNODE;
+        if ((vard = sub_1441(T_125, vard, sub_0a83(3))))
+            sub_05b5(vard->t_alt);
+
+        if (vare && yylex() != T_RBRACE)
+            expectErr("}");
+        sub_2569(vard);
+        var2 = 1;
     }
-    if (p2 == 0)
-        goto m14; /* m13: */
-    if (st->m8 == 1)
-        goto m25;
-
-m14:
-    if (st->m6 != 0)
-        goto m25;
-    if (st->m7 != 0x1A)
-        goto m25;
-    if (p2 != 0)
-        printf(str_U);
-    printf(str_U); /* m15: */
-    l5 = st->m1;
-    if (l5 == 0)
-        goto m24;
-    l2 = yylex();
-    l7 = (l2 == 4); /* m16: */
-    if (l7 == 0)
-        ungetTok = l2;
-    l6 = l5->m5.m6; /* l6 = l5->m10; */ /* m17: */
-
-m18:
-    if (bittst(sub_3d24(l6, 1), 7) != 0)
-        goto m19;
-    l6 = 0; /* l6 = l6->m5.m6; l6 = l6->m10; */ /* ERROR */
-    if (l6 == l5)
-        goto m19;
-    l2 = yylex();
-    if (l2 == 0x71)
-        goto m21;
-    ungetTok = l2;
-
-m19:
-    if (l7 == 0)
-        goto nVName;
-    l2 = yylex();
-    if (l2 == 0x71)
-        l2 = yylex();
-    if (l2 == 3)
-        goto nRefCnt; /* m20: */
-    expectedErr("}");
-    goto m24;
-
-m21:
-    if (l7 == 0)
-        goto m18;
-    l2       = yylex();
-    ungetTok = l2;
-    if (ungetTok != 3)
-        goto m18;
-    goto m19;
-
-nRefCnt:
-    ch = 1;
-    goto m24;
-
-nVName:
-    ch = 1;
-    goto m24;
-
-m24:
-    printf("..\n");
-    if (p2 != 0)
-        printf("..\n");
-    goto m34;
-
-m25:
-    if (p2 == 0)
-        goto m27;
-    if (p2 == 1)
-        goto m33;
-
-m27:
-    if (p2 == 2)
-        goto m33;
-    if (bittst(st->m6, 0) != 0)
-        goto m28;
-    if (st->m7 < 0x14)
-        goto m28;
-    goto m33;
-
-m28:
-    if ((l9 = ((l2 = yylex()) == 4)) == 0)
-        ungetTok = l2;                /* m29: */
-    (l8 = allocSType(st))->m5.m7 = 0; /* m30: */
-    l8                           = sub_1441(0x7d, l8, sub_0a83(3));
-    if (l8 != 0)
-        sub_05b5(l8->m1.s[1]);
-    if (l9 != 0 && yylex() != 3)
-        expectedErr("}"); /* m31: */
-    sub_2569(l8);        /* m32: */
-    ch = 1;
-    goto m34;
-
-m33:
-    prError("illegal initialisation");
-
-m34:
-    return ch;
+    return var2;
 }
