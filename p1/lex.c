@@ -1,9 +1,40 @@
+/*
+ *
+ * The lex.c file is part of the restored P1.COM program
+ * from the Hi-Tech CP/M Z80 C v3.09
+ *
+ * Not a commercial goal of this laborious work is to popularize among
+ * potential fans of 8-bit computers the old HI-TECH Z80 C compiler V3.09
+ * (HI-TECH Software) and extend its life, outside of the CP/M environment
+ * for full operation in windows 32/64 and Unix-like operating systems
+ *
+ * The HI-TECH Z80 C cross compiler V3.09 is provided free of charge for any use,
+ * private or commercial, strictly as-is. No warranty or product support
+ * is offered or implied including merchantability, fitness for a particular
+ * purpose, or non-infringement. In no event will HI-TECH Software or its
+ * corporate affiliates be liable for any direct or indirect damages.
+ *
+ * You may use this software for whatever you like, providing you acknowledge
+ * that the copyright to this software remains with HI-TECH Software and its
+ * corporate affiliates.
+ *
+ * All copyrights to the algorithms used, binary code, trademarks, etc.
+ * belong to the legal owner - Microchip Technology Inc. and its subsidiaries.
+ * Commercial use and distribution of recreated source codes without permission
+ * from the copyright holderis strictly prohibited.
+ *
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 09-Jul-2022
+ */
 #include "p1.h"
 
 char *keywords[] = { /* 8f87 */
                      "asm",      "auto",   "break",  "case",   "char",   "continue", "default",
                      "do",       "double", "else",   "@@@@@",  "enum",   "extern",   "float",
-                     "for",      "goto",   "if",     "int16_t",    "long",   "register", "return",
+                     "for",      "goto",   "if",     "int",    "long",   "register", "return",
                      "short",    "sizeof", "static", "struct", "switch", "typedef",  "union",
                      "unsigned", "void",   "while"
 };
@@ -22,7 +53,7 @@ int16_t startTokCnt; /* 9df3 */
 int16_t ungetCh;     /*  9df5 */
 
 uint8_t parseNumber(int16_t ch);
-uint8_t parseName(int16_t ch);
+uint8_t parseName(int8_t ch);
 void parseAsm(void);
 void parseString(int16_t ch);
 int16_t getCh(void);
@@ -30,10 +61,12 @@ void prErrMsg(void);
 int16_t skipWs(void);
 int8_t escCh(int16_t ch);
 
+
 /**************************************************
- * 56: 2671 PMO
+ * 56: 2671 PMO +++
+ * location of two basic blocks swapped, code equivalent
  **************************************************/
-uint8_t yylex() {
+uint8_t yylex(void) {
     int16_t ch;
     uint8_t tok;
     char buf[50];
@@ -50,7 +83,7 @@ uint8_t yylex() {
         ch          = skipWs();
         startTokCnt = inCnt;
         if (Isalpha(ch))
-            return parseName(ch);
+            return parseName((int8_t)ch);
         if (Isdigit(ch))
             return parseNumber(ch);
         switch (ch) {
@@ -61,13 +94,13 @@ uint8_t yylex() {
                 ch = getCh();
             } while (Isspace(ch) && ch != '\n');
             if (Isdigit(ch) && parseNumber(ch) == T_ICONST) {
-                lineNo = yylval.yNum - 1;
+                lineNo = (int16_t)(yylval.yNum - 1);
                 do {
                     ch = getCh();
                 } while (Isspace(ch) && ch != '\n');
                 if (ch == '"') {
                     for (s = buf; (ch = getCh()) != '"' && ch != '\n';)
-                        *s++ = ch;
+                        *s++ = (char)ch;
                     *s = '\0';
                     if (buf[0])
                         strcpy(srcFile, buf);
@@ -82,7 +115,7 @@ uint8_t yylex() {
             } else {
                 s = buf;
                 do {
-                    *s++ = ch;
+                    *s++ = (char)ch;
                     ch   = getCh();
                 } while (ch != '\n' && !Isspace(ch));
                 *s = '\0';
@@ -255,106 +288,112 @@ uint8_t yylex() {
         case ',':
             return T_COMMA;
         default:
-            prError("illegal character 0%o", ch);
+            prError("illegal character 0%o", ch /* ,ch*/); /* original had ch twice!! */
             break;
         }
     }
 }
 
 /**************************************************
- * 57: 2CC3 PMO
+ * 57: 2CC3 PMO +++
+ * two blocks change from ex de,hl ld de,xxx
+ * to ld hl,xxx ex de,hl (xxx are to locations on stack)
+ * optimiser also uses byte compare for digit >= base
  **************************************************/
 uint8_t parseNumber(int16_t ch) {
-    uint8_t digit;
-    char buf[50];
-    uint8_t base;
     long lval;
+    uint8_t base;
+    char buf[50];
+    uint8_t digit;
     register char *s = buf;
 
     while (Isdigit(ch)) {
-        *s++ = ch;
+        *s++ = (char)ch;
         ch   = getCh();
     }
     if (ch == '.' || ch == 'e' || ch == 'E') {
         if (ch == '.')
             do {
-                *s++ = ch;
+                *s++ = (char)ch;
                 ch   = getCh();
             } while (Isdigit(ch));
         if (ch == 'e' || ch == 'E') {
             *s++ = 'e';
             ch   = getCh();
             if (ch == '+' || ch == '-') {
-                *s++ = ch;
+                *s++ = (char)ch;
                 ch   = getCh();
             }
             if (Isdigit(ch))
                 do {
-                    *s++ = ch;
+                    *s++ = (char)ch;
                     ch   = getCh();
                 } while (Isdigit(ch));
             else
                 prError("exponent expected");
         }
         ungetCh = ch;
-        *s++    = 0;
+        *s++      = 0;
         if (*buf == '.')
             s++;
         yylval.yStr = xalloc(s - buf);
-        if (*buf == '.') {
-            strcpy(yylval.yStr, "0");
-            strcat(yylval.yStr, buf);
-        } else
-            strcpy(yylval.yStr, buf);
-        return T_FCONST; // float
+        if (*buf == '.')
+            strcat(strcpy(yylval.yStr, "0"), buf);
+        else
+            strcpy(yylval.yStr,buf);
+        return T_FCONST;
     }
     base = 10;
-    /* PMO code here has bugs, test should be
-        (ch == 'x' || ch == 'X') && *buf == '0' && s == buf + 1
-        currently it allows numbers such as
-        9x123   0999X123 both as 0x123
-        an even better option would be to ungetCh the x or X if the
-        second part of the test is false
-    */
+
+#ifdef BUGGY
     if (ch == 'x' || (ch == 'X' && *buf == '0')) {
+#else
+    /* 
+        original code would allow invalid numbers such as
+        99x123 and 0999X123 both as 0x123
+    */
+    if ((ch == 'x' || ch == 'X') && s == buf + 1 && *buf == '0') {
+#endif
         base = 16;
-        *s   = 0;
         s    = buf;
         while (Isxdigit(ch = getCh()))
-            *s++ = ch;
+            *s++ = (char)ch;
         if (s == buf)
             prError("hex digit expected");
     } else if (*buf == '0')
         base = 8;
     lval = 0L;
+    *s   = 0;
     s    = buf;
     while (*s) {
         if (*s >= 'A')
-            digit = (*s++ | 0x20) - ('a' - 10);
+            digit = (*(uint8_t *)s++ | 0x20) - 'a' + 10;
         else
-            digit = *s++ - '0';
+            digit = *(uint8_t *)s++ - '0';
         if (digit >= base) {
             prError("digit out of range");
             break;
         }
-        lval = lval * 10 + digit;
+        lval = lval * base  + digit;
     }
     yylval.yNum = lval;
     if (ch == 'l' || ch == 'L')
-        return T_LCONST; // long const
+        return T_LCONST;
     ungetCh = ch;
-    return T_ICONST; // int16_t const
+    return T_ICONST;
 }
 
 /**************************************************
- * 58: 2F75 PMO
+ * 58: 2F75 PMO +++
+ * uses ld hl,xxx ex de,hl compared to ex de,hl ld de,xxx
+ * equivalent code
  **************************************************/
-uint8_t parseName(int16_t ch) {
-    int16_t cmp;
-    uint8_t hi;
-    uint8_t lo;
-    uint8_t mid;
+uint8_t parseName(int8_t ch) {
     int16_t len;
+    uint8_t mid;
+    uint8_t lo;
+    uint8_t hi;
+    int16_t cmp;
     register char *s = nameBuf;
 
     len              = 0;
@@ -363,7 +402,7 @@ uint8_t parseName(int16_t ch) {
             *s++ = ch;
             len++;
         }
-        ch = getCh();
+        ch = (int8_t)getCh();
     } while (Isalnum(ch));
     ungetCh = ch;
     *s      = 0;
@@ -371,19 +410,18 @@ uint8_t parseName(int16_t ch) {
     hi      = T_WHILE;
     do {
         mid = (lo + hi) / 2;
-        cmp = strcmp(nameBuf, keywords[mid - T_ASM]);
+        cmp = (int16_t)strcmp(nameBuf, keywords[mid - T_ASM]);
         if (cmp <= 0)
             hi = mid - 1;
         if (cmp >= 0)
             lo = mid + 1;
     } while (hi >= lo);
-    if (hi > lo - 1) {
+    if (hi < lo - 1) {
         switch (mid) {
         case T_AUTO:
         case T_EXTERN:
         case T_REGISTER:
         case T_STATIC:
-        case T_ASM:
         case T_TYPEDEF:
             yylval.yVal = mid;
             return S_CLASS;
@@ -410,17 +448,17 @@ uint8_t parseName(int16_t ch) {
 }
 
 /**************************************************
- * 59: 308B PMO
+ * 59: 308B PMO +++
  **************************************************/
-void parseAsm() {
-    char buf[512];
+void parseAsm(void) {
     int16_t ch;
+    char buf[512];
     register char *s;
 
     for (;;) {
         s = buf;
         while ((ch = getCh()) != '\n' && ch != EOF)
-            *s++ = ch;
+            *s++ = (char)ch;
         *s = 0;
         if (ch == EOF)
             fatalErr("EOF in #asm");
@@ -431,13 +469,14 @@ void parseAsm() {
 }
 
 /**************************************************
- * 60: 310B PMO
+ * 60: 310B PMO +++
+ * one basic block relocated. Code equivalent
  **************************************************/
 void parseString(int16_t ch) {
+    char *var2;
+    char *var4;
     char buf[1024];
     register char *s = buf;
-    char *var4;
-    char *var2;
 
     while (ch == '"') {
         while ((ch = getCh()) != '"') {
@@ -449,13 +488,13 @@ void parseString(int16_t ch) {
                 if ((ch = getCh()) != '\n')
                     *s++ = escCh(ch);
             } else
-                *s++ = ch;
+                *s++ = (char)ch;
         }
         ch = skipWs();
     }
     ungetCh  = ch;
     *s       = 0;
-    strChCnt = s - buf;
+    strChCnt = (int16_t)(s - buf);
     var2 = var4 = xalloc(strChCnt + 1);
     ch          = strChCnt + 1; /* unwound memcpy. Note strcpy cannot handle embedded '\0' */
     s           = buf;
@@ -464,41 +503,48 @@ void parseString(int16_t ch) {
     yylval.yStr = var4;
 }
 
-int16_t ungetCh;
 /**************************************************
- * 61: 320D PMO
+ * 61: 320D PMO +++
+ * move of 2 basic blocks code equivalent
  **************************************************/
-int16_t getCh() {
+int16_t getCh(void) {
     int16_t ch;
     if (ungetCh) {
         ch      = ungetCh;
         ungetCh = 0;
-    } else if ((ch = inBuf[inCnt]) == 0) {
+    } else if ((ch = inBuf[inCnt++]) == 0) {
         if (s_opt)
             emitSrcInfo();
         sInfoEmitted = false;
         lInfoEmitted = false;
+
         if (!fgets(inBuf, 512, stdin))
             return EOF;
+        ch          = inBuf[0];
         inCnt       = 1;
         startTokCnt = 0;
         lineNo++;
         if (l_opt)
             prErrMsg();
-        return inBuf[0];
     }
+#if defined(CPM) || defined(_WIN32)
     return ch;
+#else
+    if (ch == 0x1a) /* CPM EOF */
+        return EOF;
+    return ch != '\r' ? ch : getCh();
+#endif
 }
 
 /**************************************************
- * 62: 329A PMO
+ * 62: 329A PMO +++
  **************************************************/
-void prErrMsg() {
+void prErrMsg(void) {
     register char *iy;
     if (!lInfoEmitted) {
         iy = depth ? curFuncNode->nVName : "";
 
-        if (strcmp(srcFile, lastEmitSrc) || strcmp(iy, lastEmitFunc)) {
+        if (!l_opt && (strcmp(srcFile, lastEmitSrc) || strcmp(iy, lastEmitFunc))) {
             fprintf(stderr, "%s:", srcFile);
             if (*iy)
                 fprintf(stderr, " %s()\n", iy);
@@ -507,23 +553,23 @@ void prErrMsg() {
             strcpy(lastEmitSrc, srcFile);
             strcpy(lastEmitFunc, iy);
         }
-        fprintf(stderr, "%6d:\5%s", lineNo, inBuf);
+        fprintf(stderr, "%6d:\t%s", lineNo, inBuf);
         lInfoEmitted = true;
     }
 }
 
 /**************************************************
- * 63: 3350 PMO
+ * 63: 3350 PMO +++
  **************************************************/
 void prMsgAt(register char *buf) {
     int16_t i;
     uint16_t col;
     prErrMsg();
-    if (!*buf)
+    if (!*inBuf)
         fputs(buf, stderr);
     else {
         fputc('\t', stderr);
-        for (i = 0, col = 0; i < startTokCnt - 1; i++)
+        for (col = i = 0; i < startTokCnt - 1; i++)
             if (inBuf[i] == '\t')
                 col = (col + 8) & 0xfff8;
             else
@@ -536,24 +582,26 @@ void prMsgAt(register char *buf) {
 }
 
 /**************************************************
- * 64: 3429 PMO
+ * 64: 3429 PMO +++
  **************************************************/
-void emitSrcInfo() {
+void emitSrcInfo(void) {
     register char *s;
 
     if (!sInfoEmitted && inBuf[0]) {
         for (s = inBuf; *s && Isspace(*s); s++)
             ;
         if (*s && *s != '#')
-            printf(";; ;%s: %d: %s:", srcFile, lineNo, inBuf);
+            printf(";; ;%s: %d: %s", srcFile, lineNo, inBuf);
     }
     sInfoEmitted = true;
 }
 
 /**************************************************
- * 65: 347A PMO
+ * 65: 347A PMO +++
+ * equivalent code
+ * uses ex de,hl ld de,xxx, cf. ld hl,xxx ex de,hl
  **************************************************/
-int16_t skipWs() {
+int16_t skipWs(void) {
     int16_t ch;
     while (Isspace(ch = getCh()))
         ;
@@ -561,7 +609,9 @@ int16_t skipWs() {
 }
 
 /**************************************************
- * 66: 3495 PMO
+ * 66: 3495 PMO +++
+ * basic block move and different equivalent code
+ * and optimisations
  **************************************************/
 int8_t escCh(int16_t ch) {
     int16_t val;
@@ -571,13 +621,13 @@ int8_t escCh(int16_t ch) {
         ch  = getCh();
         if (Isdigit(ch)) {
             val = val * 8 + ch - '0';
-            if (Isdigit(ch))
+            if (Isdigit(ch = getCh()))
                 val = val * 8 + ch - '0';
             else
                 ungetCh = ch;
         } else
             ungetCh = ch;
-        return val;
+        return (int8_t)val;
     }
     switch (ch) {
     case 'n':
@@ -601,32 +651,32 @@ int8_t escCh(int16_t ch) {
             ch = getCh();
             if (!Isxdigit(ch)) {
                 ungetCh = ch;
-                return val;
+                return (int8_t)val;
             }
             val *= 16;
             if (Isupper(ch))
                 ch |= 0x20;
             if (Islower(ch))
-                val += ch - ('a' + 10);
+                val += ch - 'a' + 10;
             else
                 val += ch - '0';
         } while (cnt--);
-        return val;
+        return (int8_t)val;
     }
-    return ch;
+    return (int8_t)ch;
 }
 
 /**************************************************
- * 67: 35F7 PMO
+ * 67: 35F7 PMO +++
  **************************************************/
-int16_t peekCh() {
+int16_t peekCh(void) {
     int16_t ch;
     ungetCh = ch = skipWs();
     return ch;
 }
 
 /**************************************************
- * 68: 3610 PMO
+ * 68: 3610 PMO +++
  **************************************************/
 void skipStmt(uint8_t tok) {
 
@@ -638,7 +688,8 @@ void skipStmt(uint8_t tok) {
 }
 
 /**************************************************
- * 69: 363F PMO
+ * 69: 363F PMO +++
+ * uint8_t parameter
  **************************************************/
 void expect(uint8_t etok, char *msg) {
     uint8_t tok;
@@ -650,9 +701,9 @@ void expect(uint8_t etok, char *msg) {
 }
 
 /**************************************************
- * 70: 3666 PMO
+ * 70: 3666 PMO +++
  **************************************************/
-void skipToSemi() {
+void skipToSemi(void) {
     uint8_t tok;
 
     do {

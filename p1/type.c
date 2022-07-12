@@ -1,3 +1,34 @@
+/*
+ *
+ * The type.c file is part of the restored P1.COM program
+ * from the Hi-Tech CP/M Z80 C v3.09
+ *
+ * Not a commercial goal of this laborious work is to popularize among
+ * potential fans of 8-bit computers the old HI-TECH Z80 C compiler V3.09
+ * (HI-TECH Software) and extend its life, outside of the CP/M environment
+ * for full operation in windows 32/64 and Unix-like operating systems
+ *
+ * The HI-TECH Z80 C cross compiler V3.09 is provided free of charge for any use,
+ * private or commercial, strictly as-is. No warranty or product support
+ * is offered or implied including merchantability, fitness for a particular
+ * purpose, or non-infringement. In no event will HI-TECH Software or its
+ * corporate affiliates be liable for any direct or indirect damages.
+ *
+ * You may use this software for whatever you like, providing you acknowledge
+ * that the copyright to this software remains with HI-TECH Software and its
+ * corporate affiliates.
+ *
+ * All copyrights to the algorithms used, binary code, trademarks, etc.
+ * belong to the legal owner - Microchip Technology Inc. and its subsidiaries.
+ * Commercial use and distribution of recreated source codes without permission
+ * from the copyright holderis strictly prohibited.
+ *
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 09-Jul-2022
+ */
 #include "p1.h"
 
 void sub_5c50(void);
@@ -7,18 +38,18 @@ void sub_6fab(uint8_t p1);
 uint16_t sub_742a(uint16_t n);
 
 /**************************************************
- * 132: 5BE1 PMO
+ * 132: 5BE1 PMO +++
  **************************************************/
 void sub_5be1(register s8_t *st) {
     uint16_t ch;
     ch = st->i4;
     if (ch & 0x8000)
         prError("too much indirection");
-    st->i4 = ch << 1;
+    st->i4 = (ch << 1) | 1;
 }
 
 /**************************************************
- * 133: 5C19 PMO
+ * 133: 5C19 PMO +++
  **************************************************/
 void sub_5c19(uint8_t p1) {
     register sym_t *st; /* may not be needed */
@@ -26,9 +57,9 @@ void sub_5c19(uint8_t p1) {
 
     byte_a299 = p1;
     for (;;) {
-        ungetTok = (tok = yylex());
-        if (ungetTok == S_CLASS || ungetTok == S_TYPE ||
-            (ungetTok == T_ID && (st = yylval.ySym)->m20 == T_TYPEDEF))
+        ungetTok = tok = yylex();
+        if (tok == S_CLASS || tok == S_TYPE ||
+            (tok == T_ID && (st = yylval.ySym)->m20 == T_TYPEDEF))
             sub_5c50();
         else
             break;
@@ -37,9 +68,11 @@ void sub_5c19(uint8_t p1) {
 }
 
 /**************************************************
- * 134: 5C50 PMO
+ * 134: 5C50 PMO +++
+ * trivial optimiser differences, use of uint8_t arg
+ * and dummy arg
  **************************************************/
-void sub_5c50() {
+void sub_5c50(void) {
     uint8_t scType;
     s8_t var9;
     uint8_t tok;
@@ -57,11 +90,10 @@ void sub_5c50() {
         return;
     ungetTok = tok;
     for (;;) {
-        st   = sub_69ca(scType, &var9, scFlags & ~1, 0); // dummy last param
-        vard = st && (st->m18 & 0x10) && st->attr.c7 != ANODE;
-        varc = (scFlags & 1) && scType != D_6 && vard;
-        tok  = yylex();
-        if (tok == T_EQ) {
+        st   = sub_69ca(scType, &var9, scFlags & ~1, 0); /* dummy last param */
+        vard = st && (st->m18 & 0x10) && st->attr.c7 == ANODE;
+        varc = (scFlags & 1) && scType != D_6 && !vard;
+        if ((tok = yylex()) == T_EQ) {
             if (vard || scType == D_6 || scType == T_EXTERN || scType == T_TYPEDEF)
                 prError("illegal initialisation");
             if (scType == T_STATIC || scType == T_EXTERN) {
@@ -82,7 +114,7 @@ void sub_5c50() {
             if (depth && scType == T_STATIC)
                 st->m18 |= 0x80;
             sub_0493(st);
-        } // 5d95
+        } /* 5d95 */
         if (tok == T_ID || tok == T_STAR) {
             expectErr(",");
             ungetTok = tok;
@@ -97,7 +129,9 @@ void sub_5c50() {
 }
 
 /**************************************************
- * 135: 5DD1 PMO
+ * 135: 5DD1 PMO +++
+ * use of uint8_t arg
+ * some optimisations different some better some worse
  **************************************************/
 uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
     uint8_t scType;
@@ -109,19 +143,17 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
     sym_t *var9;
     sym_t *ps;
 
-    attr->i4       = 0;
+    attr->i4        = 0;
     attr->i_sym     = 0;
     attr->i_nextSym = NULL;
-    attr->c7       = 0;
-    dataType      = 0;
-    scType        = 0;
-    sizeIndicator = 0;
-    isUnsigned    = false;
-    scFlags       = 0;
+    attr->c7        = 0;
+    scType = dataType = 0;
+    sizeIndicator     = 0;
+    isUnsigned        = false;
+    scFlags           = 0;
 
     for (;;) {
-        tok = yylex();
-        if (tok == S_CLASS) {
+        if ((tok = yylex()) == S_CLASS) {
             if (pscType == NULL)
                 prError("storage class illegal");
             else {
@@ -145,9 +177,8 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                     break;
                 }
             }
-        } else if (tok == S_TYPE) { // 5e78
-            tok = yylval.yVal;
-            switch (tok) {
+        } else if (tok == S_TYPE) { /* 5e78 */
+            switch (tok = yylval.yVal) {
             case T_SHORT:
                 sizeIndicator--;
                 break;
@@ -158,21 +189,21 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                 isUnsigned = true;
                 break;
             case T_UNION:
-                dataType  = DT_UNION;
-                attr->i_sym = sub_60db(D_UNION);
-                if (attr->i_sym)
-                    sub_51cf(attr->i_sym);
+                dataType        = DT_UNION;
+                attr->i_nextSym = sub_60db(D_UNION);
+                if (attr->i_nextSym)
+                    sub_51cf(attr->i_nextSym);
                 break;
             case T_STRUCT:
-                dataType  = DT_STRUCT;
-                attr->i_sym = sub_60db(D_STRUCT);
-                if (attr->i_sym)
-                    sub_51cf(attr->i_sym);
+                dataType        = DT_STRUCT;
+                attr->i_nextSym = sub_60db(D_STRUCT);
+                if (attr->i_nextSym)
+                    sub_51cf(attr->i_nextSym);
                 break;
             case T_ENUM:
-                dataType  = DT_ENUM;
-                attr->i_sym = sub_6360();
-                sub_51cf(attr->i_sym);
+                dataType        = DT_ENUM;
+                attr->i_nextSym = sub_6360();
+                sub_51cf(attr->i_nextSym);
                 break;
             case T_CHAR:
             case T_DOUBLE:
@@ -182,51 +213,40 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                 if (dataType)
                     prError("inconsistent type");
                 else
-                    switch (tok) {
-                    case T_FLOAT:
-                        dataType = DT_FLOAT;
-                        break;
-                    case T_VOID:
-                        dataType = DT_VOID;
-                        break;
-                    case T_CHAR:
-                        dataType = DT_CHAR;
-                        break;
-                    case T_INT:
-                        dataType = DT_INT;
-                        break;
-                    default:
-                        dataType = DT_DOUBLE;
-                        break;
-                    }
+                    dataType = tok == T_INT     ? DT_INT
+                               : tok == T_CHAR  ? DT_CHAR
+                               : tok == T_VOID  ? DT_VOID
+                               : tok == T_FLOAT ? DT_FLOAT
+                                                : DT_DOUBLE;
                 break;
             }
-        } else if (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF && dataType == 0) { // 5f68
+        } else if (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF && dataType == 0) { /* 5f68 */
             ps = yylval.ySym;
             sub_51cf(ps);
             var9 = ps;
             if (var9->a_c7) {
-                dataType  = DT_POINTER;
-                attr->i_sym = ps;
+                dataType        = DT_POINTER;
+                attr->i_nextSym = ps;
             } else {
                 dataType = var9->a_dataType;
-                attr->u1  = var9->attr.u1;
-                attr->i4  = var9->a_i4;
+                attr->u1 = var9->attr.u1;
+                attr->u2 = var9->attr.u2;
+                attr->i4 = var9->attr.i4;
             }
         } else
             break;
 
-    } // 6003
+    } /* 6003 */
     ungetTok = tok;
     if (scType == 0) {
         scType = depth ? byte_a299 : T_EXTERN;
         scFlags |= 1;
     }
-    if ((scFlags & 4) && (scType == T_AUTO || scType == D_6 || scType == 14 || scType == 15))
+    if ((scFlags & 4) && scType != T_AUTO && scType != D_6 && scType != D_14 && scType != D_15)
         prError("can't be a register");
     if (dataType == 0)
         dataType = DT_INT;
-    if (0 > sizeIndicator) {
+    if (sizeIndicator > 0) {
         if (dataType == DT_FLOAT || dataType == DT_INT)
             dataType += 2; /* to DT_DOUBLE or DT_LONG*/
         else
@@ -250,7 +270,9 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
 }
 
 /**************************************************
- * 136: 60DB PMO
+ * 136: 60DB PMO +++
+ * differences due to dummy args, use of uint8_t args
+ * and equivalent optimiser differences.
  **************************************************/
 sym_t *sub_60db(uint8_t p1) {
     sym_t *var2;
@@ -258,7 +280,7 @@ sym_t *sub_60db(uint8_t p1) {
     uint8_t tok;
     int16_t var7;
     s8_t varF;
-    sym_t *st;
+    register sym_t *st;
 
     byte_8f85 = true;
     tok       = yylex();
@@ -295,14 +317,12 @@ sym_t *sub_60db(uint8_t p1) {
                     }
                     var2->m14 = var7++;
                 }
-                tok = yylex();
-                if (tok == T_COLON) {
+                if ((tok = yylex()) == T_COLON) {
                     if (!(var2->attr.dataType & DT_UNSIGNED))
                         var2->attr.dataType |= DT_UNSIGNED;
                     if (!sub_5a76(&var2->attr, DT_UINT))
                         prError("bad bitfield type");
-                    tok = yylex();
-                    if (tok != T_ICONST)
+                    if ((tok = yylex()) != T_ICONST)
                         prError("integer constant expected");
                     else {
                         if (!var2) {
@@ -312,18 +332,17 @@ sym_t *sub_60db(uint8_t p1) {
                                 var4  = &var2->nMemberList;
                             }
                             var2->m14 = var7++;
-                        } // 62ce
+                        } /* 62ce */
                         var2->m18 |= 0x400;
-                        var2->m16 = yylval.yNum;
+                        var2->m16 = (int16_t)yylval.yNum;
                         tok       = yylex();
                     }
                 }
-            } while (tok == T_COMMA); // 62f2
+            } while (tok == T_COMMA); /* 62f2 */
             byte_8f86 = false;
             if (tok != T_SEMI)
                 expectErr(";");
-            tok = yylex();
-            if (tok == T_RBRACE) {
+            if ((tok = yylex()) == T_RBRACE) {
                 if (!(st->m18 & 1))
                     sub_516c(st);
                 if (var4) {
@@ -339,52 +358,50 @@ sym_t *sub_60db(uint8_t p1) {
     return st;
 }
 /**************************************************
- * 137: 6360 PMO
+ * 137: 6360 PMO +++
+ * differences due to dummy and uint8_t args
  **************************************************/
-sym_t *sub_6360() {
-    ;
+sym_t *sub_6360(void) {
     s8_t var8;
     sym_t *vara;
     expr_t *varc;
     int16_t vare;
     uint8_t tok;
-    register sym_t *st FORCEINIT;
+    register sym_t *st;
 
-    tok = yylex();
-    if (tok == T_ID) {
-        st  = yylval.ySym;
-        tok = yylex();
-        if (tok != T_LBRACE) {
+    if ((tok = yylex()) == T_ID) {
+        st = yylval.ySym;
+        if ((tok = yylex()) != T_LBRACE) {
             if (!(st->m18 & 1))
                 prError("undefined enum tab: %s", st->nVName);
             ungetTok = tok;
         }
     } else if (tok == T_LBRACE)
         st = sub_56a4();
-    else
+    else {
         expectErr("enum tag or {");
+        st = NULL;
+    }
     if (tok == T_LBRACE) {
         sub_516c(st = sub_4eed(st, D_ENUM, 0, 0));
-        var8.dataType = DT_ENUM;
+        var8.dataType  = DT_ENUM;
         var8.i_nextSym = st;
-        var8.i4       = 0;
-        var8.i_info      = 0;
-        var8.c7       = 0;
-        printf("[c");
+        var8.i4        = 0;
+        var8.i_info    = 0;
+        var8.c7        = 0;
+        printf("[c ");
         sub_573b(st, stdout);
         putchar('\n');
         vare = 0;
         varc = sub_1b4b(0, DT_INT);
         for (;;) {
-            tok = yylex();
-            if (tok != T_ID) {
+            if ((tok = yylex()) != T_ID) {
                 expectErr("identifier");
                 break;
-            } else { // 6474
+            } else { /* 6474 */
                 if ((vara = sub_4eed(yylval.ySym, DT_CONST, &var8, st)))
                     vara->m14 = vare++;
-                tok = yylex();
-                if (tok == T_EQ) {
+                if ((tok = yylex()) == T_EQ) {
                     sub_2569(varc);
                     sub_0a83(T_LBRACE);
                     if (!sub_5b08(&varc->attr) || varc->attr.dataType >= DT_LONG)
@@ -408,7 +425,8 @@ sym_t *sub_6360() {
     return st;
 }
 /**************************************************
- * 138: 6531 PMO
+ * 138: 6531 PMO +++
+ * differences due to dummy and uint8_t args
  **************************************************/
 void sub_6531(register sym_t *st) {
     expr_t *var2;
@@ -419,10 +437,9 @@ void sub_6531(register sym_t *st) {
         prError("can't initialise auto aggregates");
         skipToSemi();
     } else {
-        tok = yylex();
-        if (!(var4 = tok == T_LBRACE))
+        if (!(var4 = (tok = yylex()) == T_LBRACE))
             ungetTok = tok;
-        if ((var2 = sub_1441(T_60, sub_07f5(T_RBRACE), 0))) {
+        if ((var2 = sub_1441(T_60, sub_07f5(T_RBRACE), 0)) && st) {
             var2 = sub_1441(T_EQ, allocId(st), var2);
             sub_042d(var2);
             sub_2569(var2);
@@ -433,7 +450,10 @@ void sub_6531(register sym_t *st) {
 }
 
 /**************************************************
- * 139: 65E2 PMO
+ * 139: 65E2 PMO +++
+ * equivalent optimiser differences including basic
+ * block moves
+ * differences due to dummy and uint8_t args
  **************************************************/
 args_t *sub_65e2(uint16_t p1) {
     uint8_t scType;
@@ -456,21 +476,21 @@ args_t *sub_65e2(uint16_t p1) {
     var10          = byte_a299;
     byte_a299      = D_15;
     args.cnt       = 0;
-    var12          = 0;
+    var12          = false;
+    var11          = false;
     var1a.dataType = DT_INT;
     var1a.i4       = 0;
-    var1a.i_expr     = 0;
+    var1a.i_expr   = 0;
     var1a.c7       = 0;
-    for (;;) { // 6619
-        tok = yylex();
-        if (tok == T_3DOT) {
+    for (;;) { /* 6619 */
+        if ((tok = yylex()) == T_3DOT) {
             args.s8array[args.cnt].dataType = DT_VARGS;
-            args.s8array[args.cnt].i_expr     = 0;
+            args.s8array[args.cnt].i_expr   = 0;
             args.s8array[args.cnt].c7       = 0;
-            args.s8array[args.cnt].i4       = 0;
+            args.s8array[args.cnt++].i4     = 0;
             tok                             = yylex();
             break;
-        } // 66db
+        } /* 66db */
         if (tok == T_ID && yylval.ySym->m20 != T_TYPEDEF)
             if (p1)
                 var12 = true;
@@ -478,8 +498,10 @@ args_t *sub_65e2(uint16_t p1) {
                 prError("type specifier reqd. for proto arg");
         else
             var11 = true;
-        if (var11 && var12)
+        if (var11 && var12) {
+            var12 = false;
             prError("can't mix proto and non-proto args");
+        }
         ungetTok = tok;
         scFlags  = sub_5dd1(&scType, &attr);
         if (scType != D_15 && scType != T_REGISTER)
@@ -489,9 +511,9 @@ args_t *sub_65e2(uint16_t p1) {
         varb   = &st->attr;
         if (varb->c7 == ANODE) {
             varb->i_nextSym = sub_4eed(sub_56a4(), T_TYPEDEF, varb, 0);
-            varb->dataType = DT_POINTER;
-            varb->c7       = 0;
-            varb->i4       = 1;
+            varb->dataType  = DT_POINTER;
+            varb->c7        = 0;
+            varb->i4        = 1;
         }
         if (var11)
             sub_58bd(varb, &args.s8array[args.cnt++]);
@@ -503,7 +525,7 @@ args_t *sub_65e2(uint16_t p1) {
                 p25_a28f = st;
                 vare     = st;
                 st->m18 |= scFlags | 0x20;
-            } else if (st->m18 & 0x20) // 6893
+            } else if (st->m18 & 0x20) /* 6893 */
                 prError("argument redeclared: %s", st->nVName);
             else {
                 vare->nMemberList = st;
@@ -514,8 +536,7 @@ args_t *sub_65e2(uint16_t p1) {
                 st->m18 |= 0x208;
             st->nMemberList = 0;
         }
-        tok = yylex();
-        if (tok == T_EQ) {
+        if ((tok = yylex()) == T_EQ) {
             prError("can't initialize arg");
             skipStmt(tok);
         }
@@ -524,7 +545,7 @@ args_t *sub_65e2(uint16_t p1) {
             ungetTok = tok;
         } else if (tok != T_COMMA)
             break;
-    } // 669c
+    } /* 669c */
     byte_a299 = var10;
     if (tok != T_RPAREN) {
         expectErr(")");
@@ -537,38 +558,40 @@ args_t *sub_65e2(uint16_t p1) {
         if (args.s8array[var1c].c7 == ENODE) {
             args.s8array[var1c].c7 = SNODE;
             sub_2569(args.s8array[var1c].i_expr);
-            sub_5be1(args.s8array[var1c].i_nextInfo);
+            sub_5be1(&args.s8array[var1c]);
         }
     }
     return sub_578d((args_t *)&args);
 }
 
 /**************************************************
- * 140: 69CA PMO
+ * 140: 69CA PMO +++
+ * minor code optimiser differences and deltas
+ * due to dummy and uit8_t args
  **************************************************/
 sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
-    uint16_t var2;
+    int16_t var2;
     sym_t *var4;
     s12_t *var6;
     s12_t var12;
     uint8_t tok;
     s8_t var1b;
 
-    var6            = p12_a297;
-    p12_a297        = &var12;
-    var1b.i_info       = NULL; // other options
-    var1b.i_nextInfo = NULL; // other options
-    var1b.c7        = 0;
-    var1b.i4        = 0;
-    var1b.dataType  = 0;
-    p12_a297->p8    = &var1b;
-    p12_a297->i6    = 0;
-    p12_a297->p25   = NULL;
-    p12_a297->p25_1 = NULL;
-    p12_a297->uca   = 0;
-    p12_a297->uc9   = 0;
-    p12_a297->uc8   = 0;
-    p12_a297->ucb   = 0;
+    var6             = p12_a297;
+    p12_a297         = &var12;
+    var1b.i_info     = NULL; /* other options */
+    var1b.i_nextInfo = NULL; /* other options */
+    var1b.c7         = 0;
+    var1b.i4         = 0;
+    var1b.dataType   = 0;
+    p12_a297->p8     = &var1b;
+    p12_a297->i6     = 0;
+    p12_a297->p25    = NULL;
+    p12_a297->p25_1  = NULL;
+    p12_a297->uca    = 0;
+    p12_a297->uc9    = 0;
+    p12_a297->uc8    = 0;
+    p12_a297->ucb    = 0;
     sub_6fab(p1);
     ungetTok = tok = yylex();
     if (p12_a297->ucb) {
@@ -578,28 +601,32 @@ sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
                 p1 = T_TYPEDEF;
         } else
             prError("no identifier in declaration");
-    } // 6aaf
+    } /* 6aaf */
     p12_a297->p8->dataType = p2->dataType;
     p12_a297->p8->u1       = p2->u1;
-    var2                   = p2->i4;
+
     for (var2 = p2->i4; var2; var2 >>= 1) {
         if (p12_a297->i6 & 1) {
             p12_a297->uc8 = 1;
             break;
         }
-        p12_a297->i6 = ((var2 & 1) << 15) | (p12_a297->i6 >> 1);
+        p12_a297->i6 = (p12_a297->i6 >> 1) | ((var2 & 1) << 15);
     }
-    while (p12_a297->p8->c7 == SNODE && p12_a297->p8->dataType == DT_POINTER &&
-           (p12_a297->i6 == 0 || p12_a297->p8->c7 == SNODE)) {
-        for (var2 = p12_a297->p8->i_nextInfo->i4; var2; var2 >>= 1) {
-            if (p12_a297->i6 & 1) {
-                p12_a297->uc8 = 1;
-                break;
+    /* ^^^ */
+    for (;;) {
+        if (p12_a297->p8->c7 == SNODE && p12_a297->p8->dataType == DT_POINTER &&
+            (p12_a297->i6 == 0 || p12_a297->p8->i_nextInfo->c7 == SNODE)) {
+            for (var2 = p12_a297->p8->i_nextInfo->i4; var2; var2 >>= 1) {
+                if (p12_a297->i6 & 1) {
+                    p12_a297->uc8 = 1;
+                    break;
+                }
+                p12_a297->i6 = (p12_a297->i6 >> 1) | ((var2 & 1) << 15);
             }
-            p12_a297->i6 = ((var2 & 1) << 15) | (p12_a297->i6 >> 1);
-        }
-        sub_58bd(p12_a297->p8->i_nextInfo, p12_a297->p8);
-    } // 6c13
+            sub_58bd(p12_a297->p8->i_nextInfo, p12_a297->p8);
+        } else
+            break;
+    } /* 6c13 vvv */
     if (p12_a297->uc8)
         prError("declarator too complex");
     p12_a297->p8->i4 = sub_742a(p12_a297->i6);
@@ -618,12 +645,12 @@ sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
         sub_51cf(p12_a297->p25_1);
         if (p12_a297->p25_1->attr.c7 != ANODE || !(p12_a297->p25_1->m18 & 0x80))
             sub_0493(p12_a297->p25_1);
-    } // 6d95
+    } /* 6d95 */
     if (p1 != T_TYPEDEF && p12_a297->p8->i4 == 0 &&
         (sub_5a76(p2, DT_STRUCT) || sub_5a76(p2, DT_UNION)) && p2->i_nextSym &&
         !(p2->i_nextSym->m18 & 1))
-        prError("undefined struct/union: %s", p12_a297->p8->i_sym->nVName);
-    if (p12_a297->p25) { // 6e0b
+        prError("undefined struct/union: %s", p12_a297->p8->i_nextSym->nVName);
+    if (p12_a297->p25) { /* 6e0b */
         if (byte_a299 == D_6 && p1 != D_MEMBER) {
             if (p12_a297->p25->m18 & 8)
                 prError("argument redeclared: %s", p12_a297->p25->nVName);
@@ -637,24 +664,26 @@ sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
                     p12_a297->p25->attr.dataType = DT_DOUBLE;
                 }
             }
-        } else if (byte_a299 != D_14 && byte_a299 != D_15) { // 6ecd
+        } else if (byte_a299 != D_14 && byte_a299 != D_15) { /* 6ecd */
             if (p1 == T_AUTO && var1b.c7 == ANODE)
                 p1 = T_EXTERN;
             if ((p12_a297->p25 = sub_4eed(p12_a297->p25, p1, &var1b, p4)))
                 p12_a297->p25->m18 |= p3;
         } else {
-            if (p12_a297->p25->m20 && p12_a297->p25->m21 != depth) // 6f39
+            if (p12_a297->p25->m20 && p12_a297->p25->m21 != depth) /* 6f39 */
                 p12_a297->p25 = sub_4eed(p12_a297->p25, 0, &var1b, 0);
             p12_a297->p25->attr = var1b;
         }
     }
-    // 6f91
+    /* 6f91 */
     var4     = p12_a297->p25;
     p12_a297 = var6;
     return var4;
 }
 /**************************************************
- * 141: 6FAB PMO
+ * 141: 6FAB PMO +++
+ * minor equivalent optimiser differences
+ * differnces due to dummy & uint8_t args
  **************************************************/
 void sub_6fab(uint8_t p1) {
     bool var1;
@@ -676,7 +705,7 @@ void sub_6fab(uint8_t p1) {
         if (p12_a297->p25->m20 == 0)
             p12_a297->p25->m20 = p1;
         byte_a29a = p1 != D_14;
-    } else if (tok == T_LPAREN) { // 701b
+    } else if (tok == T_LPAREN) { /* 701b */
         ungetTok = tok = yylex();
         if (tok == T_RPAREN || tok == S_CLASS || tok == S_TYPE ||
             (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF))
@@ -687,9 +716,9 @@ void sub_6fab(uint8_t p1) {
                 expectErr(")");
             tok = yylex();
         }
-    } // 707b
+    } /* 707b */
     p12_a297->ucb = p12_a297->p25 == NULL;
-    for (;;) { // 7091
+    for (;;) { /* 7091 */
         if (tok == T_LPAREN) {
             if (p12_a297->uc9) {
                 prError("can't have array of functions");
@@ -697,16 +726,17 @@ void sub_6fab(uint8_t p1) {
             }
             if (p12_a297->p8->c7 == ANODE && p12_a297->i6 == 0)
                 prError("functions can't return functions");
-            if (p12_a297->i6 & 0x8000) { // 70e7
-                p12_a297->p8->dataType = DT_POINTER;
-                p12_a297->p8->i4       = sub_742a(p12_a297->i6);
-                p12_a297->i6           = 0;
+            if (p12_a297->i6 & 0x8000) { /* 70e7 */
+                p12_a297->p8->dataType  = DT_POINTER;
+                p12_a297->p8->i4        = sub_742a(p12_a297->i6);
+                p12_a297->i6            = 0;
                 p12_a297->p8->i_nextSym = sub_56a4();
                 if (p12_a297->p25_1)
                     p12_a297->p25_1 =
                         sub_4eed(p12_a297->p25_1, T_TYPEDEF, &p12_a297->p25_1->attr, 0);
-                p12_a297->p25_1 = p12_a297->p25_1->a_sym;
-            } // 7195
+                p12_a297->p25_1 = p12_a297->p8->i_nextSym;
+                p12_a297->p8    = &p12_a297->p25_1->attr;
+            } /* 7195 */
             p12_a297->p8->c7 = ANODE;
             byte_a29a        = byte_a29a && !depth;
             if (!byte_a29a) {
@@ -714,11 +744,10 @@ void sub_6fab(uint8_t p1) {
                 depth++;
             } else
                 var5 = false;
-            // 71cc
+            /* 71cc */
             depth++;
-            tok = yylex();
-            if (tok == S_CLASS || tok == S_TYPE || tok == T_ID) {
-                ungetTok           = tok;
+            if ((tok = yylex()) == S_CLASS || tok == S_TYPE || tok == T_ID) {
+                ungetTok             = tok;
                 p12_a297->p8->i_args = sub_65e2(byte_a29a);
             } else if (tok != T_RPAREN) {
                 expectErr(")");
@@ -730,46 +759,45 @@ void sub_6fab(uint8_t p1) {
                 depth--;
             }
             depth--;
-        } else if (tok == T_LBRACK) { // 7248
+        } else if (tok == T_LBRACK) { /* 7248 */
             if (p12_a297->p8->c7 == ANODE)
                 prError("functions can't return arrays");
             if (p12_a297->uca || (p12_a297->i6 & 0x8000)) {
-                p12_a297->uca          = false;
-                p12_a297->p8->dataType = DT_POINTER;
-                p12_a297->p8->i4       = sub_742a(p12_a297->i6);
+                p12_a297->uca           = false;
+                p12_a297->p8->dataType  = DT_POINTER;
+                p12_a297->p8->i4        = sub_742a(p12_a297->i6);
+                p12_a297->i6            = 0;
                 p12_a297->p8->i_nextSym = sub_56a4();
                 if (p12_a297->p25_1)
                     p12_a297->p25_1 =
                         sub_4eed(p12_a297->p25_1, T_TYPEDEF, &p12_a297->p25_1->attr, 0);
                 p12_a297->p25_1 = p12_a297->p8->i_nextSym;
                 p12_a297->p8    = &p12_a297->p25_1->attr;
-            } // 732a
+            } /* 732a */
             var1      = byte_8f86;
             byte_8f86 = false;
-            tok       = yylex();
-            if (tok == T_RBRACK) {
+            if ((tok = yylex()) == T_RBRACK) {
                 if (p12_a297->uc9)
                     prError("dimension required");
                 st = &s13_9d1b;
             } else {
                 ungetTok = tok;
                 st       = sub_0a83(T_SEMI);
-                tok      = yylex();
-                if (tok != T_RBRACK) {
+                if ((tok = yylex()) != T_RBRACK) {
                     expectErr("]");
                     skipStmt(tok);
                 }
-            } // 738a
-            p12_a297->uca      = true;
-            p12_a297->uc9      = true;
-            byte_8f86          = var1;
-            p12_a297->p8->c7   = 1;
+            } /* 738a */
+            p12_a297->uca        = true;
+            p12_a297->uc9        = true;
+            byte_8f86            = var1;
+            p12_a297->p8->c7     = 1;
             p12_a297->p8->i_expr = st;
-        } else { // 73c1
+        } else { /* 73c1 */
             ungetTok = tok;
             if (!var4)
                 p12_a297->p25->m20 = 0;
-            if (var2)
+            if (!var2)
                 return;
             p12_a297->uc9 = false;
             do {
@@ -785,7 +813,7 @@ void sub_6fab(uint8_t p1) {
 }
 
 /**************************************************
- * 142: 742A PMO
+ * 142: 742A PMO +++
  **************************************************/
 uint16_t sub_742a(uint16_t n) {
     if (n)
@@ -795,10 +823,10 @@ uint16_t sub_742a(uint16_t n) {
 }
 
 /**************************************************
- * 143: 7454 PMO
+ * 143: 7454 PMO +++
  **************************************************/
 void sub_7454(register s8_t *st) {
-    int16_t var2;
+    uint16_t var2;
     uint8_t var3;
 
     putchar('`');
@@ -813,17 +841,22 @@ void sub_7454(register s8_t *st) {
         else
             break;
     }
-
     var3 = st->dataType;
-    if (var3 == DT_ENUM || var3 == DT_POINTER)
+    switch (var3) {
+    case DT_ENUM:
+    case DT_POINTER:
         sub_573b(st->i_nextSym, stdout);
-    else if (var3 == DT_STRUCT || var3 == DT_POINTER)
+        break;
+    case DT_STRUCT:
+    case DT_UNION:
         printf("S%d", st->i_nextSym->a_labelId);
-    else {
+        break;
+    default:
         if (var3 & 1) {
             putchar('u');
             var3 &= ~1;
         }
         putchar("?bcsilxfd?v"[var3 >> 1]);
+        break;
     }
 }

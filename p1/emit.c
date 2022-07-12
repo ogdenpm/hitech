@@ -1,3 +1,34 @@
+/*
+ *
+ * The emit.c file is part of the restored P1.COM program
+ * from the Hi-Tech CP/M Z80 C v3.09
+ *
+ * Not a commercial goal of this laborious work is to popularize among
+ * potential fans of 8-bit computers the old HI-TECH Z80 C compiler V3.09
+ * (HI-TECH Software) and extend its life, outside of the CP/M environment
+ * for full operation in windows 32/64 and Unix-like operating systems
+ *
+ * The HI-TECH Z80 C cross compiler V3.09 is provided free of charge for any use,
+ * private or commercial, strictly as-is. No warranty or product support
+ * is offered or implied including merchantability, fitness for a particular
+ * purpose, or non-infringement. In no event will HI-TECH Software or its
+ * corporate affiliates be liable for any direct or indirect damages.
+ *
+ * You may use this software for whatever you like, providing you acknowledge
+ * that the copyright to this software remains with HI-TECH Software and its
+ * corporate affiliates.
+ *
+ * All copyrights to the algorithms used, binary code, trademarks, etc.
+ * belong to the legal owner - Microchip Technology Inc. and its subsidiaries.
+ * Commercial use and distribution of recreated source codes without permission
+ * from the copyright holderis strictly prohibited.
+ *
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 09-Jul-2022
+ */
 #include "p1.h"
 
 int16_t word_9caf; /*9caf */
@@ -8,7 +39,7 @@ void sub_0470(expr_t *p);
 void sub_05f1(register expr_t *st);
 
 /**************************************************
- * 1: 013D PMO
+ * 1: 013D PMO +++
  **************************************************/
 void sub_013d(register FILE *p) {
 
@@ -25,7 +56,7 @@ void sub_013d(register FILE *p) {
 }
 
 /**************************************************
- * 2: 01C1 PMO
+ * 2: 01C1 PMO +++
  **************************************************/
 void sub_01c1(register sym_t *p) {
 
@@ -36,7 +67,7 @@ void sub_01c1(register sym_t *p) {
 }
 
 /**************************************************
- * 3: 01EC PMO
+ * 3: 01EC PMO +++
  **************************************************/
 void sub_01ec(register sym_t *p) {
 
@@ -46,18 +77,20 @@ void sub_01ec(register sym_t *p) {
 }
 
 /**************************************************
- * 4: 022E PMO
+ * 4: 022E PMO +++
+ * optimiser has basic blocks moved and eliminates
+ * a ld a,(ix+6)
  **************************************************/
 void prFuncBrace(uint8_t tok) {
     if (tok == T_RBRACE)
-        putchar('{');
-    else if (tok == T_LBRACE)
         putchar('}');
+    else if (tok == T_LBRACE)
+        putchar('{');
     putchar('\n');
 }
 
 /**************************************************
- * 5: 0258 PMO
+ * 5: 0258 PMO +++
  **************************************************/
 void emitLabelDef(int16_t p) {
 
@@ -66,7 +99,7 @@ void emitLabelDef(int16_t p) {
 }
 
 /**************************************************
- * 6: 0273 PMO
+ * 6: 0273 PMO +++
  **************************************************/
 void sub_0273(register sym_t *st) {
 
@@ -79,7 +112,7 @@ void sub_0273(register sym_t *st) {
 }
 
 /**************************************************
- * 7: 02A6 PMO
+ * 7: 02A6 PMO +++
  **************************************************/
 void sub_02a6(case_t *p1) {
     int16_t caseCnt;
@@ -103,7 +136,7 @@ void sub_02a6(case_t *p1) {
 }
 
 /**************************************************
- * 8: 0353 PMO
+ * 8: 0353 PMO +++
  **************************************************/
 void sub_0353(sym_t *p, char c) {
     register sym_t *st;
@@ -119,7 +152,6 @@ void sub_0353(sym_t *p, char c) {
         else
             putchar('u'); /* UNION */
         printf(" S%d", p->a_labelId);
-        st = p->nMemberList;
         for (st = p->nMemberList; st != p; st = st->nMemberList) {
             if ((st->m18 & 0x400))
                 printf(" :%d", st->m16);
@@ -133,7 +165,7 @@ void sub_0353(sym_t *p, char c) {
 }
 
 /**************************************************
- * 9: 042D PMO
+ * 9: 042D PMO +++
  **************************************************/
 void sub_042d(register expr_t *p) {
 
@@ -146,7 +178,7 @@ void sub_042d(register expr_t *p) {
 }
 
 /**************************************************
- * 10: 0470 PMO
+ * 10: 0470 PMO +++
  **************************************************/
 void sub_0470(expr_t *p) {
 
@@ -157,7 +189,7 @@ void sub_0470(expr_t *p) {
 }
 
 /**************************************************
- * 11: 0493 PMO
+ * 11: 0493 PMO +++
  **************************************************/
 void sub_0493(register sym_t *st) {
     char c;
@@ -186,14 +218,14 @@ void sub_0493(register sym_t *st) {
 }
 
 /**************************************************
- * 12: 053F PMO
+ * 12: 053F PMO ++
  **************************************************/
 void sub_053f(register expr_t *st, char *pc) {
     int16_t var2;
 
     sub_013d(tmpFp);
-    fprintf(tmpFp, "[a %d", st->tType);
-    var2 = st->t_i0;
+    fprintf(tmpFp, "[a %d", st->t_i0);
+    var2 = st->t_i2;
     do {
         fprintf(tmpFp, " %d", *pc++);
     } while (var2--);
@@ -201,7 +233,7 @@ void sub_053f(register expr_t *st, char *pc) {
 }
 
 /**************************************************
- * 13: 05B5 PMO
+ * 13: 05B5 PMO +++
  **************************************************/
 void sub_05b5(expr_t *p1) {
 
@@ -211,7 +243,7 @@ void sub_05b5(expr_t *p1) {
 }
 
 /**************************************************
- * 14: 05D3 PMO
+ * 14: 05D3 PMO +++
  **************************************************/
 void sub_05d3(expr_t *p1) {
 
@@ -221,7 +253,9 @@ void sub_05d3(expr_t *p1) {
 }
 
 /**************************************************
- * 15: 05F1 PMO
+ * 15: 05F1 PMO +++
+ * Optimiser passes only uint8_t to sub_5a76 as it
+ * has the function prototype
  **************************************************/
 void sub_05f1(register expr_t *st) {
     t8_t *var2;
@@ -241,7 +275,7 @@ void sub_05f1(register expr_t *st) {
                 sub_573b(var4, stdout);
             break;
         case T_ICONST:
-            if (sub_5a76(&st->attr, 0x14) != 0) {
+            if (sub_5a76(&st->attr, DT_VOID) != 0) {
                 printf("%ld", st->t_ul);
                 break;
             } else
@@ -263,17 +297,14 @@ void sub_05f1(register expr_t *st) {
     } else {
         if (st->tType == T_SIZEOF)
             printf("-> ");
-        if (st->tType == T_SIZEOF) {
-            if ((var6 = st->t_next)->tType == T_ID) {
-                if (!(var6->t_pSym->m18 & 1)) {
-                    printf("* # ");
-                    sub_7454(&var6->attr);
-                    putchar(' ');
-                    sub_01c1(var6->t_pSym);
-                    putchar(' ');
-                    sub_7454(&st->attr);
-                }
-            }
+        if (st->tType == T_SIZEOF && (var6 = st->t_next)->tType == T_ID &&
+            !(var6->t_pSym->m18 & 1)) {
+            printf("* # ");
+            sub_7454(&var6->attr);
+            putchar(' ');
+            sub_01c1(var6->t_pSym);
+            putchar(' ');
+            sub_7454(&st->attr);
         } else {
             printf("%.3s ", var2->s0);
             if (st->tType != T_120) {
@@ -291,9 +322,10 @@ void sub_05f1(register expr_t *st) {
 }
 
 /**************************************************
- * 16: 07E3 PMO
+ * 16: 07E3 PMO +++
+ * optimiser removes call csv & jp cret
  **************************************************/
-void sub_07e3() {
+void sub_07e3(void) {
     s13SP       = &s13Stk[20];
     s13FreeList = 0;
 }

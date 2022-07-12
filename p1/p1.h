@@ -1,3 +1,34 @@
+/*
+ *
+ * The p1.h file is part of the restored P1.COM program
+ * from the Hi-Tech CP/M Z80 C v3.09
+ *
+ * Not a commercial goal of this laborious work is to popularize among
+ * potential fans of 8-bit computers the old HI-TECH Z80 C compiler V3.09
+ * (HI-TECH Software) and extend its life, outside of the CP/M environment
+ * for full operation in windows 32/64 and Unix-like operating systems
+ *
+ * The HI-TECH Z80 C cross compiler V3.09 is provided free of charge for any use,
+ * private or commercial, strictly as-is. No warranty or product support
+ * is offered or implied including merchantability, fitness for a particular
+ * purpose, or non-infringement. In no event will HI-TECH Software or its
+ * corporate affiliates be liable for any direct or indirect damages.
+ *
+ * You may use this software for whatever you like, providing you acknowledge
+ * that the copyright to this software remains with HI-TECH Software and its
+ * corporate affiliates.
+ *
+ * All copyrights to the algorithms used, binary code, trademarks, etc.
+ * belong to the legal owner - Microchip Technology Inc. and its subsidiaries.
+ * Commercial use and distribution of recreated source codes without permission
+ * from the copyright holderis strictly prohibited.
+ *
+ *
+ * See the readme.md file for additional commentary
+ *
+ * Mark Ogden
+ * 09-Jul-2022
+ */
 #ifndef _P1_H
 #define _P1_H
 
@@ -41,6 +72,8 @@ typedef long int32_t;
  */
 #ifdef CPM
 #define FORCEINIT
+#undef putchar
+int putchar(int ch);
 #else
 #define FORCEINIT    = 0
 /* map some old HiTech functions */
@@ -73,7 +106,7 @@ typedef struct _s8 {
         struct _args *_pArgs;
         struct _s8 *_pInfo;
     } u2;
-    int16_t i4;
+    uint16_t i4;
     uint8_t dataType;
     char c7;
 } s8_t;
@@ -95,7 +128,7 @@ typedef struct _sym {
     int16_t m14;
     int16_t m16;
     int16_t m18;
-    char m20;
+    uint8_t m20;
     char m21;
     char nRefCnt;
     char *nVName;
@@ -224,7 +257,7 @@ extern bool l_opt;            /* a083 */
 extern FILE *tmpFp;           /* a084 */
 extern char inBuf[512];       /* a086 */
 extern int16_t errCnt;        /* a286 */
-extern uint8_t depth;         /* a288 */
+extern int8_t depth;         /* a288 */
 extern uint8_t byte_a289;     /* a289 */
 extern bool unreachable;      /* a28a */
 extern int16_t word_a28b;     /* a28b */
@@ -278,7 +311,7 @@ void skipToSemi(void);
 
 /* main.c */
 int main(int argc, char *argv[]);
-#ifdef CPM
+#ifdef OLDCPM
 void prError(char *p1, int p2, int p3);
 void fatalErr(char *p1, char *p2);
 void prWarning(char *p1, int p2, int p3);
@@ -288,7 +321,7 @@ void fatalErr(char *fmt, ...);
 void prWarning(char *fmt, ...);
 #endif
 void expectErr(char *p);
-void *xalloc(unsigned size);
+void *xalloc(size_t size);
 
 /* program.c */
 void sub_3adf(void);
@@ -300,7 +333,7 @@ void sub_409b(void);
 /* sym.c */
 void sub_4d92(void);
 sym_t *sub_4e90(register char *buf);
-sym_t *sub_4eed(register sym_t *st, int16_t p2, s8_t *p3, sym_t *p4);
+sym_t *sub_4eed(register sym_t *st, uint8_t p2, s8_t *p3, sym_t *p4);
 void sub_516c(register sym_t *st);
 void sub_51cf(register sym_t *st);
 void sub_51e7(void);
@@ -333,15 +366,24 @@ sym_t *sub_6360(void);
 sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4);
 void sub_7454(register s8_t *st);
 
+#ifdef _WIN32
+void initMemAddr(void); /* for now only needed for windows */
+#else
+#define initMemAddr()
+#endif
+
 #ifdef CPM
 extern char _Hbss;
 #define inData(p) (((char *)p) < &_Hbss)
 #else
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#define initMemAddr()
+#define inData(p) (!malloc_zone_from_ptr(p))
+#else
 extern const char *_Ldata;
 extern const char *_Hbss;
-#ifdef _WIN32
-void initMemAddr();
-#endif
 #define inData(p) (_Ldata <= ((const char *)p) && ((const char *)p) < _Hbss)
+#endif
 #endif
 #endif
