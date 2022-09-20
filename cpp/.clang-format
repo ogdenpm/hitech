@@ -1,0 +1,21 @@
+# Format Style Options - Created with Clang Power Tools
+---
+AlignConsecutiveAssignments: AcrossEmptyLines
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
+AlignOperands: Align
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+ColumnLimit: 100
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+Cpp11BracedListStyle: false
+IndentCaseBlocks: true
+IndentWidth: 4
+SpaceBeforeCaseColon: false
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+TabWidth: 4
+UseCRLF: true
+...
