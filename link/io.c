@@ -18,27 +18,26 @@
 
 #include "link.h"
 
+static void writeText();                 /* 0365  6 */
+static void i16tole(int16_t, uint8_t *); /* 05bf 10 */
+
 /****************************************************************
  *	Initialized variables
  ****************************************************************/
 
-uint8_t *nonTextRecPtr = nonTextRecBuf + 3; /* 6acd */
+uint8_t *nonTextRecPtr   = nonTextRecBuf + 3; /* 6acd */
 
-uint8_t order32[]      = { /* 6acf */
-                      0, 1, 2, 3
+static uint8_t order32[] = { /* 6acf */
+                             0, 1, 2, 3
 };
 
-uint8_t order16[] = { /* 6ad3 */
-                      0, 1
+static uint8_t order16[] = { /* 6ad3 */
+                             0, 1
 };
 
 void (*libHandlers[])() = { /* 6be7 */
                             libPass1, libPass2
 };
-
-char usageMsg[] = /* 6c66 */
-    "Usage: link [-cbase][-dsymfile][-r][-n][-s][-x][-z][-oofile][-pspec][-mmap]{-usym}[-wwidth] "
-    "input ...";
 
 #ifdef CPM
 FILE *moduleFp = stdin; /*6c28 */
@@ -46,9 +45,9 @@ FILE *moduleFp = stdin; /*6c28 */
 FILE *moduleFp = NULL; /* for GCC and VC stdin is actually a function call so can't be used here */
 #endif
 
-int width         = 80;
+int width                  = 80; /* 6c2a */
 
-char *rec_types[] = {
+static char *recordTypes[] = {
     /* 6c2c */
     "",      /* 0 */
     "TEXT",  /* 1 */
@@ -61,96 +60,29 @@ char *rec_types[] = {
     "XPSECT" /* 8 */
 };
 
-/* record handler {pass1, pass2} */
-void (*recHandler[][2])() = {
-    /* 6c3e */
-    { NULL, NULL },                             /* 6c3e 0 ""	  */
-    { (void (*)())textRecPass1, textRecPass2 }, /* 6c42 1 "TEXT"   */
-    { psectRecPass1, skipRecData },             /* 6c46 2 "PSECT"  */
-    { relocRecPass1, relocRecPass2 },           /* 6c4a 3 "RELOC"  */
-    { symRecPass1, symRecPass2 },               /* 6c4e 4 "SYM"	  */
-    { skipRecData, startRecPass2 },             /* 6c52 5 "START"  */
-    { endRecPass1, endRecPass2 },               /* 6c56 6 "END"	  */
-    { identRecPass1, skipRecData },             /* 6c5a 7 "IDENT"  */
-    { xpsectRecPass1, skipRecData }             /* 6c5e 8 "XPSECT" */
-};
-
-void (*finPassHandler[2])() = { finPass1, finPass2 };
-
-psect_t *nextPsect          = psectInfo; /* 6f69 */
-
 /*
  *	Uninitialized variables and arrays
  */
-bool haveIdent;             /* 7616   */
-uint8_t *textRecPtr;        /* 7617   */
-uint8_t nonTextRecBuf[512]; /* 7619   */
-uint32_t targetAddress;     /* 7819   */
-int textLen;                /* 781d   */
-uint8_t textRecBuf[512];    /* 781f   */
-uint8_t rectyp;             /* 7a1f   */
-uint8_t *endAddr;           /* 7a20   */
-uint8_t recbuf[512];        /* 7a22   */
-int alreadyWritten;         /* 7c22   */
-uint8_t *curAddr;           /* 7c24   */
-uint32_t moduleSize;        /* 7c26 * */
-int symSize;                /* 7c2a * */
-int num_modules;            /* 7c2c * */
-bool moduleLoaded;          /* 7c2e * */
-int size_symbols;           /* 7c2f * */
-bool moduleNeeded;          /* 7c31 * */
-int num_files;              /* 7c32 * */
-FILE *libraryFp;            /* 7c34 * */
-int symCnt;                 /* 7c36 * */
-uint8_t libBuf[100];        /* 7c38 * */
-vec_t **libTable;           /* 7c9c * */
-bool haveEntryPt;           /* 7c9e   */
-char *libraryName;          /* 7c9f * */
-bool key_LM;                /* 7ca1 * */
-bool key_C;                 /* 7ca2 * */
-FILE *symFp;                /* 7ca3   */
-uint8_t linker_pass;        /* 7ca5 * */
-char *fname_sym;            /* 7ca6   */
-int cntUnresolved;          /* 7ca8   */
-char *fname_obj;            /* 7caa * */
-bool key_R;                 /* 7cac * */
-char *fname_map;            /* 7cad   */
-bool key_S;                 /* 7caf * */
-uint16_t curFileId;         /* 7cb0   */
-bool key_H;                 /* 7cb2   */
-uint16_t length;            /* 7cb3   */
-char *fname_outp;           /* 7cb5   */
-bool key_I;                 /* 7cb7 * */
-char *psect_location;       /* 7cb8   */
-bool key_X;                 /* 7cbb * */
-FILE *outFp;                /* 7cbc   */
-bool key_L;                 /* 7cbe * */
-int num_lib_files;          /* 7cbf * */
-bool key_M;                 /* 7cc1 * */
-bool key_Z;                 /* 7cc2   */
-int err_num;                /* 7cc3   */
-uint32_t offset_address;    /* 7cc5   */
-int numRecord;              /* 7cc9   */
-bool key_N;                 /* 7ccb * */
-char *fixupName;            /* 7ccc   */
-uint32_t linkAddress;       /* 7cce   */
-sym_t *absSym;              /* 7cd2   */
-psect_t psectInfo[20];      /* 7cd4   */
-uint32_t saveLoadAddress;   /* 7ef0   */
-uint32_t maxLinkAddress;    /* 7ef4   */
-int newSymCnt;              /* 7ef8   */
-uint32_t loadAddress;       /* 7efa   */
-sym_t **symbol_table;       /* 7efe   */
-uint32_t textBaseAddress;   /* 7f00   */
+static bool haveIdent;         /* 7616   */
+uint8_t *textRecPtr;           /* 7617   */
+uint8_t nonTextRecBuf[512];    /* 7619   */
+static uint32_t targetAddress; /* 7819   */
+int textLen;                   /* 781d   */
+uint8_t textRecBuf[512];       /* 781f   */
+uint8_t recTyp;                /* 7a1f   */
+uint8_t *endAddr;              /* 7a20   */
+uint8_t recbuf[512];           /* 7a22   */
+int alreadyWritten;            /* 7c22   */
+uint8_t *curAddr;              /* 7c24   */
 
 /*int asdf = 0xfff6;  */
 
 /**************************************************************************
- 1	err_write	sub-013dh	ok++ (nau)(PMO)
+ 1	writeErr	sub-013dh	ok++ (nau)(PMO)
  **************************************************************************/
-void err_write() {
+static void writeErr() {
 
-    fatal_err("%s: Write error (out of disk space?)", fname_outp);
+    fatalErr("%s: Write error (out of disk space?)", outFileName);
 }
 
 /**************************************************************************
@@ -178,11 +110,11 @@ void identRecPass1() {
 
     haveIdent = true;
 
-    if (key_M != 0)
+    if (optM != 0)
         printf("Machine type is %s\n\n", recbuf + IDENT_MACHINE);
 
-    if (key_C == 0)
-        writeRec(IDENT_RECORD, length, recbuf); /* copy the Ident record */
+    if (optC == 0)
+        writeRec(IDENT_RECORD, recLen, recbuf); /* copy the Ident record */
 }
 
 /**************************************************************************
@@ -195,15 +127,15 @@ void readRecHdr() {
 
     ++numRecord;
 
-    length = (recbuf[1] << 8) + recbuf[0];
+    recLen = (recbuf[1] << 8) + recbuf[0];
 
-    rectyp = recbuf[RECORD_TYPE];
+    recTyp = recbuf[RECORD_TYPE];
 
-    if (rectyp <= 0 || rectyp >= SEGMENT_RECORD)
-        badFormat("unknown record type: %d", rectyp);
+    if (recTyp <= 0 || recTyp >= SEGMENT_RECORD)
+        badFormat("unknown record type: %d", recTyp);
 
-    if (length > (512 - RECORD_HDR))
-        badFormat("record too uint32_t: %d+%d", 3, length);
+    if (recLen > (512 - RECORD_HDR))
+        badFormat("record too long: %d+%d", 3, recLen);
 }
 
 /**************************************************************************
@@ -211,23 +143,23 @@ void readRecHdr() {
  **************************************************************************/
 void readRecData(uint8_t *buf) {
 
-    if (fread(buf, 1, length, moduleFp) != length)
-        badFormat("incomplete %s record body: length = %d", rec_types[*(recbuf + RECORD_TYPE)],
-                  length);
+    if (fread(buf, 1, recLen, moduleFp) != recLen)
+        badFormat("incomplete %s record body: length = %d", recordTypes[*(recbuf + RECORD_TYPE)],
+                  recLen);
 }
 
 /**************************************************************************
  5	writeRec	ok++ (nau)(PMO)
  *  optimiser improves on calculation of address of tmp
  **************************************************************************/
-void writeRec(int recType, uint16_t length, uint8_t *recbuf) {
+void writeRec(int type, uint16_t len, uint8_t *buf) {
     uint8_t tmp[RECORD_HDR];
 
-    tmp[RECORD_TYPE] = recType;
-    conv_i16tole(length, tmp);
-    if (fwrite(tmp, RECORD_HDR, 1, outFp) == 1 && fwrite(recbuf, 1, length, outFp) == length)
+    tmp[RECORD_TYPE] = type;
+    i16tole(len, tmp);
+    if (fwrite(tmp, RECORD_HDR, 1, outFp) == 1 && fwrite(buf, 1, len, outFp) == len)
         return;
-    err_write();
+    writeErr();
 }
 
 /**************************************************************************
@@ -235,7 +167,7 @@ void writeRec(int recType, uint16_t length, uint8_t *recbuf) {
  optimiser improves on calculation of address of tmp, but misses ex (sp),hl
  optimisation using pop bc, push hl instead
  **************************************************************************/
-void writeText() {
+static void writeText() {
     uint8_t tmp[RECORD_HDR];
     int textHdrLen;
     int writeLen;
@@ -246,30 +178,30 @@ void writeText() {
     textHdrLen = TEXT_PNAME + (int)strlen((char *)textRecBuf + TEXT_PNAME) + 1;
     writeLen   = (int)(endAddr - curAddr);
 
-    conv_i16tole(textHdrLen + writeLen, tmp); /* fillout the record header  */
+    i16tole(textHdrLen + writeLen, tmp); /* fillout the record header  */
     tmp[RECORD_TYPE] = TEXT_RECORD;
 
-    if (key_C) {
-        targetAddress = conv_btou32(textRecBuf); /* pick up the text record offset */
+    if (optC) {
+        targetAddress = btou32(textRecBuf); /* pick up the text record offset */
 
-        if (targetAddress < offset_address)
-            fatal_err("module has code below file base of 0%" PRIx32 "h", offset_address);
+        if (targetAddress < offsetAddress)
+            fatalErr("module has code below file base of 0%" PRIx32 "h", offsetAddress);
 
-        if (fseek(outFp, targetAddress - offset_address, SEEK_SET) == -1)
-            fatal_err("%s: Seek error", fname_outp);
+        if (fseek(outFp, targetAddress - offsetAddress, SEEK_SET) == -1)
+            fatalErr("%s: Seek error", outFileName);
 
         if (fwrite(curAddr, 1, writeLen, outFp) != writeLen)
-            err_write();
+            writeErr();
     } else {
         /* copy the text record */
         if (fwrite(tmp, RECORD_HDR, 1, outFp) != 1 ||
             fwrite(textRecBuf, 1, textHdrLen, outFp) != textHdrLen ||
             fwrite(curAddr, 1, writeLen, outFp) != writeLen)
-            err_write();
+            writeErr();
     }
 
-    conv_u32tob(conv_btou32(textRecBuf) + writeLen, textRecBuf); /* update the offset */
-    curAddr = endAddr;                                           /* advance to end */
+    u32tob(btou32(textRecBuf) + writeLen, textRecBuf); /* update the offset */
+    curAddr = endAddr;                                 /* advance to end */
     alreadyWritten += writeLen;
 }
 
@@ -294,10 +226,10 @@ void wrRecord() {
         return;
     if (nonTextRecBuf[2] == RELOC_RECORD)
         writeText(); /* make sure text that was relocated is written first */
-    conv_i16tole(len - RECORD_HDR, nonTextRecBuf); /* length of data item */
+    i16tole(len - RECORD_HDR, nonTextRecBuf); /* length of data item */
 
     if (fwrite(nonTextRecBuf, 1, len, outFp) != len)
-        err_write();
+        writeErr();
 
     nonTextRecBuf[RECORD_TYPE] = 0;
     nonTextRecPtr              = nonTextRecBuf + RECORD_HDR;
@@ -306,30 +238,30 @@ void wrRecord() {
 /**************************************************************************
  9	chkAddRecordItem	ok++ (nau)
  **************************************************************************/
-void chkAddRecordItem(uint8_t tType, size_t len) {
+void chkAddRecordItem(uint8_t type, size_t len) {
     /* can add if same record type and it fits else flush */
-    if (nonTextRecBuf[RECORD_TYPE] == tType && nonTextRecBuf + 512 >= nonTextRecPtr + len)
+    if (nonTextRecBuf[RECORD_TYPE] == type && nonTextRecBuf + 512 >= nonTextRecPtr + len)
         return;
     wrRecord();
-    nonTextRecBuf[RECORD_TYPE] = tType;
+    nonTextRecBuf[RECORD_TYPE] = type;
 }
 
 /**************************************************************************
- 10	conv_i16tole	sub-05bfh	ok++ (nau)
+ 10	i16tole	sub-05bfh	ok++ (nau)
  **************************************************************************/
-void conv_i16tole(int16_t p1, uint8_t *p2) {
+static void i16tole(int16_t n, uint8_t *p) {
 
-    p2[0] = (uint8_t)p1;
-    p2[1] = p1 >> 8;
+    p[0] = (uint8_t)n;
+    p[1] = n >> 8;
 }
 
 /**************************************************************************
- 11	conv_letoi16	sub-05e1h	ok++ (PMO)
+ 11	letoi16	sub-05e1h	ok++ (PMO)
  * Convert leading low string to int
  * Optimiser eliminates the odd code of the original which did spurious
  * unrequired operations
  **************************************************************************/
-int16_t conv_letoi16(register uint8_t *p1) {
+int16_t btoi16(register uint8_t *p1) {
 
     return (p1[order16[1]] << 8) + p1[order16[0]];
 }
@@ -338,10 +270,10 @@ int16_t conv_letoi16(register uint8_t *p1) {
  12	conv_u16tob	sub-0616h	ok++ (PMO)
  * Convert int to leading low string
  **************************************************************************/
-void conv_u16tob(uint16_t p1, register uint8_t *p2) {
+void u16tob(uint16_t n, register uint8_t *buf) {
 
-    p2[order16[0]] = (uint8_t)p1;
-    p2[order16[1]] = p1 >> 8;
+    buf[order16[0]] = (uint8_t)n;
+    buf[order16[1]] = n >> 8;
 }
 
 /**************************************************************************
@@ -352,26 +284,26 @@ void conv_u16tob(uint16_t p1, register uint8_t *p2) {
  * The double layer cast does however generate correct code and is marginally
  * optimised over the original
  **************************************************************************/
-uint32_t conv_btou32(register uint8_t *p1) {
-    uint32_t l1;
-    char l2;
+uint32_t btou32(register uint8_t *buf) {
+    uint32_t n;
+    char i;
 
-    l2 = 4;
-    l1 = 0;
-    while (l2-- > 0)
-        l1 += ((uint32_t)(uint16_t)p1[order32[(int)l2]]) << (l2 * 8);
-    return l1;
+    i = 4;
+    n = 0;
+    while (i-- > 0)
+        n += ((uint32_t)(uint16_t)buf[order32[(int)i]]) << (i * 8);
+    return n;
 }
 
 /**************************************************************************
  14	conv_u32tob	ok++
  **************************************************************************/
-void conv_u32tob(uint32_t p1, register uint8_t *st) {
-    uint8_t l1;
+void u32tob(uint32_t n, register uint8_t *buf) {
+    uint8_t i;
 
-    for (l1 = 0; l1 < 4; ++l1) {
-        st[order32[l1]] = (uint8_t)p1;
-        p1 >>= 8;
+    for (i = 0; i < 4; ++i) {
+        buf[order32[i]] = (uint8_t)n;
+        n >>= 8;
     }
 }
 
@@ -379,25 +311,25 @@ void conv_u32tob(uint32_t p1, register uint8_t *st) {
  15	conv_btou24	ok ++ (PMO)
  same issue as conv_btou32
  **************************************************************************/
-uint32_t conv_btou24(register uint8_t *p1) {
-    uint32_t l1;
-    char l2;
+uint32_t btou24(register uint8_t *buf) {
+    uint32_t n;
+    char i;
 
-    l2 = 3;
-    l1 = 0;
-    while (l2-- > 0)
-        l1 += ((uint32_t)(uint16_t)p1[order32[(int)l2]] << (l2 * 8));
-    return l1;
+    i = 3;
+    n = 0;
+    while (i-- > 0)
+        n += ((uint32_t)(uint16_t)buf[order32[(int)i]] << (i * 8));
+    return n;
 }
 
 /**************************************************************************
  16	conv_u24tob	ok++ (nau) (PMO)
  **************************************************************************/
-void conv_u24tob(uint32_t p1, register uint8_t *st) {
-    uint8_t l1;
+void u24tob(uint32_t n, register uint8_t *buf) {
+    uint8_t i;
 
-    for (l1 = 0; l1 < 3; ++l1) {
-        st[order32[l1]] = (uint8_t)p1;
-        p1 >>= 8;
+    for (i = 0; i < 3; ++i) {
+        buf[order32[i]] = (uint8_t)n;
+        n >>= 8;
     }
 }

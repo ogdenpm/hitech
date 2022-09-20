@@ -31,50 +31,50 @@
  */
 #include "p1.h"
 
-s2_t *p2List      = &s2_9cf3[20]; /* 8bc7 */
-int16_t strId     = 0;            /* 8bd7 */
-uint8_t byte_8f85 = 0;            /* 8f85 */
-bool byte_8f86 = false;        /* 8f86 */
-uint8_t byte_968b;                /* 968b */
-int16_t word_968c;                /* 968c */
-int16_t tmpLabelId;               /* 968e */
+opStk_t *opSP     = &opStk[20]; /* 8bc7 */
+int16_t strId     = 0;          /* 8bd7 */
+uint8_t byte_8f85 = 0;          /* 8f85 */
+bool lexMember    = false;      /* 8f86 */
+uint8_t byte_968b;              /* 968b */
+int16_t word_968c;              /* 968c */
+int16_t tmpLabelId;             /* 968e */
 
-expr_t **s13SP;   /* 9cf1 */
-s2_t s2_9cf3[20]; /* 9cf3 */
+expr_t **exprSP;   /* 9cf1 */
+opStk_t opStk[20]; /* 9cf3 */
 char pad9d00[27];
-expr_t s13_9d1b; /* 9d1b */
-expr_t s13_9d28; /* 9d28 */
+expr_t eZero; /* 9d1b */
+expr_t eOne;  /* 9d28 */
 
-expr_t *s13FreeList; /* 9d35 */
-uint8_t byte_9d37;   /* 9d37 */
-expr_t *s13Stk[20];  /* 9d38 */
+expr_t *exprFreeList; /* 9d35 */
+uint8_t byte_9d37;    /* 9d37 */
+expr_t *exprStk[20];  /* 9d38 */
 
 /* expr.c */
-expr_t *sub_0817(register s8_t *st);
-bool sub_0aed(register expr_t *st);
+expr_t *sub_0817(register attr_t *st);
+bool isConstExpr(register expr_t *st);
 bool sub_0b93(register expr_t *st);
 bool sub_10a8(void);
 expr_t *sub_1340(register expr_t *st, expr_t *p2);
-expr_t *allocFConst(char *fltStr);
-expr_t *sub_1b94(register expr_t *st);
-expr_t *sub_1bf7(register expr_t *st, s8_t *p2);
+expr_t *newFConstLeaf(char *fltStr);
+expr_t *makeBool(register expr_t *st);
+expr_t *typeAlign(register expr_t *pe, attr_t *pa);
 expr_t *sub_1ccc(expr_t *p1, uint8_t p2);
 expr_t *sub_1d02(register expr_t *st);
-uint8_t sub_1d5a(register s8_t *st, s8_t *p2);
+uint8_t getResultDataType(register expr_t *lhs, expr_t *rhs);
 expr_t *sub_1df0(register expr_t *st);
 expr_t *sub_1e37(register expr_t *st);
-expr_t *sub_1e58(register expr_t *st);
+expr_t *newAddressOfNode(register expr_t *st);
 expr_t *sub_1ebd(register expr_t *st);
 bool sub_1ef1(register expr_t *st);
-expr_t *sub_1f5d(register expr_t *st, s8_t *p2, int16_t p3);
-expr_t *s13Alloc(uint8_t tok);
-expr_t *sub_225a(uint8_t p1, register expr_t *st, expr_t *p3);
-expr_t *sub_23b4(uint8_t tok, register expr_t *st, expr_t *p3);
-expr_t *allocSConst(void);
+expr_t *sub_1f5d(register expr_t *st, attr_t *p2, bool unscaled);
+expr_t *newExprItem(uint8_t tok);
+expr_t *getResultAttr(uint8_t p1, register expr_t *st, expr_t *p3);
+expr_t *newNode(uint8_t tok, register expr_t *st, expr_t *p3);
+expr_t *newSConstLeaf(void);
 void complexErr(void);
 expr_t *popExpr(void);
-void sub_2529(uint8_t p1);
-uint8_t sub_255d(void);
+void pushOp(uint8_t p1);
+uint8_t popOp(void);
 
 /**************************************************
  * 17: 07F5 PMO +++
@@ -97,60 +97,56 @@ expr_t *sub_07f5(char p1) {
  * also one missed optimisation
  * of pop bc, push hl to ex (sp),hl
  **************************************************/
-expr_t *sub_0817(register s8_t *st) {
+expr_t *sub_0817(register attr_t *pa) {
     int16_t var2;
-    int16_t var4;
+    int16_t argCnt;
     expr_t *var6;
     uint8_t tok;
     expr_t *arr[128];
 
+
+    if (pa && pa->nodeType != FUNCNODE && pa->indirection == 1 && pa->dataType == DT_COMPLEX &&
+        pa->nextAttr->nodeType == FUNCNODE)
+        pa = pa->nextAttr;
 #ifdef BUGGY
-    if (st && st->c7 != ANODE && st->i4 == 1 && st->dataType == DT_POINTER &&
-        st->i_nextInfo->c7 == ANODE)
-        st = st->i_nextInfo;
-    else if (st->c7 != ANODE)
+    else if (pa->nodeType != FUNCNODE)
         prError("function or function pointer required");
 #else
-    /* fix as if st is NULL the else clause shouldn't be used */
-    if (st) {
-        if (st->c7 != ANODE && st->i4 == 1 && st->dataType == DT_POINTER &&
-            st->i_nextInfo->c7 == ANODE)
-            st = st->i_nextInfo;
-        else if (st->c7 != ANODE)
-            prError("function or function pointer required");
-    }
+    /*PMO: fixed else clause incase pa is NULL */
+    else if (!pa || pa->nodeType != FUNCNODE)
+        prError("function or function pointer required");
 #endif
 
-    if (st && st->c7 == ANODE && st->i_args) {
-        var4 = st->i_args->cnt;
-        st   = st->i_args->s8array;
+    if (pa && pa->nodeType == FUNCNODE && pa->pFargs) {
+        argCnt = pa->pFargs->cnt;
+        pa   = pa->pFargs->argVec;
     } else {
-        st   = NULL;
-        var4 = 0;
+        pa   = NULL;
+        argCnt = 0;
     }
 
     var2     = 0;
     ungetTok = tok = yylex();
     for (;;) {
-        if (st && st->dataType == DT_VARGS) {
-            var4 = 0;
-            st   = 0;
+        if (pa && pa->dataType == DT_VARGS) {
+            argCnt = 0;
+            pa   = 0;
         }
         if (tok != T_RPAREN) {
-            if (st && sub_5a76(st, DT_VOID)) {
+            if (pa && isVarOfType(pa, DT_VOID)) {
                 prError("function does not take arguments");
-                var4 = 0;
-                st   = NULL;
+                argCnt = 0;
+                pa   = NULL;
             }
-            var6 = sub_1441(T_60, sub_07f5(3), 0);
+            var6 = parseExpr(T_EROOT, sub_07f5(3), 0);
             if (var6) {
-                if (st && var4-- == 0) {
+                if (pa && argCnt-- == 0) {
                     prError("too many arguments");
-                    st   = 0;
-                    var4 = 0;
+                    pa   = 0;
+                    argCnt = 0;
                 }
-                if (st)
-                    var6 = sub_1f5d(var6, st++, 1);
+                if (pa)
+                    var6 = sub_1f5d(var6, pa++, true);
                 else
                     var6 = sub_1d02(var6);
                 arr[var2++] = var6;
@@ -162,17 +158,17 @@ expr_t *sub_0817(register s8_t *st) {
         }
         break;
     }
-    if ((var4 != 1 || var2 != 0 || !sub_5a76(st, DT_VOID)) && var4 && st->dataType != DT_VARGS)
+    if ((argCnt != 1 || var2 != 0 || !isVarOfType(pa, DT_VOID)) && argCnt && pa->dataType != DT_VARGS)
         prError("too few arguments");
 
     if (var2 == 0)
-        return sub_23b4(T_120, NULL, NULL); /* dummy 2nd & 3rd args added */
-    var4 = 0;
-    while (var4 + 1 != var2) {
-        arr[var4 + 1] = sub_23b4(T_COMMA, arr[var4], arr[var4 + 1]);
-        ++var4;
+        return newNode(T_120, NULL, NULL); /* dummy 2nd & 3rd args added */
+    argCnt = 0;
+    while (argCnt + 1 != var2) {
+        arr[argCnt + 1] = newNode(T_COMMA, arr[argCnt], arr[argCnt + 1]);
+        ++argCnt;
     }
-    return arr[var4];
+    return arr[argCnt];
 }
 
 /**************************************************
@@ -180,15 +176,15 @@ expr_t *sub_0817(register s8_t *st) {
  * Minor differences due to addition of missing
  * parameters and use of uint8_t parameter
  **************************************************/
-expr_t *sub_0a83(uint8_t n) {
+expr_t *parseConstExpr(uint8_t n) {
     register expr_t *st;
 
     byte_9d37 = n;
-    if ((st = sub_1441(T_60, sub_0bfc(), 0))) { /* PMO added dummy arg3 */
-        if (!sub_0aed(st))
+    if ((st = parseExpr(T_EROOT, sub_0bfc(), 0))) { /* PMO added dummy arg3 */
+        if (!isConstExpr(st))
             prError("constant expression required");
         else if (byte_9d37 == 2) {
-            if (isValidDimType(&st->attr))
+            if (isValidIndex(&st->attr))
                 st = sub_1ccc(st, DT_CONST);
             else
                 prError("illegal type for array dimension");
@@ -203,38 +199,38 @@ expr_t *sub_0a83(uint8_t n) {
  * Locations of code to set return  values 1/0 swapped
  * rest of code adjusted accordingly
  **************************************************/
-bool sub_0aed(register expr_t *st) {
-    uint8_t type, flags;
+bool isConstExpr(register expr_t *st) {
+    uint8_t op, flags;
 
     if (st == 0)
         return true;
-    type = st->tType;
-    if (type == T_ID)
-        return sub_5a76(&st->attr, DT_ENUM);
-    if (type == T_SIZEOF)
+    op = st->tType;
+    if (op == T_ID)
+        return isVarOfType(&st->attr, DT_ENUM);
+    if (op == T_SIZEOF)
         return true;
-    if (type == D_ADDRESSOF && sub_0b93(st->t_next))
+    if (op == D_ADDRESSOF && sub_0b93(st->t_lhs))
         return true;
-    flags = opTable[(type - 60)].uc4;
+    flags = opTable[(op - T_EROOT)].operandFlags;
     if (!(flags & 0x10))
         return false;
-    if (flags & 1)
+    if (flags & O_LEAF)
         return true;
-    return sub_0aed(st->t_next) && (!(flags & 2) || sub_0aed(st->t_alt));
+    return isConstExpr(st->t_lhs) && (!(flags & O_BINARY) || isConstExpr(st->t_rhs));
 }
 
 /**************************************************
  * 21: 0B93 PMO +++
  **************************************************/
 bool sub_0b93(register expr_t *st) {
-    uint8_t type;
+    uint8_t op;
 
-    type = st->tType;
-    if (type == T_ID)
-        return st->t_pSym->m20 == T_EXTERN || st->t_pSym->m20 == T_STATIC;
-    if (type == T_DOT)
-        return sub_0b93(st->t_next);
-    return type == T_69 && sub_0aed(st->t_next);
+    op = st->tType;
+    if (op == T_ID)
+        return st->t_pSym->sclass == T_EXTERN || st->t_pSym->sclass == T_STATIC;
+    if (op == T_DOT)
+        return sub_0b93(st->t_lhs);
+    return op == D_DEREF && isConstExpr(st->t_lhs);
 }
 
 /**************************************************
@@ -243,204 +239,203 @@ bool sub_0b93(register expr_t *st) {
  * some optimisation differences but equivalent code
  **************************************************/
 expr_t *sub_0bfc(void) {
-    s8_t var8;
-    expr_t *varA FORCEINIT;
-    s2_t *varC;
-    expr_t **varE;
+    attr_t var8;
+    expr_t *leaf FORCEINIT;
+    opStk_t *savOpSP;
+    expr_t **savExprSP;
     uint8_t tok;
     uint8_t tok2;
-    uint8_t var11;
-    uint8_t var12;
-    bool var13;
-    uint8_t var14;
-    uint8_t var15;
+    uint8_t hasLhs;
+    bool more;
+    bool hasMember;
+    uint8_t hasRhs;
+    uint8_t prec;
     int16_t var17;
     int16_t var19; /* not used */
     register sym_t *st;
 
-    varE = s13SP;
-    varC = p2List;
-    sub_2529(T_60);
-    var11 = 0;
-    var19 = 0;
+    savExprSP = exprSP;
+    savOpSP   = opSP;
+    pushOp(T_EROOT);
+    hasLhs = false;
+    var19  = 0;
     for (;;) {
-        var13 = (byte_8f86 = p2List->type1 == T_DOT || p2List->type1 == T_POINTER);
-        tok               = yylex();
-        byte_8f86         = false;
-        if (tok < T_60 || tok >= T_128) {
+        hasMember = lexMember = opSP->op == T_DOT || opSP->op == T_POINTER;
+        tok                   = yylex();
+        lexMember             = false;
+        if (tok < T_EROOT || tok >= T_OPTOP) {
             ungetTok = tok;
-            tok      = T_60;
+            tok      = T_EROOT;
         }
-        if (opTable[tok - T_60].uc4 & 1) {
-            if (var11)
+        if (opTable[tok - T_EROOT].operandFlags & O_LEAF) {
+            if (hasLhs)
                 goto error;
             switch (tok) {
             case T_ID: /* c9a */
                 st = yylval.ySym;
-                if (!var13) {
-                    if (st->m20 == 0) {
+                if (!hasMember) {
+                    if (st->sclass == 0) {
                         if (peekCh() == '(') {
-                            var8.c7       = 2;
-                            var8.dataType = DT_INT;
-                            var8.i_sym    = 0;
-                            var8.i4       = 0;
-                            st            = sub_4eed(st, T_EXTERN, &var8, 0);
-                            st->m18 |= 0x42;
-                            st->m21 = 0;
-                            sub_0493(st);
-
+                            var8.nodeType    = 2;
+                            var8.dataType    = DT_INT;
+                            var8.pExpr      = NULL;
+                            var8.indirection = 0;
+                            st               = sub_4eed(st, T_EXTERN, &var8, 0);
+                            st->flags |= 0x42;
+                            st->level = 0;
+                            emitVar(st);
                         } else {
                             prError("undefined identifier: %s", st->nVName);
-                            st->m20           = T_STATIC;
+                            st->sclass        = T_STATIC;
                             st->attr.dataType = DT_INT;
-                            st->m18           = 0x11;
+                            st->flags         = 0x10 + S_MEM;
                         }
                     } else {
-                        var17 = st->m18;
-                        if (!(var17 & 0x10))
+                        var17 = st->flags;
+                        if (!(var17 & S_VAR))
                             prError("not a variable identifier: %s", st->nVName);
-                        else if (st->m20 == T_EXTERN && !(var17 & 0x100))
-                            sub_0493(st);
+                        else if (st->sclass == T_EXTERN && !(var17 & S_EMITTED))
+                            emitVar(st);
                     }
                     sub_51cf(st);
                 } /* d57 */
-                varA = allocId(st);
+                leaf = newIdLeaf(st);
                 break;
             case T_ICONST: /* d75 */
-                varA = sub_1b4b(yylval.yNum, DT_INT);
+                leaf = newIntLeaf(yylval.yNum, DT_INT);
                 break;
             case T_LCONST: /* d90 */
-                varA = sub_1b4b(yylval.yNum, DT_LONG);
+                leaf = newIntLeaf(yylval.yNum, DT_LONG);
                 break;
             case T_FCONST: /* da5 */
-                varA = allocFConst(yylval.yStr);
+                leaf = newFConstLeaf(yylval.yStr);
                 break;
             case T_SCONST: /* dae */
-                varA       = allocSConst();
-                varA->t_i2 = strChCnt;
-                sub_053f(varA, yylval.yStr);
+                leaf          = newSConstLeaf();
+                leaf->t_chCnt = strChCnt;
+                emitAscii(leaf, yylval.yStr);
                 free(yylval.yStr);
                 break;
             case S_TYPE:
                 goto error;
             }
             /* d63 */
-            pushS13(varA);
-            var11 = true;
+            pushExpr(leaf);
+            hasLhs = true;
             continue;
         } /* dfa */
         switch (tok) {
         case T_LPAREN:
             ungetTok = tok2 = yylex();
-            if (tok2 == S_TYPE || (tok2 == T_ID && yylval.ySym->m20 == T_TYPEDEF)) {
-                if (var11)
+            if (tok2 == S_TYPE || (tok2 == T_ID && yylval.ySym->sclass == T_TYPEDEF)) {
+                if (hasLhs)
                     goto error;
                 sub_5dd1(0, &var8);
-                sub_516c(st = sub_69ca(T_79, &var8, 0, 0));
+                defineArg(st = sub_69ca(T_CAST, &var8, 0, 0));
                 sub_51cf(st);
                 tok2 = yylex();
                 if (tok2 != T_RPAREN)
                     goto error;
                 var8 = st->attr;
-                pushS13(allocSType(&var8));
-                if (p2List->type1 == T_SIZEOF) {
-                    p2List->type2 = T_EQ;
-                    var11         = true;
+                pushExpr(newSTypeLeaf(&var8));
+                if (opSP->op == T_SIZEOF) {
+                    opSP->prec = 100;
+                    hasLhs     = true;
                     continue;
                 } else
-                    tok = T_79;
-            } else if (var11) {
-                sub_2529(T_61);
-                pushS13(sub_0817(&(*s13SP)->attr));
+                    tok = T_CAST;
+            } else if (hasLhs) {
+                pushOp(D_FUNC);
+                pushExpr(sub_0817(&(*exprSP)->attr));
             }
             break;
-        case T_60:
+        case T_EROOT:
             break;
         case T_LBRACK:
-            if (!var11)
+            if (!hasLhs)
                 goto error;
-            tok   = T_64;
-            var11 = false;
+            tok    = T_ARRAYIDX;
+            hasLhs = false;
             break;
         case T_RPAREN:
         case T_RBRACK:
-            if (!var11)
+            if (!hasLhs)
                 goto error;
             break;
-        case T_INC:
-        case T_DEC:
-            if (var11)
+        case T_PREINC:
+        case T_PREDEC:
+            if (hasLhs) /* have lhs so make post INC/DEC */
                 tok++;
             break;
         default:
-            if (opTable[tok - T_60].uc4 & 4 && !var11)
-                tok -= 11;
-            var14 = (opTable[tok - T_60].uc4 & 2) != 0;
-            if (var14 != var11)
+            if ((opTable[tok - T_EROOT].operandFlags & O_ALT) && !hasLhs)
+                tok -= 11; /* map to unary function */
+            hasRhs = (opTable[tok - T_EROOT].operandFlags & O_BINARY) != 0;
+            if (hasRhs != hasLhs)
                 goto error;
-            var11 = false;
+            hasLhs = false;
             break;
         }
         /* f23 */
-        var15 = opTable[tok - T_60].c3;
+        prec = opTable[tok - T_EROOT].prec;
         if ((byte_9d37 >= 3 && tok == T_COMMA) ||
-            (byte_9d37 == 1 && tok == T_COLON && p2List->type1 != T_QUEST))
-            var15 = 5;
+            (byte_9d37 == 1 && tok == T_COLON && opSP->op != T_QUEST))
+            prec = 5;
         /* f8e */
         do {
-            var12 = 0;
-            if (p2List->type2 < var15 ||
-                (p2List->type2 == var15 && (opTable[tok - T_60].uc4 & 8))) {
+            more = false;
+            if (opSP->prec < prec ||
+                (opSP->prec == prec && (opTable[tok - T_EROOT].operandFlags & O_RTOL))) {
                 switch (tok) {
-                case T_75:
-                case T_77:
-                    var15 = 0x1f;
+                case T_POSTINC:
+                case T_POSTDEC:
+                    prec = 31;
                     break;
                 case T_LPAREN:
-                case T_64:
-                    var15 = 4;
+                case T_ARRAYIDX:
+                    prec = 4;
                     break;
                 }
-                sub_2529(tok);
-                p2List->type2 = var15;
+                pushOp(tok);
+                opSP->prec = prec;
             } else {
-                if (p2List->type1 == T_60) { /* 1058 */
-                    if (tok != T_60)
+                if (opSP->op == T_EROOT) { /* 1058 */
+                    if (tok != T_EROOT)
                         ungetTok = tok;
-                    varA = popExpr();
-                    if (varA && s13SP == varE)
+                    leaf = popExpr();
+                    if (leaf && exprSP == savExprSP)
                         goto done;
                     else
                         goto error;
-                } else if (p2List->type1 == T_LPAREN) {
+                } else if (opSP->op == T_LPAREN) {
                     if (tok != T_RPAREN) {
                         expectErr(")");
                         ungetTok = tok;
                     }
-                } else if (p2List->type1 == T_64) {
+                } else if (opSP->op == T_ARRAYIDX) {
                     if (tok != T_RBRACK) {
                         expectErr("]");
                         ungetTok = tok;
                     }
                 } else
-                    var12 = 1;
+                    more = true;
                 /* 1037 */
                 if (sub_10a8())
                     goto error;
             }
-        } while (var12);
+        } while (more);
     }
 error:
     prError("expression syntax");
     skipStmt(tok);
-    while (s13SP != varE)
-        sub_2569(popExpr());
-    varA = NULL;
+    while (exprSP != savExprSP) /* remove partial expression */
+        freeExpr(popExpr());
+    leaf = NULL;
 
 done:
-    s13SP  = varE;
-    p2List = varC;
-    return varA;
+    exprSP = savExprSP;
+    opSP   = savOpSP;
+    return leaf;
 }
 
 /**************************************************
@@ -449,76 +444,80 @@ done:
  * addition of missing parameters
  **************************************************/
 bool sub_10a8(void) {
-    expr_t *l1;
-    expr_t *l2;
-    uint8_t tok;
-    register expr_t *st FORCEINIT;
+    expr_t *rhsExpr;
+    expr_t *pe;
+    uint8_t op;
+    register expr_t *lhsExpr FORCEINIT;
 
-    if ((tok = sub_255d()) == T_LPAREN)
+    if ((op = popOp()) == T_LPAREN)
         return false;
 
-    l1 = NULL;
-    if (tok != T_120 &&
-        (((opTable[tok - T_60].uc4 & 2) && (l1 = popExpr()) == NULL) || (st = popExpr()) == NULL))
+    rhsExpr = NULL;
+    if (op != T_120 &&
+        (((opTable[op - T_EROOT].operandFlags & O_BINARY) && (rhsExpr = popExpr()) == NULL) ||
+         (lhsExpr = popExpr()) == NULL))
         return true;
 
-    switch (tok) {
-    case T_64:
-        sub_2529(T_69);
-        p2List->type2 = T_EQ;
-        tok           = T_PLUS;
-        if (isValidDimType(&l1->attr))
-            l1 = sub_1ccc(l1, DT_CONST);
+    switch (op) {
+    case T_ARRAYIDX:
+        pushOp(D_DEREF);
+        opSP->prec = 100;
+        op         = T_PLUS;
+        if (isValidIndex(&rhsExpr->attr))
+            rhsExpr = sub_1ccc(rhsExpr, DT_CONST);
         else
             prError("illegal type for index expression");
         break;
-    case T_INC:
-    case T_75:
-    case T_DEC:
-    case T_77:
-        l1  = &s13_9d28;
-        tok = tok == T_INC ? T_PLUSEQ : tok == T_DEC ? T_MINUSEQ : tok == T_75 ? T_102 : T_104;
+    case T_PREINC:
+    case T_POSTINC:
+    case T_PREDEC:
+    case T_POSTDEC:
+        rhsExpr = &eOne;
+        op      = op == T_PREINC    ? P1_EQPLUS
+                  : op == T_PREDEC  ? P1_EQMINUS
+                  : op == T_POSTINC ? P1_POSTINC
+                                    : P1_POSTDEC;
         break;
     case T_POINTER:
-        tok = T_DOT;
-        st  = sub_1441(T_69, st, 0); /* added dummy 3rd arg */
+        op      = T_DOT;
+        lhsExpr = parseExpr(D_DEREF, lhsExpr, 0); /* added dummy 3rd arg */
         break;
     case T_SIZEOF:
-        if (st->tType == T_SCONST) {
-            l2 = sub_1b4b((long)st->t_i2 + 1, DT_UINT);
-            sub_2569(st);
-            pushS13(l2);
+        if (lhsExpr->tType == T_SCONST) {
+            pe = newIntLeaf((long)lhsExpr->t_chCnt + 1, DT_UINT);
+            freeExpr(lhsExpr);
+            pushExpr(pe);
             return false;
         }
-        if (st->tType != S_TYPE && st->tType != T_ID) {
-            l2             = allocSType(&st->attr);
-            l2->attr.i_sym = NULL;
-            l2->attr.c7    = 0;
-            if (st->attr.c7 == ENODE) {
-                l2  = sub_1441(T_SIZEOF, l2, 0);
-                l1  = sub_1ccc(sub_21c7(st->attr.i_expr), DT_UINT);
-                tok = T_STAR;
+        if (lhsExpr->tType != S_TYPE && lhsExpr->tType != T_ID) {
+            pe                = newSTypeLeaf(&lhsExpr->attr);
+            pe->attr.pExpr   = NULL;
+            pe->attr.nodeType = 0;
+            if (lhsExpr->attr.nodeType == EXPRNODE) {
+                pe      = parseExpr(T_SIZEOF, pe, 0);
+                rhsExpr = sub_1ccc(cloneExpr(lhsExpr->attr.pExpr), DT_UINT);
+                op      = T_MUL;
             }
-            sub_2569(st);
-            st = l2;
-        } else if (st->tType == S_TYPE && st->attr.c7 == ENODE) {
-            l1  = sub_1ccc(sub_21c7(st->attr.i_expr), DT_UINT);
-            st  = sub_1441(T_SIZEOF, st, 0);
-            tok = T_STAR;
+            freeExpr(lhsExpr);
+            lhsExpr = pe;
+        } else if (lhsExpr->tType == S_TYPE && lhsExpr->attr.nodeType == EXPRNODE) {
+            rhsExpr = sub_1ccc(cloneExpr(lhsExpr->attr.pExpr), DT_UINT);
+            lhsExpr = parseExpr(T_SIZEOF, lhsExpr, 0);
+            op      = T_MUL;
         }
         break;
     case T_COMMA:
-        if (p2List[0].type1 != T_LPAREN || p2List[1].type1 != T_61)
-            tok = T_114;
+        if (opSP[0].op != T_LPAREN || opSP[1].op != D_FUNC)
+            op = T_SEMICOLON;
         break;
-    case T_79:
-        pushS13(sub_1bf7(sub_1441(T_60, l1, 0), &st->attr));
-        sub_2569(st);
-        return 0;
+    case T_CAST:
+        pushExpr(typeAlign(parseExpr(T_EROOT, rhsExpr, 0), &lhsExpr->attr));
+        freeExpr(lhsExpr);
+        return false;
     }
-    if ((tok == T_QUEST) != (l1 && l1->tType == T_COLON))
+    if ((op == T_QUEST) != (rhsExpr && rhsExpr->tType == T_COLON))
         return true;
-    pushS13(sub_1441(tok, st, l1));
+    pushExpr(parseExpr(op, lhsExpr, rhsExpr));
     return false;
 }
 
@@ -530,20 +529,20 @@ expr_t *sub_1340(register expr_t *st, expr_t *p2) {
     sym_t *var2;
     sym_t *var4;
 
-    if (!sub_5a76(&st->attr, DT_STRUCT) && !sub_5a76(&st->attr, DT_UNION))
+    if (!isVarOfType(&st->attr, DT_STRUCT) && !isVarOfType(&st->attr, DT_UNION))
         prError("struct/union required");
     else if (p2->tType != T_ID)
         prError("struct/union member expected");
     else if ((var4 = st->a_nextSym) == 0)
         ;
-    else if (!(var4->m18 & 1))
+    else if (!(var4->flags & 1))
         prError("undefined struct/union: %s", var4->nVName);
     else if ((var2 = findMember(var4, p2->t_pSym->nVName))) {
         sub_51cf(var2);
-        st       = s13Alloc(T_126);
-        st->t_i0 = var2->m14;
+        st       = newExprItem(D_MEMBERID);
+        st->t_id = var2->memberId;
         st->attr = var2->attr;
-        sub_2569(p2);
+        freeExpr(p2);
         return st;
     }
     return p2;
@@ -554,93 +553,96 @@ expr_t *sub_1340(register expr_t *st, expr_t *p2) {
  * Minor optimiser differences, but equivalent code
  * Also uint8_t parameter differences
  **************************************************/
-expr_t *sub_1441(uint8_t p1, register expr_t *lhs, expr_t *rhs) {
-    s8_t tmpExpr;
+expr_t *parseExpr(uint8_t p1, register expr_t *lhs, expr_t *rhs) {
+    attr_t tmpExpr;
     expr_t *savedLhs;
     expr_t *minusLhs FORCEINIT;
     bool hasRhs;
     bool minusLhsValid;
-    int16_t opFlags;
+    int16_t operatorFlags;
     char *opStr;
     uint8_t var13;
 
-    hasRhs = (opTable[p1 - 60].uc4 & 2) != 0;
-    opStr  = opTable[p1 - 60].s0;
+    hasRhs = (opTable[p1 - T_EROOT].operandFlags & O_BINARY) != 0;
+    opStr  = opTable[p1 - T_EROOT].name;
     if (!lhs || (hasRhs && rhs == 0)) {
-        sub_2569(lhs);
+        freeExpr(lhs);
         if (hasRhs)
-            sub_2569(rhs);
+            freeExpr(rhs);
         return NULL;
     }
     minusLhsValid = false;
-    opFlags       = opTable[p1 - 60].i5;
-    if (p1 == D_ADDRESSOF && lhs->tType == T_ID && (lhs->t_pSym->m18 & 4))
+    operatorFlags = opTable[p1 - T_EROOT].operatorFlags;
+    if (p1 == D_ADDRESSOF && lhs->tType == T_ID && (lhs->t_pSym->flags & S_REG))
         prError("can't take address of register variable");
 
-    if (!(opFlags & 0x100))
+    if (!(operatorFlags & OP_SIZEOF))
         lhs = sub_1e37(lhs);
-    if (hasRhs && !(opFlags & 0x800))
+    if (hasRhs && !(operatorFlags & OP_MEMBER))
         rhs = sub_1e37(rhs);
 
-    if (p1 == T_61) {
-        if ((lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE)
-            lhs = sub_1441(T_69, lhs, 0); /* dummy 3rd arg */
+    if (p1 == D_FUNC) {
+        if ((lhs->attr.indirection & 1) && lhs->attr.nodeType == SYMNODE)
+            lhs = parseExpr(D_DEREF, lhs, 0); /* dummy 3rd arg */
     } else
         lhs = sub_1df0(lhs);
 
     if (hasRhs)
         rhs = sub_1df0(rhs);
-    if ((opFlags & 0x2000) && sub_1ef1(lhs) == 0) {
+    if ((operatorFlags & OP_RTOL) && !sub_1ef1(lhs)) {
         if (p1 == D_ADDRESSOF) {
-            if (lhs->tType == D_ADDRESSOF && lhs->t_next->attr.c7 == ENODE)
+            if (lhs->tType == D_ADDRESSOF && lhs->t_lhs->attr.nodeType == EXPRNODE)
                 return lhs;
             else
                 prError("can't take this address");
         } else
             prError("only lvalues may be assigned to or modified");
     }
-    if ((opFlags & 0x4000) && (!(lhs->attr.i4 & 1) || lhs->attr.c7 != SNODE))
+    if ((operatorFlags & OP_DREF) &&
+        (!(lhs->attr.indirection & 1) || lhs->attr.nodeType != SYMNODE))
         prError("pointer required");
-    if (!(opFlags & 3)) {
-        if (sub_5a76(&lhs->attr, DT_2))
+    if (!(operatorFlags & (OP_RBOOL | OP_LBOOL))) {
+        if (isVarOfType(&lhs->attr, DT_BOOL))
             lhs = sub_1ccc(lhs, DT_INT);
-        if (hasRhs && sub_5a76(&rhs->attr, DT_2))
+        if (hasRhs && isVarOfType(&rhs->attr, DT_BOOL))
             rhs = sub_1ccc(rhs, DT_INT);
     }
     switch (p1) {
-    case T_60:
+    case T_EROOT:
         return lhs;
     case T_DOT:
         rhs = sub_1340(lhs, rhs);
         break;
     case T_121:
-        tmpExpr    = curFuncNode->attr;
-        tmpExpr.c7 = SNODE;
-        if (sub_5a76(&tmpExpr, DT_VOID))
+        tmpExpr          = curFuncNode->attr;
+        tmpExpr.nodeType = SYMNODE;
+        if (isVarOfType(&tmpExpr, DT_VOID))
             prError("void function cannot return value");
         else
-            lhs = sub_1f5d(lhs, &tmpExpr, 1);
+            lhs = sub_1f5d(lhs, &tmpExpr, true);
         break;
     }
-    if ((opFlags & 3)) {
-        if ((opFlags & 2))
-            lhs = sub_1b94(lhs);
-        if ((opFlags & 1))
-            rhs = sub_1b94(rhs);
-    } else if ((opFlags & 4) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE &&
-               sub_5b08(&rhs->attr)) /* 16e1 */
-        rhs = sub_1ccc(sub_1441(T_STAR, rhs, sub_1ebd(lhs)),
+    if ((operatorFlags & (OP_LBOOL | OP_RBOOL))) {
+        if ((operatorFlags & OP_LBOOL))
+            lhs = makeBool(lhs);
+        if ((operatorFlags & OP_RBOOL))
+            rhs = makeBool(rhs);
+    } else if ((operatorFlags & OP_SCALE) && (lhs->attr.indirection & 1) &&
+               lhs->attr.nodeType == SYMNODE && isIntType(&rhs->attr)) /* 16e1 */
+        rhs = sub_1ccc(parseExpr(T_STAR, rhs, sub_1ebd(lhs)),
                        (rhs->attr.dataType & DT_UNSIGNED) ? DT_UCONST : DT_CONST);
-    else if (p1 == T_PLUS && (rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE &&
-             sub_5b08(&lhs->attr)) { /* 1740 */
+    else if (p1 == T_PLUS && (rhs->attr.indirection & 1) && rhs->attr.nodeType == SYMNODE &&
+             isIntType(&lhs->attr)) { /* 1740 */
         savedLhs = lhs;
         lhs      = rhs;
-        rhs      = sub_1ccc(sub_1441(T_STAR, savedLhs, sub_1ebd(lhs)),
+        rhs      = sub_1ccc(parseExpr(T_STAR, savedLhs, sub_1ebd(lhs)),
                        (rhs->attr.dataType & DT_UNSIGNED) ? DT_UCONST : DT_CONST);
-    } else if ((opFlags & 8) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE &&
-               (!hasRhs || ((rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE))) { /* 17ab */
-        if (!(opFlags & 0x8000) || (!sub_5a4a(&lhs->attr) && !sub_5a4a(&rhs->attr))) {
-            if (hasRhs && !sub_591d(&lhs->attr, &rhs->attr))
+    } else if ((operatorFlags & 8) && (lhs->attr.indirection & 1) &&
+               lhs->attr.nodeType == SYMNODE &&
+               (!hasRhs ||
+                ((rhs->attr.indirection & 1) && rhs->attr.nodeType == SYMNODE))) { /* 17ab */
+        if (!(operatorFlags & OP_EREL) || (!isVoidStar(&lhs->attr) && !isVoidStar(&rhs->attr))) {
+            if (hasRhs && !haveSameDataType(&lhs->attr, &rhs->attr))
                 prWarning("operands of %.3s not same pointer type", opStr);
             else if (p1 == T_MINUS) {
                 minusLhs      = lhs;
@@ -649,56 +651,58 @@ expr_t *sub_1441(uint8_t p1, register expr_t *lhs, expr_t *rhs) {
                 rhs           = sub_1ccc(rhs, DT_CONST);
             }
         }
-    } else if ((opFlags & 0x30) && sub_5ad5(&lhs->attr) &&
-               (!hasRhs || sub_5ad5(&rhs->attr))) { /* 187a */
-        if (opFlags & 0x40) {
-            var13 = sub_1d5a(&lhs->attr, &rhs->attr);
+    } else if ((operatorFlags & (OP_FLOAT | OP_INT)) && isSimpleType(&lhs->attr) &&
+               (!hasRhs || isSimpleType(&rhs->attr))) { /* 187a */
+        if (operatorFlags & OP_UNSIGNED) {
+            var13 = getResultDataType(lhs, rhs);
             lhs   = sub_1ccc(lhs, var13);
             rhs   = sub_1ccc(rhs, var13);
         } /* 18fa */
-        if (!(opFlags & 0x10) && (!sub_5b08(&lhs->attr) || (hasRhs && !sub_5b08(&rhs->attr))))
+        if (!(operatorFlags & OP_FLOAT) &&
+            (!isIntType(&lhs->attr) || (hasRhs && !isIntType(&rhs->attr))))
             prError("integral type required");
-    } else if (opFlags & 0x80) { /* 1937 */
-        if (sub_5a76(&lhs->attr, DT_VOID) || (hasRhs && sub_5a76(&rhs->attr, DT_VOID))) {
-            if (p1 == T_124 && lhs->tType == T_61 && sub_5a76(&rhs->attr, DT_VOID)) {
+    } else if (operatorFlags & OP_VOIDFUNC) { /* 1937 */
+        if (isVarOfType(&lhs->attr, DT_VOID) || (hasRhs && isVarOfType(&rhs->attr, DT_VOID))) {
+            if (p1 == P1_CONVERT && lhs->tType == D_FUNC && isVarOfType(&rhs->attr, DT_VOID)) {
                 lhs->attr = rhs->attr;
-                sub_2569(rhs);
+                freeExpr(rhs);
                 return lhs;
             }
             prError("illegal use of void expression");
-        } else if (!(opFlags & 0x200) &&
-                   (!sub_5aa4(&lhs->attr) || (hasRhs && !sub_5aa4(&rhs->attr)))) /* 19cc */
+        } else if (!(operatorFlags & OP_SEP) && (!isLogicalType(&lhs->attr) ||
+                                                 (hasRhs && !isLogicalType(&rhs->attr)))) /* 19cc */
             prError("simple type required for %.3s", opStr);
-        else if (opFlags & 0x1000) { /* 1a11 */
-            if ((opFlags & 0x8000)) {
-                if (sub_2105(lhs) && (rhs->attr.i4 & 1) && rhs->attr.c7 == SNODE)
-                    lhs = sub_1bf7(lhs, &rhs->attr);
-                else if (sub_2105(rhs) && (lhs->attr.i4 & 1) && lhs->attr.c7 == SNODE)
-                    rhs = sub_1bf7(rhs, &lhs->attr);
+        else if (operatorFlags & OP_AREL) { /* 1a11 */
+            if ((operatorFlags & OP_EREL)) {
+                if (isZero(lhs) && (rhs->attr.indirection & 1) && rhs->attr.nodeType == SYMNODE)
+                    lhs = typeAlign(lhs, &rhs->attr);
+                else if (isZero(rhs) && (lhs->attr.indirection & 1) &&
+                         lhs->attr.nodeType == SYMNODE)
+                    rhs = typeAlign(rhs, &lhs->attr);
             } /* 1a95 */
-            if (!sub_591d(&lhs->attr, &rhs->attr))
+            if (!haveSameDataType(&lhs->attr, &rhs->attr))
                 prWarning("operands of %.3s not same type", opStr);
         }
-    } else if (!(opFlags & 0x200)) /* 1ac3 */
+    } else if (!(operatorFlags & OP_SEP)) /* 1ac3 */
         prError("type conflict");
     /* 1ad1 */
-    if (opFlags & 0x400)
-        rhs = sub_1f5d(rhs, &lhs->attr, (opFlags & 4) == 0);
+    if (operatorFlags & 0x400)
+        rhs = sub_1f5d(rhs, &lhs->attr, !(operatorFlags & OP_SCALE));
 
-    savedLhs = sub_225a(p1, lhs, rhs);
+    savedLhs = getResultAttr(p1, lhs, rhs);
     if (minusLhsValid)
-        savedLhs = sub_1441(T_DIV, savedLhs, sub_1ebd(minusLhs));
+        savedLhs = parseExpr(T_DIV, savedLhs, sub_1ebd(minusLhs));
     return savedLhs;
 }
 
 /**************************************************
  * 26: 1B4B PMO +++
  **************************************************/
-expr_t *sub_1b4b(long num, uint8_t p2) {
+expr_t *newIntLeaf(long num, uint8_t intDt) {
     register expr_t *st;
 
-    st                = allocIConst(num);
-    st->attr.dataType = p2;
+    st                = newIConstLeaf(num);
+    st->attr.dataType = intDt;
     return st;
 }
 
@@ -706,10 +710,10 @@ expr_t *sub_1b4b(long num, uint8_t p2) {
  * 27: 1B70 PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *allocFConst(char *fltStr) {
+expr_t *newFConstLeaf(char *fltStr) {
     register expr_t *st;
 
-    st                = s13Alloc(T_FCONST);
+    st                = newExprItem(T_FCONST);
     st->t_s           = fltStr;
     st->attr.dataType = DT_DOUBLE;
     return st;
@@ -719,12 +723,12 @@ expr_t *allocFConst(char *fltStr) {
  * 28: 1B94 PMO +++
  * minor optimiser difference, equivalent code
  **************************************************/
-expr_t *sub_1b94(register expr_t *st) {
+expr_t *makeBool(register expr_t *st) {
 
-    if (!sub_5aa4(&st->attr))
+    if (!isLogicalType(&st->attr))
         prError("logical type required");
-    else if (!sub_5a76(&st->attr, 2))
-        st = sub_1441(T_NE, st, sub_1bf7(&s13_9d1b, &st->attr));
+    else if (!isVarOfType(&st->attr, DT_BOOL))
+        st = parseExpr(T_NE, st, typeAlign(&eZero, &st->attr));
 
     return st;
 }
@@ -733,33 +737,34 @@ expr_t *sub_1b94(register expr_t *st) {
  * 29: 1BF7 PMO +++
  * minor optimiser difference, equivalent code
  **************************************************/
-expr_t *sub_1bf7(register expr_t *st, s8_t *p2) {
-    expr_t *var2;
+expr_t *typeAlign(register expr_t *pe, attr_t *pa) {
+    expr_t *pf;
 
-    if (st->tType == T_61 && (var2 = st->t_next)->tType == T_ID && (var2->t_pSym->m18 & 0x40)) {
-        prWarning("%s() declared implicit int", var2->t_pSym->nVName);
-        var2->t_pSym->m18 &= ~0x40;
+    if (pe->tType == D_FUNC && (pf = pe->t_lhs)->tType == T_ID &&
+        (pf->t_pSym->flags & S_IMPLICIT)) {
+        prWarning("%s() declared implicit int", pf->t_pSym->nVName);
+        pf->t_pSym->flags &= ~S_IMPLICIT;
     }
 
-    if (!sub_591d(&st->attr, p2)) {
-        if (st->tType != T_ICONST || inData(st))
-            st = sub_23b4(T_124, st, allocSType(p2));
-        st->attr = *p2;
+    if (!haveSameDataType(&pe->attr, pa)) {
+        if (pe->tType != T_ICONST || inData(pe))
+            pe = newNode(P1_CONVERT, pe, newSTypeLeaf(pa));
+        pe->attr = *pa;
     }
-    return st;
+    return pe;
 }
 
 /**************************************************
  * 30: 1CCC PMO +++
  **************************************************/
-expr_t *sub_1ccc(expr_t *p1, uint8_t p2) {
-    s8_t st;
+expr_t *sub_1ccc(expr_t *p1, uint8_t newDt) {
+    attr_t st;
 
-    st.dataType = p2;
-    st.i4       = 0;
-    st.i_sym    = 0;
-    st.c7       = 0;
-    return sub_1bf7(p1, &st);
+    st.dataType    = newDt;
+    st.indirection = 0;
+    st.pExpr      = 0;
+    st.nodeType    = 0;
+    return typeAlign(p1, &st);
 }
 
 /**************************************************
@@ -768,12 +773,12 @@ expr_t *sub_1ccc(expr_t *p1, uint8_t p2) {
  **************************************************/
 expr_t *sub_1d02(register expr_t *st) {
 
-    if (st->tType == T_COMMA || st->tType == 120)
+    if (st->tType == T_COMMA || st->tType == T_120)
         return st;
-    if (!st->attr.c7 && !st->attr.i4) {
-        if (st->attr.dataType < DT_INT || st->attr.dataType == DT_ENUM)
+    if (st->a_nodeType == SYMNODE && !st->a_indirection) {
+        if (st->a_dataType < DT_INT || st->a_dataType == DT_ENUM)
             return sub_1ccc(st, DT_INT);
-        if (st->attr.dataType == DT_FLOAT)
+        if (st->a_dataType == DT_FLOAT)
             return sub_1ccc(st, DT_DOUBLE);
     }
     return st;
@@ -782,23 +787,23 @@ expr_t *sub_1d02(register expr_t *st) {
 /**************************************************
  * 32: 1D5A PMO +++
  **************************************************/
-uint8_t sub_1d5a(register s8_t *st, s8_t *p2) {
+uint8_t getResultDataType(register expr_t *lhs, expr_t *rhs) {
     bool mkUnsigned;
-    uint8_t l2;
+    uint8_t resDataType;
 
-    mkUnsigned = (st->dataType & DT_UNSIGNED) || (p2->dataType & DT_UNSIGNED);
-    l2         = st->dataType;
-    if (l2 < p2->dataType)
-        l2 = p2->dataType;
-    if (l2 < DT_INT)
-        l2 = DT_INT;
-    if (l2 == DT_FLOAT || l2 == DT_DOUBLE)
+    mkUnsigned  = (lhs->a_dataType & DT_UNSIGNED) || (rhs->a_dataType & DT_UNSIGNED);
+    resDataType = lhs->a_dataType;
+    if (resDataType < rhs->a_dataType)
+        resDataType = rhs->a_dataType;
+    if (resDataType < DT_INT)
+        resDataType = DT_INT;
+    if (resDataType == DT_FLOAT || resDataType == DT_DOUBLE)
         return DT_DOUBLE;
-    if (l2 == DT_ENUM)
-        l2 = DT_INT;
+    if (resDataType == DT_ENUM)
+        resDataType = DT_INT;
     if (mkUnsigned)
-        return l2 | 1;
-    return l2;
+        return resDataType | 1;
+    return resDataType;
 }
 
 /**************************************************
@@ -806,13 +811,13 @@ uint8_t sub_1d5a(register s8_t *st, s8_t *p2) {
  **************************************************/
 expr_t *sub_1df0(register expr_t *st) {
 
-    if (st->tType != T_ID || st->attr.c7 != ANODE)
+    if (st->tType != T_ID || st->attr.nodeType != FUNCNODE)
         return st;
-    st->attr.dataType = 0x16;
-    st->attr.c7       = SNODE;
-    st->a_nextSym     = st->t_pSym;
-    st->attr.i4       = 0;
-    return sub_1e58(st);
+    st->attr.dataType    = DT_COMPLEX;
+    st->attr.nodeType    = SYMNODE;
+    st->a_nextSym        = st->t_pSym;
+    st->attr.indirection = 0;
+    return newAddressOfNode(st);
 }
 
 /**************************************************
@@ -820,8 +825,8 @@ expr_t *sub_1df0(register expr_t *st) {
  **************************************************/
 expr_t *sub_1e37(register expr_t *st) {
 
-    if (st->attr.c7 == ENODE)
-        st = sub_1e58(st);
+    if (st->attr.nodeType == EXPRNODE)
+        st = newAddressOfNode(st);
     return st;
 }
 
@@ -829,14 +834,14 @@ expr_t *sub_1e37(register expr_t *st) {
  * 35: 1E58 PMO +++
  * differences due to added 3rd arg and uint8_t param
  **************************************************/
-expr_t *sub_1e58(register expr_t *st) {
+expr_t *newAddressOfNode(register expr_t *st) {
     expr_t *pi;
 
-    pi             = sub_23b4(0x46, st, 0); /* PMO missing 3rd arg. added 0 */
-    pi->attr       = st->attr;
-    pi->attr.i_sym = 0;
-    pi->attr.c7    = SNODE;
-    sub_5be1(&pi->attr);
+    pi                = newNode(D_ADDRESSOF, st, 0); /* PMO missing 3rd arg. added 0 */
+    pi->attr          = st->attr;
+    pi->attr.pExpr   = 0;
+    pi->attr.nodeType = SYMNODE;
+    addIndirection(&pi->attr);
     return pi;
 }
 
@@ -845,9 +850,9 @@ expr_t *sub_1e58(register expr_t *st) {
  * differences due to added 3rd arg and uint8_t param
  **************************************************/
 expr_t *sub_1ebd(register expr_t *st) {
-    st = allocSType(&st->attr);
-    st->attr.i4 >>= 1;
-    return sub_1441(T_SIZEOF, st, 0); /* PMO fixed missing 3rd arg */
+    st = newSTypeLeaf(&st->attr);
+    st->attr.indirection >>= 1;
+    return parseExpr(T_SIZEOF, st, 0); /* PMO fixed missing 3rd arg */
 }
 
 /**************************************************
@@ -856,12 +861,13 @@ expr_t *sub_1ebd(register expr_t *st) {
 bool sub_1ef1(register expr_t *st) {
 
     switch (st->tType) {
-    case T_69:
+    case D_DEREF:
         return true;
     case T_ID:
-        return (st->t_pSym->m18 & 0x10) && st->t_pSym->m20 != D_CONST && st->attr.c7 == SNODE;
+        return (st->t_pSym->flags & S_VAR) && st->t_pSym->sclass != D_CONST &&
+               st->attr.nodeType == SYMNODE;
     case T_DOT:
-        return st->attr.c7 == SNODE && sub_1ef1(st->t_next);
+        return st->attr.nodeType == SYMNODE && sub_1ef1(st->t_lhs);
     }
     return false;
 }
@@ -870,41 +876,42 @@ bool sub_1ef1(register expr_t *st) {
  * 38: 1F5D PMO +++
  * minor differences due to uint8_t param
  **************************************************/
-expr_t *sub_1f5d(register expr_t *st, s8_t *p2, int16_t p3) {
-    s8_t *pAttr;
+expr_t *sub_1f5d(register expr_t *src, attr_t *dAttr, bool unscaled) {
+    attr_t *sAttr;
 
-    pAttr = &st->attr;
-    if (sub_591d(pAttr, p2) == 0) {
-        if (sub_5ad5(pAttr) && sub_5ad5(p2)) {
-            if (sub_5b08(p2) && sub_5b38(pAttr))
+    sAttr = &src->attr;
+    if (!haveSameDataType(sAttr, dAttr)) {
+        if (isSimpleType(sAttr) && isSimpleType(dAttr)) {
+            if (isIntType(dAttr) && isFloatType(sAttr))
                 prWarning("implicit conversion of float to integer");
-        } else if ((p2->i4 & 1) && p2->c7 == SNODE && sub_5b08(pAttr)) {
-            if (p3 == 0 && (sub_5a76(pAttr, DT_CONST) || sub_5a76(pAttr, DT_UCONST)))
-                return st;
-            if (!sub_2105(st))
+        } else if ((dAttr->indirection & 1) && dAttr->nodeType == SYMNODE && isIntType(sAttr)) {
+            if (!unscaled && (isVarOfType(sAttr, DT_CONST) || isVarOfType(sAttr, DT_UCONST)))
+                return src;
+            if (!isZero(src)) /* a pointer can be set to a zero */
                 prWarning("illegal conversion of integer to pointer");
-        } else if ((pAttr->i4 & 1) && pAttr->c7 == SNODE && sub_5b08(p2))
+        } else if ((sAttr->indirection & 1) && sAttr->nodeType == SYMNODE && isIntType(dAttr))
             prWarning("illegal conversion of pointer to integer");
-        else if ((pAttr->i4 & 1) && pAttr->c7 == SNODE && (p2->i4 & 1) && p2->c7 == SNODE) {
-            if (!sub_5a4a(pAttr) && !sub_5a4a(p2))
+        else if ((sAttr->indirection & 1) && sAttr->nodeType == SYMNODE &&
+                 (dAttr->indirection & 1) && dAttr->nodeType == SYMNODE) {
+            if (!isVoidStar(sAttr) && !isVoidStar(dAttr))
                 prWarning("illegal conversion between pointer types");
         } else
             prError("illegal conversion");
     }
-    return sub_1bf7(st, p2);
+    return typeAlign(src, dAttr);
 }
 
 /**************************************************
  * 39: 2105 PMO +++
  **************************************************/
-bool sub_2105(register expr_t *st) {
+bool isZero(register expr_t *st) {
 
     switch (st->tType) {
     case T_ICONST:
         return st->t_ul == 0L; /* long */
-    case T_124:
-        if (sub_5b08(&st->attr))
-            return sub_2105(st->t_next);
+    case P1_CONVERT:
+        if (isIntType(&st->attr))
+            return isZero(st->t_lhs);
         break;
     }
     return false;
@@ -913,13 +920,13 @@ bool sub_2105(register expr_t *st) {
 /**************************************************
  * 40: 2157 PMO +++
  **************************************************/
-bool s13ReleaseFreeList(void) {
+bool releaseExprList(void) {
     register expr_t *st;
 
-    if (s13FreeList == 0)
+    if (exprFreeList == 0)
         return false;
-    while ((st = s13FreeList)) {
-        s13FreeList = st->t_next;
+    while ((st = exprFreeList)) {
+        exprFreeList = st->t_lhs;
         free(st);
     }
     return true;
@@ -928,12 +935,12 @@ bool s13ReleaseFreeList(void) {
 /**************************************************
  * 41: 2186 PMO +++
  **************************************************/
-expr_t *s13Alloc(uint8_t tok) {
+expr_t *newExprItem(uint8_t tok) {
     register expr_t *st;
 
-    if (s13FreeList != 0) {
-        st          = s13FreeList;
-        s13FreeList = st->t_next;
+    if (exprFreeList != 0) {
+        st           = exprFreeList;
+        exprFreeList = st->t_lhs;
         blkclr(st, sizeof(expr_t));
     } else
         st = xalloc(sizeof(expr_t));
@@ -946,19 +953,19 @@ expr_t *s13Alloc(uint8_t tok) {
  * 42: 21C7 PMO +++
  * uint8_t paramater
  **************************************************/
-expr_t *sub_21c7(register expr_t *st) {
+expr_t *cloneExpr(register expr_t *st) {
     expr_t *l1;
-    uint16_t l2;
+    uint16_t operandFlags;
 
-    l1  = s13Alloc(0);
-    *l1 = *st;
-    l2  = opTable[st->tType - 60].uc4;
-    if ((l2 & 1) || st->tType == T_120)
+    l1           = newExprItem(0);
+    *l1          = *st;
+    operandFlags = opTable[st->tType - T_EROOT].operandFlags;
+    if ((operandFlags & O_LEAF) || st->tType == T_120)
         return l1;
 
-    l1->t_next = sub_21c7(st->t_next);
-    if (l2 & 2)
-        l1->t_alt = sub_21c7(st->t_alt);
+    l1->t_lhs = cloneExpr(st->t_lhs);
+    if (operandFlags & O_BINARY)
+        l1->t_rhs = cloneExpr(st->t_rhs);
 
     return l1;
 }
@@ -967,56 +974,56 @@ expr_t *sub_21c7(register expr_t *st) {
  * 43: 225A PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *sub_225a(uint8_t p1, register expr_t *st, expr_t *p3) {
-    expr_t *l1;
+expr_t *getResultAttr(uint8_t op, register expr_t *lhs, expr_t *rhs) {
+    expr_t *res;
 
-    if (p1 == T_124 && st->tType == T_ICONST) {
-        st->attr = p3->attr;
-        sub_2569(p3);
-        return st;
+    if (op == P1_CONVERT && lhs->tType == T_ICONST) {
+        lhs->attr = rhs->attr;
+        freeExpr(rhs);
+        return lhs;
     }
-    l1 = sub_23b4(p1, st, p3); /* m1:  */
+    res = newNode(op, lhs, rhs);
 
-    switch (opTable[p1 - 60].c7) {
+    switch (opTable[op - 60].nodeType) {
     case 1:
-        l1->attr = st->attr;
+        res->attr = lhs->attr;
         break;
     case 2:
-        l1->attr = p3->attr;
+        res->attr = rhs->attr;
         break;
     case 4:
-        l1->attr = st->attr;
-        sub_5be1(&l1->attr);
+        res->attr = lhs->attr; /* address of */
+        addIndirection(&res->attr);
         break;
     case 3:
-        l1->attr = st->attr;
-        sub_5b99(&l1->attr);
+        res->attr = lhs->attr;
+        delIndirection(&res->attr); /* deref */
         break;
     case 5:
-        l1->attr.dataType = DT_INT;
+        res->attr.dataType = DT_INT; /* sizeof */
         break;
     case 6:
-        l1->attr.dataType = DT_2;
+        res->attr.dataType = DT_BOOL; /* bool operators */
         break;
     case 7:
-        l1->attr.dataType = DT_VOID;
+        res->attr.dataType = DT_VOID;
         break;
     }
-    return l1;
+    return res;
 }
 
 /**************************************************
  * 44: 23B4 PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *sub_23b4(uint8_t tok, register expr_t *st, expr_t *p3) {
+expr_t *newNode(uint8_t tok, register expr_t *lhs, expr_t *rhs) {
     expr_t *pi;
 
-    pi = s13Alloc(tok);
+    pi = newExprItem(tok);
     if (tok != T_120) {
-        pi->t_next = st;
-        if (opTable[tok - 60].uc4 & 2)
-            pi->t_alt = p3;
+        pi->t_lhs = lhs;
+        if (opTable[tok - T_EROOT].operandFlags & O_BINARY)
+            pi->t_rhs = rhs;
     }
     return pi;
 }
@@ -1025,12 +1032,12 @@ expr_t *sub_23b4(uint8_t tok, register expr_t *st, expr_t *p3) {
  * 45: 240E PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *allocId(register sym_t *st) {
+expr_t *newIdLeaf(register sym_t *st) {
     expr_t *pi;
 
-    pi         = s13Alloc(T_ID);
+    pi         = newExprItem(T_ID);
     pi->t_pSym = st;
-    if ((st->m18 & 0x10) || st->m20 == D_MEMBER)
+    if ((st->flags & 0x10) || st->sclass == D_MEMBER)
         pi->attr = st->attr;
     return pi;
 }
@@ -1039,13 +1046,13 @@ expr_t *allocId(register sym_t *st) {
  * 46: 245D PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *allocSConst(void) {
+expr_t *newSConstLeaf(void) {
     register expr_t *st;
 
-    st                = s13Alloc(T_SCONST);
-    st->attr.dataType = DT_CHAR;
-    st->attr.i4       = 1;
-    st->t_i0          = ++strId;
+    st                   = newExprItem(T_SCONST);
+    st->attr.dataType    = DT_CHAR;
+    st->attr.indirection = 1;
+    st->t_id             = ++strId;
     return st;
 }
 
@@ -1053,10 +1060,10 @@ expr_t *allocSConst(void) {
  * 47: 248A PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *allocIConst(long p1) {
+expr_t *newIConstLeaf(long p1) {
     register expr_t *st;
 
-    st      = s13Alloc(T_ICONST);
+    st      = newExprItem(T_ICONST);
     st->t_l = p1;
     return st;
 }
@@ -1065,10 +1072,10 @@ expr_t *allocIConst(long p1) {
  * 48: 24B6 PMO +++
  * uint8_t parameter
  **************************************************/
-expr_t *allocSType(s8_t *p1) {
+expr_t *newSTypeLeaf(attr_t *p1) {
     register expr_t *st;
 
-    st       = s13Alloc(S_TYPE);
+    st       = newExprItem(S_TYPE);
     st->attr = *p1;
     return st;
 }
@@ -1084,11 +1091,11 @@ void complexErr(void) {
 /**************************************************
  * 50: 24E7 PMO +++
  **************************************************/
-void pushS13(expr_t *p1) {
+void pushExpr(expr_t *p1) {
 
-    if (s13SP == s13Stk)
+    if (exprSP == exprStk)
         complexErr();
-    *(--s13SP) = p1;
+    *(--exprSP) = p1;
 }
 
 /**************************************************
@@ -1096,49 +1103,49 @@ void pushS13(expr_t *p1) {
  **************************************************/
 expr_t *popExpr(void) {
 
-    if (s13SP != &s13Stk[20])
-        return *(s13SP++);
+    if (exprSP != &exprStk[20])
+        return *(exprSP++);
     return NULL;
 }
 
 /**************************************************
  * 52: 2529 PMO +++
  **************************************************/
-void sub_2529(uint8_t p1) {
-    register s2_t *st;
+void pushOp(uint8_t p1) {
+    register opStk_t *st;
 
-    if (p2List == s2_9cf3)
+    if (opSP == opStk)
         complexErr();
-    (--p2List)->type1    = p1;
-    (st = p2List)->type2 = opTable[p1 - 60].c3;
+    (--opSP)->op      = p1;
+    (st = opSP)->prec = opTable[p1 - T_EROOT].prec;
 }
 
 /**************************************************
  * 53: 255D PMO +++
  **************************************************/
-uint8_t sub_255d(void) {
+uint8_t popOp(void) {
 
-    return (p2List++)->type1;
+    return (opSP++)->op;
 }
 
 /**************************************************
  * 54: 2569 PMO +++
  **************************************************/
-void sub_2569(register expr_t *st) {
-    uint8_t type;
+void freeExpr(register expr_t *st) {
+    uint8_t op;
 
     if (st) {
-        type = st->tType;
-        if (!(opTable[type - 60].uc4 & 1) && type != T_120) {
-            sub_2569(st->t_next);
-            if (opTable[type - 60].uc4 & 2)
-                sub_2569(st->t_alt);
+        op = st->tType;
+        if (!(opTable[op - T_EROOT].operandFlags & O_LEAF) && op != T_120) {
+            freeExpr(st->t_lhs);
+            if (opTable[op - T_EROOT].operandFlags & O_BINARY)
+                freeExpr(st->t_rhs);
         }
         if (!inData(st)) {
-            if (type == T_FCONST)
+            if (op == T_FCONST)
                 free(st->t_s);
-            st->t_next  = s13FreeList; /* m2: */
-            s13FreeList = st;
+            st->t_lhs    = exprFreeList; /* but on free list for quick reuse */
+            exprFreeList = st;
         }
     }
 }
@@ -1154,9 +1161,9 @@ expr_t *sub_25f7(register expr_t *st) {
         if (!inData(st) && st->tType == T_ICONST) {
             st->t_ul += 1;
         } else if (st->tType == T_PLUS)
-            st->t_alt = sub_25f7(st->t_alt);
+            st->t_rhs = sub_25f7(st->t_rhs);
         else
-            st = sub_1441(T_PLUS, st, sub_1b4b(1L, DT_INT)); /* m3: */
+            st = parseExpr(T_PLUS, st, newIntLeaf(1L, DT_INT)); /* m3: */
     }
     return st; /* m4: */
 }

@@ -19,6 +19,7 @@ bool noWarnings;
 int num_ofiles; /* number of object files */
 char **cmdLineNames;
 char **moduleStdNames;
+bool verbose;
 
 uint8_t *moduleFlags; /* Pointer to an area of modsize num_ofiles */
 #define SEEN        1

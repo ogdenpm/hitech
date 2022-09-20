@@ -186,6 +186,7 @@
     <ClCompile Include="cclass.c" />
     <ClCompile Include="code.c" />
     <ClCompile Include="expr.c" />
+    <ClCompile Include="fname.c" />
     <ClCompile Include="kwd.c" />
     <ClCompile Include="lex.c" />
     <ClCompile Include="macro.c" />

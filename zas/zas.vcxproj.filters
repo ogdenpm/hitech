@@ -45,6 +45,9 @@
     <ClCompile Include="tlab.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="fname.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kwd.h">

@@ -27,9 +27,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+// clang-format on
 #ifdef _WIN32
-#define DIRSEP  "/\\:"
+#define DIRSEP "/\\:"
 #else
 #define DIRSEP "/"
 #endif
@@ -136,15 +136,15 @@ char *relocNames[] = { "RABS",         "RPSECT",         "RNAME",         "COMPL
                        "RSABS",        "RSPSECT",        "RSNAME",        "Unknown(11)",
                        "RELBITS RABS", "RELBITS RPSECT", "RELBITS RNAME", "RELBITS COMPLEX" };
 char *symNames[]   = { "",        "STACK",       "COMM",     "REG",    "LINENO", "FILNAM",
-                     "EXTERN",  "LOCAL",       "REDIRECT", "RC_END", "RC_LOW", "RC_HI",
-                     "RC_VAL",  "RC_ADD",      "RC_SUB",   "RC_MUL", "RC_DIV", "RC_SHL",
-                     "RC_SHR",  "RC_AND",      "RC_OR",    "RC_XOR", "RC_CPL", "RC_NEG",
-                     "RC_BITF", "Bad RC type", "RC_MOD",   "RC_RNG", "RC_KEY", "RC_DEFD" };
+                       "EXTERN",  "LOCAL",       "REDIRECT", "RC_END", "RC_LOW", "RC_HI",
+                       "RC_VAL",  "RC_ADD",      "RC_SUB",   "RC_MUL", "RC_DIV", "RC_SHL",
+                       "RC_SHR",  "RC_AND",      "RC_OR",    "RC_XOR", "RC_CPL", "RC_NEG",
+                       "RC_BITF", "Bad RC type", "RC_MOD",   "RC_RNG", "RC_KEY", "RC_DEFD" };
 
 // spacing added  around operators to make it easier to read expressions
 char *exprNames[]   = { "",    "low ", "high ",       "RC_VAL", " + ",  " - ", " * ",
-                      " / ", " << ", " >> ",        " & ",    " | ",  " ^ ", " ~",
-                      " -",  "bit",  "Bad RC type", " % ",    " >= ", "Key:" };
+                        " / ", " << ", " >> ",        " & ",    " | ",  " ^ ", " ~",
+                        " -",  "bit",  "Bad RC type", " % ",    " >= ", "Key:" };
 char *fninfoNames[] = { "Invalid", "FNCALL", "FNARG",    "FNINDIR",  "FNADDR",
                         "FNSIZE",  "FNROOT", "FNINDARG", "FNSIGARG", "FNBREAK" };
 
@@ -161,6 +161,7 @@ int recNum;
 uint8_t major;
 uint8_t minor;
 uint8_t recType;
+uint32_t curBase; /* base address for relocation */
 
 int main(int argc, char **argv) {
     char **parg;
@@ -216,12 +217,11 @@ bool readRecord(FILE *fp) {
 // between the two groups of 10 bytes on a line
 
 void textHandler() {
-    uint32_t offset;
     uint8_t *pdata;
     char *psname;
     int16_t dataLen;
     int addr = 0;
-    offset   = get32(recBuf);
+    curBase  = get32(recBuf);
     psname   = (char *)(recBuf + 4);
     for (pdata = (uint8_t *)psname; *pdata; pdata++)
         ;
@@ -229,16 +229,26 @@ void textHandler() {
     dataLen = recLen - (int)(strlen(psname) + 5);
     if (dataLen < 0)
         fatal("text record has length too small: %d", dataLen);
-    printf("\t\t%s\t%" PRId32 "\t%d\n", psname, offset, dataLen);
-    while (dataLen != 0) {
-        printf("\t\t%3d: ", addr);
-        for (uint8_t i = 20; i != 0 && dataLen != 0; addr++, i--, dataLen--) {
-            if (i == 10)
-                printf("- ");
-            printf("%02X ", *pdata++);
+    printf("\t\t%s\t%04" PRIX32 "\t%d", psname, curBase, dataLen);
+    int rowAddr = 1;
+    int col     = 0;
+    int tcol;
+    for (unsigned addr = curBase; addr < curBase + dataLen; addr++) {
+        tcol = (addr & 0xf) * 3 + ((addr & 0xf) / 4) + ((addr & 0xf) / 8);
+        if (rowAddr != (addr & ~0xf)) {
+            putchar('\n');
+            col = 0;
         }
-        putchar('\n');
+        if (col == 0)
+            printf("\t\t%04X  ", rowAddr = (addr & ~0xf));
+        while (col < tcol) {
+            putchar(' ');
+            col++;
+        }
+        printf("%02X", *pdata++);
+        col += 2;
     }
+    putchar('\n');
 }
 
 /* modified to print out include unknown low 4 bits and show
@@ -407,15 +417,17 @@ void parseComplex(uint8_t **pp) {
 void relocHandler() {
     uint8_t *p;
     uint8_t tType;
-
+    uint16_t offset;
     for (p = recBuf; p < recBuf + recLen;) {
-        tType = p[2] >> 4;
+        tType  = p[2] >> 4;
+        offset = get16(p);
+        printf("\t\t%-3d %04X\t%s", offset, curBase + offset, relocNames[tType]);
         if (tType == COMPLEX || tType == RELBITS_COMPLEX) {
-            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[tType], p[2] & 0xf);
+            printf("\t\t%d", p[2] & 0xf);
             p += 3;
             parseComplex(&p);
         } else {
-            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[tType], p + 3, p[2] & 0xf);
+            printf("\t%s\t%d\n", p + 3, p[2] & 0xf);
             p += strlen((char *)p + 3) + 4;
         }
     }
@@ -505,7 +517,10 @@ void xsymHandler() {
             ;
         uint16_t flags = get16(p + 4);
         printf("\t\t%s\t%s\t%X:%" PRIX32, syname,
-               *psname ? psname : (flags & 6) ? "" : "(abs)", get16(p + 6), get32(p));
+               *psname       ? psname
+               : (flags & 6) ? ""
+                             : "(abs)",
+               get16(p + 6), get32(p));
 
         if (flags & 0x10)
             printf("\tGLOBAL");
@@ -540,7 +555,10 @@ void symHandler() {
             ;
         uint16_t flags = get16(p + 4);
         printf("\t\t%-15s %s\t%" PRId32, syname,
-               *psname ? psname : (flags & 6) ? "" : "(abs)", get32(p));
+               *psname       ? psname
+               : (flags & 6) ? ""
+                             : "(abs)",
+               get32(p));
         if (flags == 6)
             printf("\tLOCAL UNDEFINED\n");
         else {

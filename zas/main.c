@@ -60,7 +60,6 @@ FILE *objFp;          /* 9e6e */
  * code is otherwise same
  ***************************************************************/
 int main(int argc, char **argv) {
-    int i;
     size_t extPt;
 
     for (--argc, ++argv; argc > 0 && **argv == '-'; ++argv, --argc) {
@@ -121,16 +120,18 @@ int main(int argc, char **argv) {
     }
     if (argc <= 0)
         fatalErr("No file arguments");
-    if (!objFileName) {
-        for (i = 0, extPt = strlen(argv[0]); argv[0][i]; i++)
-            if (argv[0][i] == '.')
-                extPt = i;
+    if (!objFileName || c_opt) { /* PMO fix incase -O and -C specified */
+        char *name = fname(argv[0]);
+        char *dot = strrchr(name, '.');
+        extPt     = dot ? (dot - name) : strlen(name);
         if (extPt > 25)
             extPt = 25;
-        strncpy(objNameBuf, *argv, extPt);
-        strcat(objNameBuf, ".obj"); /* relies on objNameBuf having all zeros at start */
-        objFileName = objNameBuf;
-        strncpy(crfNameBuf, *argv, extPt); /* relies on crfNameBuf having all zeros at start */
+        if (!objFileName) {
+            strncpy(objNameBuf, name, extPt);
+            strcat(objNameBuf, ".obj"); /* relies on objNameBuf having all zeros at start */
+            objFileName = objNameBuf;
+        }
+        strncpy(crfNameBuf, name, extPt); /* relies on crfNameBuf having all zeros at start */
         strcat(crfNameBuf, ".crf");
         crfFileName = crfNameBuf;
     }

@@ -59,7 +59,6 @@ FILE *objFp;          /* 26ee */
  77 2bb2 ++
  ***************************************************************/
 int main(int argc, char **argv) {
-    int16_t i;
     size_t extPt;
 
     for (--argc, ++argv; argc > 0 && **argv == '-'; ++argv, --argc) {
@@ -127,19 +126,19 @@ int main(int argc, char **argv) {
     if (argc <= 0)
         fatalErr("No file arguments");
     if (!objFileName) {
-        for (i = 0, extPt = strlen(argv[0]); argv[0][i]; i++)
-            if (argv[0][i] == '.')
-                extPt = i;
+        char *name = fname(argv[0]);
+        char *dot  = strrchr(name, '.');
+        extPt      = dot ? (dot - name) : strlen(name);
         if (extPt > 25)
             extPt = 25;
 #ifdef _MSC_VER
 #pragma warning(disable : 6053) /* the buffers used below are all zeros before here so             \
                                    strncpy/strcat is safe */
 #endif
-        strncpy(objNameBuf, *argv, extPt);
+        strncpy(objNameBuf, name, extPt);
         strcat(objNameBuf, ".obj");
         objFileName = objNameBuf;
-        strncpy(crfNameBuf, *argv, extPt);
+        strncpy(crfNameBuf, name, extPt);
         strcat(crfNameBuf, ".crf");
 #ifdef _MSC_VER
 #pragma warning(default : 6053)

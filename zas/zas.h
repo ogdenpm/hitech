@@ -229,6 +229,8 @@ void initLocalLabels(void);                          /* 112 53E5 +-- */
 void defTmpLabel(int16_t nLabel);                    /* 113 5404 +-- */
 rval_t *findLocalLabel(int16_t nLabel, int tokType); /* 114 546A +-- */
 
+char *fname(char *name);
+
 extern rval_t startAddr;             /* 9799 */
 extern char yytext[100];             /* 9b28 */
 extern int16_t curLineno;            /* 9bbe */

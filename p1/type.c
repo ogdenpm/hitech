@@ -33,38 +33,38 @@
 
 void sub_5c50(void);
 void sub_6531(register sym_t *st);
-args_t *sub_65e2(uint16_t p1);
-void sub_6fab(uint8_t p1);
-uint16_t sub_742a(uint16_t n);
+args_t *parseArgs(uint16_t p1);
+void parseDeclaration(uint8_t p1);
+uint16_t normaliseIndirection(uint16_t n);
 
 /**************************************************
  * 132: 5BE1 PMO +++
  **************************************************/
-void sub_5be1(register s8_t *st) {
+void addIndirection(register attr_t *st) {
     uint16_t ch;
-    ch = st->i4;
+    ch = st->indirection;
     if (ch & 0x8000)
         prError("too much indirection");
-    st->i4 = (ch << 1) | 1;
+    st->indirection = (ch << 1) | 1;
 }
 
 /**************************************************
  * 133: 5C19 PMO +++
  **************************************************/
-void sub_5c19(uint8_t p1) {
+void sub_5c19(uint8_t sclass) {
     register sym_t *st; /* may not be needed */
     uint8_t tok;
 
-    byte_a299 = p1;
+    defSClass = sclass;
     for (;;) {
         ungetTok = tok = yylex();
         if (tok == S_CLASS || tok == S_TYPE ||
-            (tok == T_ID && (st = yylval.ySym)->m20 == T_TYPEDEF))
+            (tok == T_ID && (st = yylval.ySym)->sclass == T_TYPEDEF))
             sub_5c50();
         else
             break;
     }
-    byte_a299 = 0;
+    defSClass = 0;
 }
 
 /**************************************************
@@ -74,46 +74,46 @@ void sub_5c19(uint8_t p1) {
  **************************************************/
 void sub_5c50(void) {
     uint8_t scType;
-    s8_t var9;
+    attr_t attr;
     uint8_t tok;
     uint8_t scFlags;
     uint8_t varc;
     bool vard;
     register sym_t *st;
 
-    scFlags = sub_5dd1(&scType, &var9);
-    if (scType != D_6 && scType != T_REGISTER && byte_a299 == D_6) {
+    scFlags = sub_5dd1(&scType, &attr);
+    if (scType != D_STACK && scType != T_REGISTER && defSClass == D_STACK) {
         prError("only register storage class allowed");
-        scType = D_6;
+        scType = D_STACK;
     }
     if ((tok = yylex()) == T_SEMI)
         return;
     ungetTok = tok;
     for (;;) {
-        st   = sub_69ca(scType, &var9, scFlags & ~1, 0); /* dummy last param */
-        vard = st && (st->m18 & 0x10) && st->attr.c7 == ANODE;
-        varc = (scFlags & 1) && scType != D_6 && !vard;
+        st   = sub_69ca(scType, &attr, scFlags & ~1, 0); /* dummy last param */
+        vard = st && (st->flags & S_VAR) && st->attr.nodeType == FUNCNODE;
+        varc = (scFlags & 1) && scType != D_STACK && !vard;
         if ((tok = yylex()) == T_EQ) {
-            if (vard || scType == D_6 || scType == T_EXTERN || scType == T_TYPEDEF)
+            if (vard || scType == D_STACK || scType == T_EXTERN || scType == T_TYPEDEF)
                 prError("illegal initialisation");
             if (scType == T_STATIC || scType == T_EXTERN) {
-                sub_516c(st);
+                defineArg(st);
                 if (depth && scType == T_STATIC)
-                    st->m18 |= 0x80;
-                sub_0493(st);
+                    st->flags |= S_NAMEID;
+                emitVar(st);
                 sub_3c7e(st);
             } else {
-                sub_516c(st);
-                sub_0493(st);
+                defineArg(st);
+                emitVar(st);
                 sub_6531(st);
             }
             tok = yylex();
-        } else if (scType != D_6) {
+        } else if (scType != D_STACK) {
             if (varc)
-                sub_516c(st);
+                defineArg(st);
             if (depth && scType == T_STATIC)
-                st->m18 |= 0x80;
-            sub_0493(st);
+                st->flags |= S_NAMEID;
+            emitVar(st);
         } /* 5d95 */
         if (tok == T_ID || tok == T_STAR) {
             expectErr(",");
@@ -133,7 +133,7 @@ void sub_5c50(void) {
  * use of uint8_t arg
  * some optimisations different some better some worse
  **************************************************/
-uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
+uint8_t sub_5dd1(uint8_t *pscType, register attr_t *attr) {
     uint8_t scType;
     uint8_t dataType;
     int16_t sizeIndicator; /* -1 short, 0 int, 1 long */
@@ -143,10 +143,10 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
     sym_t *var9;
     sym_t *ps;
 
-    attr->i4        = 0;
-    attr->i_sym     = 0;
-    attr->i_nextSym = NULL;
-    attr->c7        = 0;
+    attr->indirection = 0;
+    attr->pExpr      = 0;
+    attr->nextSym   = NULL;
+    attr->nodeType    = 0;
     scType = dataType = 0;
     sizeIndicator     = 0;
     isUnsigned        = false;
@@ -159,7 +159,7 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
             else {
                 switch (tok = yylval.yVal) {
                 case T_REGISTER:
-                    scFlags |= 4;
+                    scFlags |= S_REG;
                     break;
                 case T_AUTO:
                     if (!depth)
@@ -167,7 +167,7 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                     /* FALLTHRU */
                 case T_STATIC:
                 case T_TYPEDEF:
-                    scFlags |= 1;
+                    scFlags |= S_MEM;
                     /* FALLTHRU */
                 case T_EXTERN:
                     if (scType && scType != tok)
@@ -190,20 +190,20 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                 break;
             case T_UNION:
                 dataType        = DT_UNION;
-                attr->i_nextSym = sub_60db(D_UNION);
-                if (attr->i_nextSym)
-                    sub_51cf(attr->i_nextSym);
+                attr->nextSym = sub_60db(D_UNION);
+                if (attr->nextSym)
+                    sub_51cf(attr->nextSym);
                 break;
             case T_STRUCT:
                 dataType        = DT_STRUCT;
-                attr->i_nextSym = sub_60db(D_STRUCT);
-                if (attr->i_nextSym)
-                    sub_51cf(attr->i_nextSym);
+                attr->nextSym = sub_60db(D_STRUCT);
+                if (attr->nextSym)
+                    sub_51cf(attr->nextSym);
                 break;
             case T_ENUM:
                 dataType        = DT_ENUM;
-                attr->i_nextSym = sub_6360();
-                sub_51cf(attr->i_nextSym);
+                attr->nextSym = sub_6360();
+                sub_51cf(attr->nextSym);
                 break;
             case T_CHAR:
             case T_DOUBLE:
@@ -220,18 +220,18 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
                                                 : DT_DOUBLE;
                 break;
             }
-        } else if (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF && dataType == 0) { /* 5f68 */
+        } else if (tok == T_ID && yylval.ySym->sclass == T_TYPEDEF && dataType == 0) { /* 5f68 */
             ps = yylval.ySym;
             sub_51cf(ps);
             var9 = ps;
-            if (var9->a_c7) {
-                dataType        = DT_POINTER;
-                attr->i_nextSym = ps;
+            if (var9->a_nodeType) {
+                dataType        = DT_COMPLEX;
+                attr->nextSym = ps;
             } else {
-                dataType = var9->a_dataType;
-                attr->u1 = var9->attr.u1;
-                attr->u2 = var9->attr.u2;
-                attr->i4 = var9->attr.i4;
+                dataType          = var9->a_dataType;
+                attr->u1          = var9->attr.u1;
+                attr->u2          = var9->attr.u2;
+                attr->indirection = var9->attr.indirection;
             }
         } else
             break;
@@ -239,10 +239,11 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
     } /* 6003 */
     ungetTok = tok;
     if (scType == 0) {
-        scType = depth ? byte_a299 : T_EXTERN;
-        scFlags |= 1;
+        scType = depth ? defSClass : T_EXTERN;
+        scFlags |= S_MEM;
     }
-    if ((scFlags & 4) && scType != T_AUTO && scType != D_6 && scType != D_14 && scType != D_15)
+    if ((scFlags & S_REG) && scType != T_AUTO && scType != D_STACK && scType != D_14 &&
+        scType != D_15)
         prError("can't be a register");
     if (dataType == 0)
         dataType = DT_INT;
@@ -275,11 +276,11 @@ uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr) {
  * and equivalent optimiser differences.
  **************************************************/
 sym_t *sub_60db(uint8_t p1) {
-    sym_t *var2;
-    sym_t **var4;
+    sym_t *pSym;
+    sym_t **ppMembers;
     uint8_t tok;
-    int16_t var7;
-    s8_t varF;
+    int16_t id;
+    attr_t attr;
     register sym_t *st;
 
     byte_8f85 = true;
@@ -287,67 +288,67 @@ sym_t *sub_60db(uint8_t p1) {
     byte_8f85 = false;
     if (tok == T_ID) {
         st = yylval.ySym;
-        if (st->m20 != p1)
+        if (st->sclass != p1)
             st = sub_4eed(st, p1, 0, 0);
         tok = yylex();
     } else {
-        st = sub_4eed(sub_56a4(), p1, 0, 0);
+        st = sub_4eed(newTmpSym(), p1, 0, 0);
         if (tok != T_LBRACE)
             expectErr("struct/union tag or '{'");
     }
-    var4 = 0;
+    ppMembers = NULL;
     if (tok == T_LBRACE) {
-        if ((st->m18 & 0x81) == 1)
+        if ((st->flags & (S_NAMEID | S_MEM)) == S_MEM)
             prError("struct/union redefined: %s", st->nVName);
         else
-            var4 = &st->nMemberList;
-        var7 = 0;
+            ppMembers = &st->memberList;
+        id = 0;
         for (;;) {
-            sub_5dd1(0, &varF);
-            byte_8f86 = true;
+            sub_5dd1(0, &attr);
+            lexMember = true;
             do {
-                var2 = sub_69ca(D_MEMBER, &varF, 0, st);
-                if (var2) {
-                    if (var2->attr.c7 == ANODE)
+                pSym = sub_69ca(D_MEMBER, &attr, 0, st);
+                if (pSym) {
+                    if (pSym->attr.nodeType == FUNCNODE)
                         prError("members cannot be functions");
-                    sub_516c(var2);
-                    if (var4) {
-                        *var4 = var2;
-                        var4  = &var2->nMemberList;
+                    defineArg(pSym);
+                    if (ppMembers) {
+                        *ppMembers = pSym;
+                        ppMembers  = &pSym->memberList;
                     }
-                    var2->m14 = var7++;
+                    pSym->memberId = id++;
                 }
                 if ((tok = yylex()) == T_COLON) {
-                    if (!(var2->attr.dataType & DT_UNSIGNED))
-                        var2->attr.dataType |= DT_UNSIGNED;
-                    if (!sub_5a76(&var2->attr, DT_UINT))
+                    if (!(pSym->attr.dataType & DT_UNSIGNED))
+                        pSym->attr.dataType |= DT_UNSIGNED;
+                    if (!isVarOfType(&pSym->attr, DT_UINT))
                         prError("bad bitfield type");
                     if ((tok = yylex()) != T_ICONST)
                         prError("integer constant expected");
                     else {
-                        if (!var2) {
-                            sub_516c(var2 = sub_4eed(sub_56a4(), D_MEMBER, &varF, st));
-                            if (var4) {
-                                *var4 = var2;
-                                var4  = &var2->nMemberList;
+                        if (!pSym) {
+                            defineArg(pSym = sub_4eed(newTmpSym(), D_MEMBER, &attr, st));
+                            if (ppMembers) {
+                                *ppMembers = pSym;
+                                ppMembers  = &pSym->memberList;
                             }
-                            var2->m14 = var7++;
+                            pSym->memberId = id++;
                         } /* 62ce */
-                        var2->m18 |= 0x400;
-                        var2->m16 = (int16_t)yylval.yNum;
-                        tok       = yylex();
+                        pSym->flags |= S_BITFIELD;
+                        pSym->bwidth = (int16_t)yylval.yNum;
+                        tok          = yylex();
                     }
                 }
             } while (tok == T_COMMA); /* 62f2 */
-            byte_8f86 = false;
+            lexMember = false;
             if (tok != T_SEMI)
                 expectErr(";");
             if ((tok = yylex()) == T_RBRACE) {
-                if (!(st->m18 & 1))
-                    sub_516c(st);
-                if (var4) {
-                    *var4 = st;
-                    sub_0353(st, p1);
+                if (!(st->flags & S_MEM))
+                    defineArg(st);
+                if (ppMembers) {
+                    *ppMembers = st;
+                    emitStructUnion(st, p1);
                 }
                 return st;
             }
@@ -362,7 +363,7 @@ sym_t *sub_60db(uint8_t p1) {
  * differences due to dummy and uint8_t args
  **************************************************/
 sym_t *sub_6360(void) {
-    s8_t var8;
+    attr_t var8;
     sym_t *vara;
     expr_t *varc;
     int16_t vare;
@@ -372,43 +373,43 @@ sym_t *sub_6360(void) {
     if ((tok = yylex()) == T_ID) {
         st = yylval.ySym;
         if ((tok = yylex()) != T_LBRACE) {
-            if (!(st->m18 & 1))
+            if (!(st->flags & S_MEM))
                 prError("undefined enum tab: %s", st->nVName);
             ungetTok = tok;
         }
     } else if (tok == T_LBRACE)
-        st = sub_56a4();
+        st = newTmpSym();
     else {
         expectErr("enum tag or {");
         st = NULL;
     }
     if (tok == T_LBRACE) {
-        sub_516c(st = sub_4eed(st, D_ENUM, 0, 0));
-        var8.dataType  = DT_ENUM;
-        var8.i_nextSym = st;
-        var8.i4        = 0;
-        var8.i_info    = 0;
-        var8.c7        = 0;
+        defineArg(st = sub_4eed(st, D_ENUM, 0, 0));
+        var8.dataType    = DT_ENUM;
+        var8.nextSym   = st;
+        var8.indirection = 0;
+        var8.pExpr      = NULL;
+        var8.nodeType    = SYMNODE;
         printf("[c ");
-        sub_573b(st, stdout);
+        emitSymName(st, stdout);
         putchar('\n');
         vare = 0;
-        varc = sub_1b4b(0, DT_INT);
+        varc = newIntLeaf(0, DT_INT);
         for (;;) {
             if ((tok = yylex()) != T_ID) {
                 expectErr("identifier");
                 break;
             } else { /* 6474 */
                 if ((vara = sub_4eed(yylval.ySym, DT_CONST, &var8, st)))
-                    vara->m14 = vare++;
+                    vara->memberId = vare++;
                 if ((tok = yylex()) == T_EQ) {
-                    sub_2569(varc);
-                    sub_0a83(T_LBRACE);
-                    if (!sub_5b08(&varc->attr) || varc->attr.dataType >= DT_LONG)
+                    freeExpr(varc);
+                    parseConstExpr(T_LBRACE);
+                    if (!isIntType(&varc->attr) || varc->attr.dataType >= DT_LONG)
                         prError("integer expression required");
                     tok = yylex();
                 }
-                sub_516c(vara);
+                defineArg(vara);
                 sub_05d3(varc);
                 if (tok != T_COMMA)
                     break;
@@ -416,7 +417,7 @@ sym_t *sub_6360(void) {
             }
         }
         printf(".. ]\n");
-        sub_2569(varc);
+        freeExpr(varc);
         if (tok != T_RBRACE) {
             expectErr("}");
             skipStmt(tok);
@@ -433,16 +434,16 @@ void sub_6531(register sym_t *st) {
     uint8_t tok;
     bool var4;
 
-    if (st && !sub_5aa4(&st->attr)) {
+    if (st && !isLogicalType(&st->attr)) {
         prError("can't initialise auto aggregates");
         skipToSemi();
     } else {
         if (!(var4 = (tok = yylex()) == T_LBRACE))
             ungetTok = tok;
-        if ((var2 = sub_1441(T_60, sub_07f5(T_RBRACE), 0)) && st) {
-            var2 = sub_1441(T_EQ, allocId(st), var2);
-            sub_042d(var2);
-            sub_2569(var2);
+        if ((var2 = parseExpr(T_EROOT, sub_07f5(T_RBRACE), 0)) && st) {
+            var2 = parseExpr(T_EQ, newIdLeaf(st), var2);
+            emitCast(var2);
+            freeExpr(var2);
         }
         if (var4 && yylex() != T_RBRACE)
             expectErr("}");
@@ -455,51 +456,51 @@ void sub_6531(register sym_t *st) {
  * block moves
  * differences due to dummy and uint8_t args
  **************************************************/
-args_t *sub_65e2(uint16_t p1) {
+args_t *parseArgs(uint16_t p1) {
     uint8_t scType;
-    s8_t attr;
-    s8_t *varb;
+    attr_t attr;
+    attr_t *pAttr;
     uint8_t tok;
     sym_t *vare FORCEINIT;
     uint8_t scFlags;
     uint8_t var10;
-    bool var11;
-    bool var12;
-    s8_t var1a;
-    int16_t var1c;
+    bool protoArg;
+    bool nonProtoArg;
+    attr_t var1a;
+    int16_t i;
     struct {
         int16_t cnt;
-        s8_t s8array[128];
+        attr_t argVec[128];
     } args;
     register sym_t *st;
 
-    var10          = byte_a299;
-    byte_a299      = D_15;
-    args.cnt       = 0;
-    var12          = false;
-    var11          = false;
-    var1a.dataType = DT_INT;
-    var1a.i4       = 0;
-    var1a.i_expr   = 0;
-    var1a.c7       = 0;
+    var10             = defSClass;
+    defSClass         = D_15;
+    args.cnt          = 0;
+    nonProtoArg       = false;
+    protoArg          = false;
+    var1a.dataType    = DT_INT;
+    var1a.indirection = 0;
+    var1a.pExpr      = 0;
+    var1a.nodeType    = 0;
     for (;;) { /* 6619 */
         if ((tok = yylex()) == T_3DOT) {
-            args.s8array[args.cnt].dataType = DT_VARGS;
-            args.s8array[args.cnt].i_expr   = 0;
-            args.s8array[args.cnt].c7       = 0;
-            args.s8array[args.cnt++].i4     = 0;
-            tok                             = yylex();
+            args.argVec[args.cnt].dataType      = DT_VARGS;
+            args.argVec[args.cnt].pExpr        = 0;
+            args.argVec[args.cnt].nodeType      = 0;
+            args.argVec[args.cnt++].indirection = 0;
+            tok                                  = yylex();
             break;
         } /* 66db */
-        if (tok == T_ID && yylval.ySym->m20 != T_TYPEDEF)
+        if (tok == T_ID && yylval.ySym->sclass != T_TYPEDEF)
             if (p1)
-                var12 = true;
+                nonProtoArg = true;
             else
                 prError("type specifier reqd. for proto arg");
         else
-            var11 = true;
-        if (var11 && var12) {
-            var12 = false;
+            protoArg = true;
+        if (protoArg && nonProtoArg) {
+            nonProtoArg = false;
             prError("can't mix proto and non-proto args");
         }
         ungetTok = tok;
@@ -508,33 +509,33 @@ args_t *sub_65e2(uint16_t p1) {
             prError("bad storage class");
         scType = p1 ? D_15 : D_14;
         st     = sub_69ca(scType, &attr, scFlags & ~1, 0);
-        varb   = &st->attr;
-        if (varb->c7 == ANODE) {
-            varb->i_nextSym = sub_4eed(sub_56a4(), T_TYPEDEF, varb, 0);
-            varb->dataType  = DT_POINTER;
-            varb->c7        = 0;
-            varb->i4        = 1;
+        pAttr  = &st->attr;
+        if (pAttr->nodeType == FUNCNODE) {
+            pAttr->nextSym   = sub_4eed(newTmpSym(), T_TYPEDEF, pAttr, 0);
+            pAttr->dataType    = DT_COMPLEX;
+            pAttr->nodeType    = 0;
+            pAttr->indirection = 1;
         }
-        if (var11)
-            sub_58bd(varb, &args.s8array[args.cnt++]);
+        if (protoArg)
+            cloneAttr(pAttr, &args.argVec[args.cnt++]);
         scFlags &= ~1;
-        scType = D_6;
-        st     = sub_4eed(st, scType, var11 ? varb : &var1a, 0);
-        if (p1 && !sub_5a76(varb, T_AUTO)) {
+        scType = D_STACK;
+        st     = sub_4eed(st, scType, protoArg ? pAttr : &var1a, 0);
+        if (p1 && !isVarOfType(pAttr, T_AUTO)) {
             if (!p25_a28f) {
                 p25_a28f = st;
                 vare     = st;
-                st->m18 |= scFlags | 0x20;
-            } else if (st->m18 & 0x20) /* 6893 */
+                st->flags |= scFlags | S_ARGDECL;
+            } else if (st->flags & S_ARGDECL) /* 6893 */
                 prError("argument redeclared: %s", st->nVName);
             else {
-                vare->nMemberList = st;
-                st->m18 |= scFlags | 0x20;
+                vare->memberList = st;
+                st->flags |= scFlags | S_ARGDECL;
                 vare = st;
             }
-            if (var11)
-                st->m18 |= 0x208;
-            st->nMemberList = 0;
+            if (protoArg)
+                st->flags |= 0x208;
+            st->memberList = 0;
         }
         if ((tok = yylex()) == T_EQ) {
             prError("can't initialize arg");
@@ -546,22 +547,22 @@ args_t *sub_65e2(uint16_t p1) {
         } else if (tok != T_COMMA)
             break;
     } /* 669c */
-    byte_a299 = var10;
+    defSClass = var10;
     if (tok != T_RPAREN) {
         expectErr(")");
         skipStmt(tok);
     }
     if (args.cnt == 0)
         return 0;
-    var1c = args.cnt;
-    while (var1c--) {
-        if (args.s8array[var1c].c7 == ENODE) {
-            args.s8array[var1c].c7 = SNODE;
-            sub_2569(args.s8array[var1c].i_expr);
-            sub_5be1(&args.s8array[var1c]);
+    i = args.cnt;
+    while (i--) {
+        if (args.argVec[i].nodeType == EXPRNODE) {
+            args.argVec[i].nodeType = SYMNODE;
+            freeExpr(args.argVec[i].pExpr);
+            addIndirection(&args.argVec[i]);
         }
     }
-    return sub_578d((args_t *)&args);
+    return cloneArgs((args_t *)&args);
 }
 
 /**************************************************
@@ -569,115 +570,118 @@ args_t *sub_65e2(uint16_t p1) {
  * minor code optimiser differences and deltas
  * due to dummy and uit8_t args
  **************************************************/
-sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
-    int16_t var2;
+sym_t *sub_69ca(uint8_t p1, register attr_t *p2, uint8_t p3, sym_t *p4) {
+    uint16_t indirection;
     sym_t *var4;
-    s12_t *var6;
-    s12_t var12;
+    decl_t *savDecl;
+    decl_t decl;
     uint8_t tok;
-    s8_t var1b;
+    attr_t attr;
 
-    var6             = p12_a297;
-    p12_a297         = &var12;
-    var1b.i_info     = NULL; /* other options */
-    var1b.i_nextInfo = NULL; /* other options */
-    var1b.c7         = 0;
-    var1b.i4         = 0;
-    var1b.dataType   = 0;
-    p12_a297->p8     = &var1b;
-    p12_a297->i6     = 0;
-    p12_a297->p25    = NULL;
-    p12_a297->p25_1  = NULL;
-    p12_a297->uca    = 0;
-    p12_a297->uc9    = 0;
-    p12_a297->uc8    = 0;
-    p12_a297->ucb    = 0;
-    sub_6fab(p1);
+    savDecl              = curDecl;
+    curDecl              = &decl;
+    attr.pExpr          = NULL; /* other options */
+    attr.nextSym       = NULL;
+    attr.nodeType        = 0;
+    attr.indirection     = 0;
+    attr.dataType        = 0;
+    curDecl->pAttr       = &attr;
+    curDecl->indirection = 0;
+    curDecl->pSym1       = NULL;
+    curDecl->pSym2       = NULL;
+    curDecl->uca         = false;
+    curDecl->needDim     = false;
+    curDecl->badInd  = false;
+    curDecl->ucb         = false;
+    parseDeclaration(p1);
     ungetTok = tok = yylex();
-    if (p12_a297->ucb) {
-        if (p1 == T_79 || p1 == D_14 || p1 == D_15 || (p1 == D_MEMBER && tok == T_COLON)) {
-            p12_a297->p25 = sub_56a4();
-            if (p1 == T_79)
+    if (curDecl->ucb) {
+        if (p1 == T_CAST || p1 == D_14 || p1 == D_15 || (p1 == D_MEMBER && tok == T_COLON)) {
+            curDecl->pSym1 = newTmpSym();
+            if (p1 == T_CAST)
                 p1 = T_TYPEDEF;
         } else
             prError("no identifier in declaration");
     } /* 6aaf */
-    p12_a297->p8->dataType = p2->dataType;
-    p12_a297->p8->u1       = p2->u1;
+    curDecl->pAttr->dataType = p2->dataType;
+    curDecl->pAttr->u1       = p2->u1;
 
-    for (var2 = p2->i4; var2; var2 >>= 1) {
-        if (p12_a297->i6 & 1) {
-            p12_a297->uc8 = 1;
+    for (indirection = p2->indirection; indirection; indirection >>= 1) {
+        if (curDecl->indirection & 1) {
+            curDecl->badInd = true;
             break;
         }
-        p12_a297->i6 = (p12_a297->i6 >> 1) | ((var2 & 1) << 15);
+        curDecl->indirection = (curDecl->indirection >> 1) | ((indirection & 1) << 15);
     }
     /* ^^^ */
     for (;;) {
-        if (p12_a297->p8->c7 == SNODE && p12_a297->p8->dataType == DT_POINTER &&
-            (p12_a297->i6 == 0 || p12_a297->p8->i_nextInfo->c7 == SNODE)) {
-            for (var2 = p12_a297->p8->i_nextInfo->i4; var2; var2 >>= 1) {
-                if (p12_a297->i6 & 1) {
-                    p12_a297->uc8 = 1;
+        if (curDecl->pAttr->nodeType == SYMNODE && curDecl->pAttr->dataType == DT_COMPLEX &&
+            (curDecl->indirection == 0 || curDecl->pAttr->nextAttr->nodeType == SYMNODE)) {
+            for (indirection = curDecl->pAttr->nextAttr->indirection; indirection;
+                 indirection >>= 1) {
+                if (curDecl->indirection & 1) {
+                    curDecl->badInd = true;
                     break;
                 }
-                p12_a297->i6 = (p12_a297->i6 >> 1) | ((var2 & 1) << 15);
+                curDecl->indirection = (curDecl->indirection >> 1) | ((indirection & 1) << 15);
             }
-            sub_58bd(p12_a297->p8->i_nextInfo, p12_a297->p8);
+            cloneAttr(curDecl->pAttr->nextAttr, curDecl->pAttr);
         } else
             break;
     } /* 6c13 vvv */
-    if (p12_a297->uc8)
+    if (curDecl->badInd)
         prError("declarator too complex");
-    p12_a297->p8->i4 = sub_742a(p12_a297->i6);
-    if (p12_a297->p25 && p1 != T_TYPEDEF && p1 != D_14 && p1 != D_15 &&
-        sub_5a76(p12_a297->p8, DT_VOID) && p12_a297->p8->c7 != ANODE)
+    curDecl->pAttr->indirection = normaliseIndirection(curDecl->indirection);
+    if (curDecl->pSym1 && p1 != T_TYPEDEF && p1 != D_14 && p1 != D_15 &&
+        isVarOfType(curDecl->pAttr, DT_VOID) && curDecl->pAttr->nodeType != FUNCNODE)
         prError("only functions may be void");
-    else if (sub_5a76(p12_a297->p8, DT_POINTER)) {
-        if (p12_a297->p8->c7 == ANODE && p12_a297->p8->i_nextInfo->c7 == ENODE)
+    else if (isVarOfType(curDecl->pAttr, DT_COMPLEX)) {
+        if (curDecl->pAttr->nodeType == FUNCNODE &&
+            curDecl->pAttr->nextAttr->nodeType == EXPRNODE)
             prError("functions can't return arrays");
-        else if (p12_a297->p8->c7 == ENODE && p12_a297->p8->i_nextInfo->c7 == ANODE)
+        else if (curDecl->pAttr->nodeType == EXPRNODE &&
+                 curDecl->pAttr->nextAttr->nodeType == FUNCNODE)
             prError("can't have array of functions");
     }
-    if (p12_a297->p25_1) {
-        p12_a297->p25_1 = sub_4eed(p12_a297->p25_1, T_TYPEDEF, &p12_a297->p25_1->attr, 0);
-        sub_516c(p12_a297->p25_1);
-        sub_51cf(p12_a297->p25_1);
-        if (p12_a297->p25_1->attr.c7 != ANODE || !(p12_a297->p25_1->m18 & 0x80))
-            sub_0493(p12_a297->p25_1);
+    if (curDecl->pSym2) {
+        curDecl->pSym2 = sub_4eed(curDecl->pSym2, T_TYPEDEF, &curDecl->pSym2->attr, 0);
+        defineArg(curDecl->pSym2);
+        sub_51cf(curDecl->pSym2);
+        if (curDecl->pSym2->attr.nodeType != FUNCNODE || !(curDecl->pSym2->flags & 0x80))
+            emitVar(curDecl->pSym2);
     } /* 6d95 */
-    if (p1 != T_TYPEDEF && p12_a297->p8->i4 == 0 &&
-        (sub_5a76(p2, DT_STRUCT) || sub_5a76(p2, DT_UNION)) && p2->i_nextSym &&
-        !(p2->i_nextSym->m18 & 1))
-        prError("undefined struct/union: %s", p12_a297->p8->i_nextSym->nVName);
-    if (p12_a297->p25) { /* 6e0b */
-        if (byte_a299 == D_6 && p1 != D_MEMBER) {
-            if (p12_a297->p25->m18 & 8)
-                prError("argument redeclared: %s", p12_a297->p25->nVName);
-            else if (!(p12_a297->p25->m18 & 0x20))
-                prError("not an argument: %s", p12_a297->p25->nVName);
+    if (p1 != T_TYPEDEF && curDecl->pAttr->indirection == 0 &&
+        (isVarOfType(p2, DT_STRUCT) || isVarOfType(p2, DT_UNION)) && p2->nextSym &&
+        !(p2->nextSym->flags & 1))
+        prError("undefined struct/union: %s", curDecl->pAttr->nextSym->nVName);
+    if (curDecl->pSym1) { /* 6e0b */
+        if (defSClass == D_STACK && p1 != D_MEMBER) {
+            if (curDecl->pSym1->flags & 8)
+                prError("argument redeclared: %s", curDecl->pSym1->nVName);
+            else if (!(curDecl->pSym1->flags & S_ARGDECL))
+                prError("not an argument: %s", curDecl->pSym1->nVName);
             else {
-                p12_a297->p25->m18 |= p3 | 8;
-                p12_a297->p25->attr = var1b;
-                if (sub_5a76(&var1b, DT_FLOAT)) {
+                curDecl->pSym1->flags |= p3 | 8;
+                curDecl->pSym1->attr = attr;
+                if (isVarOfType(&attr, DT_FLOAT)) {
                     prWarning("float param coerced to double");
-                    p12_a297->p25->attr.dataType = DT_DOUBLE;
+                    curDecl->pSym1->attr.dataType = DT_DOUBLE;
                 }
             }
-        } else if (byte_a299 != D_14 && byte_a299 != D_15) { /* 6ecd */
-            if (p1 == T_AUTO && var1b.c7 == ANODE)
+        } else if (defSClass != D_14 && defSClass != D_15) { /* 6ecd */
+            if (p1 == T_AUTO && attr.nodeType == FUNCNODE)
                 p1 = T_EXTERN;
-            if ((p12_a297->p25 = sub_4eed(p12_a297->p25, p1, &var1b, p4)))
-                p12_a297->p25->m18 |= p3;
+            if ((curDecl->pSym1 = sub_4eed(curDecl->pSym1, p1, &attr, p4)))
+                curDecl->pSym1->flags |= p3;
         } else {
-            if (p12_a297->p25->m20 && p12_a297->p25->m21 != depth) /* 6f39 */
-                p12_a297->p25 = sub_4eed(p12_a297->p25, 0, &var1b, 0);
-            p12_a297->p25->attr = var1b;
+            if (curDecl->pSym1->sclass && curDecl->pSym1->level != depth) /* 6f39 */
+                curDecl->pSym1 = sub_4eed(curDecl->pSym1, 0, &attr, 0);
+            curDecl->pSym1->attr = attr;
         }
     }
     /* 6f91 */
-    var4     = p12_a297->p25;
-    p12_a297 = var6;
+    var4    = curDecl->pSym1;
+    curDecl = savDecl;
     return var4;
 }
 /**************************************************
@@ -685,60 +689,58 @@ sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4) {
  * minor equivalent optimiser differences
  * differnces due to dummy & uint8_t args
  **************************************************/
-void sub_6fab(uint8_t p1) {
-    bool var1;
-    uint8_t var2;
+void parseDeclaration(uint8_t p1) {
+    bool savLexMember;
+    uint8_t starCnt;
     uint8_t tok;
-    uint8_t var4;
+    uint8_t sclass;
     uint8_t var5;
     register expr_t *st;
 
-    byte_a29a = 0;
-    var4      = 1;
-    var2      = 0;
-    while ((tok = yylex()) == T_STAR)
-        var2++;
+    byte_a29a = false;
+    sclass    = 1;
+    for (starCnt = 0; (tok = yylex()) == T_STAR; starCnt++)
+        ;
     if (tok == T_ID) {
-        p12_a297->p25 = yylval.ySym;
-        tok           = yylex();
-        var4          = p12_a297->p25->m20;
-        if (p12_a297->p25->m20 == 0)
-            p12_a297->p25->m20 = p1;
+        curDecl->pSym1 = yylval.ySym;
+        tok            = yylex();
+        sclass         = curDecl->pSym1->sclass;
+        if (!curDecl->pSym1->sclass)
+            curDecl->pSym1->sclass = p1;
         byte_a29a = p1 != D_14;
     } else if (tok == T_LPAREN) { /* 701b */
         ungetTok = tok = yylex();
         if (tok == T_RPAREN || tok == S_CLASS || tok == S_TYPE ||
-            (tok == T_ID && yylval.ySym->m20 == T_TYPEDEF))
+            (tok == T_ID && yylval.ySym->sclass == T_TYPEDEF))
             tok = T_LPAREN;
         else {
-            sub_6fab(p1);
+            parseDeclaration(p1);
             if ((tok = yylex()) != T_RPAREN)
                 expectErr(")");
             tok = yylex();
         }
     } /* 707b */
-    p12_a297->ucb = p12_a297->p25 == NULL;
+    curDecl->ucb = curDecl->pSym1 == NULL;
     for (;;) { /* 7091 */
         if (tok == T_LPAREN) {
-            if (p12_a297->uc9) {
+            if (curDecl->needDim) {
                 prError("can't have array of functions");
-                p12_a297->uc9 = false;
+                curDecl->needDim = false;
             }
-            if (p12_a297->p8->c7 == ANODE && p12_a297->i6 == 0)
+            if (curDecl->pAttr->nodeType == FUNCNODE && curDecl->indirection == 0)
                 prError("functions can't return functions");
-            if (p12_a297->i6 & 0x8000) { /* 70e7 */
-                p12_a297->p8->dataType  = DT_POINTER;
-                p12_a297->p8->i4        = sub_742a(p12_a297->i6);
-                p12_a297->i6            = 0;
-                p12_a297->p8->i_nextSym = sub_56a4();
-                if (p12_a297->p25_1)
-                    p12_a297->p25_1 =
-                        sub_4eed(p12_a297->p25_1, T_TYPEDEF, &p12_a297->p25_1->attr, 0);
-                p12_a297->p25_1 = p12_a297->p8->i_nextSym;
-                p12_a297->p8    = &p12_a297->p25_1->attr;
+            if (curDecl->indirection & 0x8000) { /* 70e7 */
+                curDecl->pAttr->dataType    = DT_COMPLEX;
+                curDecl->pAttr->indirection = normaliseIndirection(curDecl->indirection);
+                curDecl->indirection        = 0;
+                curDecl->pAttr->nextSym   = newTmpSym();
+                if (curDecl->pSym2)
+                    curDecl->pSym2 = sub_4eed(curDecl->pSym2, T_TYPEDEF, &curDecl->pSym2->attr, 0);
+                curDecl->pSym2 = curDecl->pAttr->nextSym;
+                curDecl->pAttr = &curDecl->pSym2->attr;
             } /* 7195 */
-            p12_a297->p8->c7 = ANODE;
-            byte_a29a        = byte_a29a && !depth;
+            curDecl->pAttr->nodeType = FUNCNODE;
+            byte_a29a                = byte_a29a && !depth;
             if (!byte_a29a) {
                 var5 = true;
                 depth++;
@@ -747,65 +749,64 @@ void sub_6fab(uint8_t p1) {
             /* 71cc */
             depth++;
             if ((tok = yylex()) == S_CLASS || tok == S_TYPE || tok == T_ID) {
-                ungetTok             = tok;
-                p12_a297->p8->i_args = sub_65e2(byte_a29a);
+                ungetTok               = tok;
+                curDecl->pAttr->pFargs = parseArgs(byte_a29a);
             } else if (tok != T_RPAREN) {
                 expectErr(")");
                 skipStmt(tok);
             }
             byte_a29a = false;
             if (var5) {
-                checkScopeExit();
+                releaseScopeSym();
                 depth--;
             }
             depth--;
         } else if (tok == T_LBRACK) { /* 7248 */
-            if (p12_a297->p8->c7 == ANODE)
+            if (curDecl->pAttr->nodeType == FUNCNODE)
                 prError("functions can't return arrays");
-            if (p12_a297->uca || (p12_a297->i6 & 0x8000)) {
-                p12_a297->uca           = false;
-                p12_a297->p8->dataType  = DT_POINTER;
-                p12_a297->p8->i4        = sub_742a(p12_a297->i6);
-                p12_a297->i6            = 0;
-                p12_a297->p8->i_nextSym = sub_56a4();
-                if (p12_a297->p25_1)
-                    p12_a297->p25_1 =
-                        sub_4eed(p12_a297->p25_1, T_TYPEDEF, &p12_a297->p25_1->attr, 0);
-                p12_a297->p25_1 = p12_a297->p8->i_nextSym;
-                p12_a297->p8    = &p12_a297->p25_1->attr;
+            if (curDecl->uca || (curDecl->indirection & 0x8000)) {
+                curDecl->uca                = false;
+                curDecl->pAttr->dataType    = DT_COMPLEX;
+                curDecl->pAttr->indirection = normaliseIndirection(curDecl->indirection);
+                curDecl->indirection        = 0;
+                curDecl->pAttr->nextSym   = newTmpSym();
+                if (curDecl->pSym2)
+                    curDecl->pSym2 = sub_4eed(curDecl->pSym2, T_TYPEDEF, &curDecl->pSym2->attr, 0);
+                curDecl->pSym2 = curDecl->pAttr->nextSym;
+                curDecl->pAttr = &curDecl->pSym2->attr;
             } /* 732a */
-            var1      = byte_8f86;
-            byte_8f86 = false;
+            savLexMember = lexMember;
+            lexMember    = false;
             if ((tok = yylex()) == T_RBRACK) {
-                if (p12_a297->uc9)
+                if (curDecl->needDim)
                     prError("dimension required");
-                st = &s13_9d1b;
+                st = &eZero;
             } else {
                 ungetTok = tok;
-                st       = sub_0a83(T_SEMI);
+                st       = parseConstExpr(T_SEMI);
                 if ((tok = yylex()) != T_RBRACK) {
                     expectErr("]");
                     skipStmt(tok);
                 }
             } /* 738a */
-            p12_a297->uca        = true;
-            p12_a297->uc9        = true;
-            byte_8f86            = var1;
-            p12_a297->p8->c7     = 1;
-            p12_a297->p8->i_expr = st;
+            curDecl->uca             = true;
+            curDecl->needDim         = true;
+            lexMember                = savLexMember;
+            curDecl->pAttr->nodeType = EXPRNODE;
+            curDecl->pAttr->pExpr   = st;
         } else { /* 73c1 */
             ungetTok = tok;
-            if (!var4)
-                p12_a297->p25->m20 = 0;
-            if (!var2)
+            if (!sclass)
+                curDecl->pSym1->sclass = 0;
+            if (!starCnt)
                 return;
-            p12_a297->uc9 = false;
+            curDecl->needDim = false;
             do {
-                if (p12_a297->i6 & 1)
-                    p12_a297->uc8 = true;
+                if (curDecl->indirection & 1)
+                    curDecl->badInd = true;
                 else
-                    p12_a297->i6 = (p12_a297->i6 >> 1) | 0x8000;
-            } while (--var2);
+                    curDecl->indirection = (curDecl->indirection >> 1) | 0x8000; /* rotate */
+            } while (--starCnt);
             return;
         }
         tok = yylex();
@@ -815,7 +816,7 @@ void sub_6fab(uint8_t p1) {
 /**************************************************
  * 142: 742A PMO +++
  **************************************************/
-uint16_t sub_742a(uint16_t n) {
+uint16_t normaliseIndirection(uint16_t n) {
     if (n)
         while (!(n & 1))
             n >>= 1;
@@ -825,38 +826,38 @@ uint16_t sub_742a(uint16_t n) {
 /**************************************************
  * 143: 7454 PMO +++
  **************************************************/
-void sub_7454(register s8_t *st) {
-    uint16_t var2;
-    uint8_t var3;
+void emitAttr(register attr_t *st) {
+    uint16_t indirection;
+    uint8_t dataType;
 
     putchar('`');
     for (;;) {
-        if (st->c7 == ANODE)
+        if (st->nodeType == FUNCNODE)
             putchar('(');
-        for (var2 = st->i4; var2; var2 >>= 1)
-            if (var2 & 1)
+        for (indirection = st->indirection; indirection; indirection >>= 1)
+            if (indirection & 1)
                 putchar('*');
-        if (st->dataType == DT_POINTER && st->i_nextInfo->c7 == ANODE)
-            st = st->i_nextInfo;
+        if (st->dataType == DT_COMPLEX && st->nextAttr->nodeType == FUNCNODE)
+            st = st->nextAttr;
         else
             break;
     }
-    var3 = st->dataType;
-    switch (var3) {
+    dataType = st->dataType;
+    switch (dataType) {
     case DT_ENUM:
-    case DT_POINTER:
-        sub_573b(st->i_nextSym, stdout);
+    case DT_COMPLEX:
+        emitSymName(st->nextSym, stdout);
         break;
     case DT_STRUCT:
     case DT_UNION:
-        printf("S%d", st->i_nextSym->a_labelId);
+        printf("S%d", st->nextSym->a_labelId);
         break;
     default:
-        if (var3 & 1) {
+        if (dataType & 1) {
             putchar('u');
-            var3 &= ~1;
+            dataType &= ~1;
         }
-        putchar("?bcsilxfd?v"[var3 >> 1]);
+        putchar("?bcsilxfd?v"[dataType >> 1]);
         break;
     }
 }

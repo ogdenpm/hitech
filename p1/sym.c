@@ -31,27 +31,25 @@
  */
 #include "p1.h"
 
-sym_t *word_a291;   /* as91 */
-sym_t *s25FreeList; /* a293 */
+sym_t *tmpSyms;     /* as91 */
+sym_t *symFreeList; /* a293 */
 sym_t **hashtab;    /* a295 */
-s12_t *p12_a297;    /* a297 */
-uint8_t byte_a299;  /* a299 */
+decl_t *curDecl;    /* a297 */
+uint8_t defSClass;  /* a299 */
 uint8_t byte_a29a;  /* a29a */
 
-
-
 sym_t **lookup(char *buf);
-sym_t *nodeAlloc(char *s);
+sym_t *symAlloc(char *s);
 void reduceNodeRef(register sym_t *pn);
-void sub_583a(register args_t *st);
+void freeArgs(register args_t *st);
 
 /**************************************************
  * 103: 4D92 PMO +++
  **************************************************/
 void sub_4d92(void) {
 
-    s25FreeList = word_a291 = 0;
-    hashtab                 = xalloc(HASHTABSIZE * sizeof(hashtab[0]));
+    symFreeList = tmpSyms = 0;
+    hashtab               = xalloc(HASHTABSIZE * sizeof(hashtab[0]));
 }
 
 /**************************************************
@@ -61,16 +59,16 @@ sym_t **lookup(char *buf) {
     sym_t **ps;
     char *s;
     uint16_t crc;
-    uint8_t type;
+    uint8_t sclass;
     register sym_t *cp;
 
     for (crc = 0, s = buf; *s; s++)
         crc += crc + *(uint8_t *)s;
-    for (ps = &hashtab[crc % 271]; (cp = *ps); ps = &cp->m8) {
+    for (ps = &hashtab[crc % 271]; (cp = *ps); ps = &cp->symList) {
         if (buf && strcmp(cp->nVName, buf) == 0) {
-            if (((byte_8f85 == ((type = cp->m20) == D_STRUCT || type == D_UNION)) &&
-                 byte_8f86 == (type == D_MEMBER)) ||
-                type == 0)
+            if (((byte_8f85 == ((sclass = cp->sclass) == D_STRUCT || sclass == D_UNION)) &&
+                 lexMember == (sclass == D_MEMBER)) ||
+                sclass == 0)
                 break;
         }
     }
@@ -83,7 +81,7 @@ sym_t **lookup(char *buf) {
 sym_t *sub_4e90(register char *buf) {
     sym_t **ps = lookup(buf);
     if (*ps == 0)
-        *ps = nodeAlloc(buf);
+        *ps = symAlloc(buf);
     if (crfFp && buf)
         fprintf(crfFp, "%s %d\n", buf, lineNo);
     return *ps;
@@ -92,30 +90,30 @@ sym_t *sub_4e90(register char *buf) {
 /**************************************************
  * 106: 4EED PMO +++
  **************************************************/
-sym_t *sub_4eed(register sym_t *st, uint8_t p2, s8_t *p3, sym_t *p4) {
+sym_t *sub_4eed(register sym_t *st, uint8_t p2, attr_t *p3, sym_t *p4) {
     sym_t **ppSym;
     char *var4;
     int16_t var6;
-    if (st->m20) {
-        if (depth == st->m21 &&
-            (p2 != D_MEMBER || (st->m20 == D_MEMBER && st->nMemberList == p4))) {
+    if (st->sclass) {
+        if (depth == st->level &&
+            (p2 != D_MEMBER || (st->sclass == D_MEMBER && st->memberList == p4))) {
             var4 = 0;
-            if (p2 != st->m20)
+            if (p2 != st->sclass)
                 var4 = "storage class";
-            else if (st->m18 & 0x10) {
-                if (!sub_591d(p3, &st->attr))
+            else if (st->flags & 0x10) {
+                if (!haveSameDataType(p3, &st->attr))
                     var4 = "type";
-                if (p3->c7 == ANODE) {
-                    if (p3->i_args && !st->attr.i_args)
+                if (p3->nodeType == FUNCNODE) {
+                    if (p3->pFargs && !st->attr.pFargs)
                         var4 = "arguments";
-                    else if (p3->i_args) {
-                        if (p3->i_args->cnt != st->attr.i_args->cnt)
+                    else if (p3->pFargs) {
+                        if (p3->pFargs->cnt != st->attr.pFargs->cnt)
                             var4 = "no. of arguments";
                         else {
-                            var6 = p3->i_args->cnt;
+                            var6 = p3->pFargs->cnt;
                             while (var6--) {
-                                if (!sub_591d(&p3->i_args->s8array[var6],
-                                              &st->attr.i_args->s8array[var6])) {
+                                if (!haveSameDataType(&p3->pFargs->argVec[var6],
+                                                      &st->attr.pFargs->argVec[var6])) {
                                     var4 = "arguments";
                                     break;
                                 }
@@ -126,42 +124,42 @@ sym_t *sub_4eed(register sym_t *st, uint8_t p2, s8_t *p3, sym_t *p4) {
             } /* 4fea */
             if (var4)
                 prError("%s: %s redeclared", st->nVName, var4);
-            else if (p3->c7 == ENODE && p3->i_expr && p3->i_expr != st->attr.i_expr) {
-                sub_2569(st->attr.i_expr);
-                st->attr.i_expr = p3->i_expr;
-            } else if (p3->c7 == ANODE) {
-                if (!st->attr.i_args)
-                    st->attr.i_args = p3->i_args;
-                else if (p3->i_args && p3->i_args != st->attr.i_args) {
-                    sub_583a(st->attr.i_args);
-                    st->attr.i_args = p3->i_args;
+            else if (p3->nodeType == EXPRNODE && p3->pExpr && p3->pExpr != st->attr.pExpr) {
+                freeExpr(st->attr.pExpr);
+                st->attr.pExpr = p3->pExpr;
+            } else if (p3->nodeType == FUNCNODE) {
+                if (!st->attr.pFargs)
+                    st->attr.pFargs = p3->pFargs;
+                else if (p3->pFargs && p3->pFargs != st->attr.pFargs) {
+                    freeArgs(st->attr.pFargs);
+                    st->attr.pFargs = p3->pFargs;
                 }
             } /* 50d1 */
             return st;
         } /* 50d7 */
-        ppSym        = lookup(st->nVName);
-        *ppSym       = nodeAlloc(st->nVName);
-        (*ppSym)->m8 = st;
-        st           = *ppSym;
+        ppSym             = lookup(st->nVName);
+        *ppSym            = symAlloc(st->nVName);
+        (*ppSym)->symList = st;
+        st                = *ppSym;
     } /* 5116 */
-    switch (st->m20 = p2) {
+    switch (st->sclass = p2) {
     case DT_USHORT:
     case DT_INT:
     case DT_UINT:
-        st->attr.i_labelId = newTmpLabel();
+        st->attr.labelId = newTmpLabel();
         return st;
     case D_CONST:
-        st->m18 |= 0x10;
+        st->flags |= 0x10;
         /* FALLTHRU */
     case DT_LONG:
-        st->nMemberList = p4;
+        st->memberList = p4;
         break;
     case DT_ULONG:
         return st;
     case T_TYPEDEF:
         break;
     default:
-        st->m18 |= 0x10;
+        st->flags |= S_VAR;
         break;
     }
     st->attr = *p3;
@@ -170,12 +168,12 @@ sym_t *sub_4eed(register sym_t *st, uint8_t p2, s8_t *p3, sym_t *p4) {
 /**************************************************
  * 107: 516C PMO +++
  **************************************************/
-void sub_516c(register sym_t *st) {
-    if (st && !(st->m18 & 0x80)) {
-        if (st->m18 & 1)
+void defineArg(register sym_t *st) {
+    if (st && !(st->flags & S_NAMEID)) {
+        if (st->flags & S_MEM)
             prError("identifier redefined: %s", st->nVName);
-        st->m18 |= 1;
-        if (crfFp && st->nVName && !(st->m18 & 0x80)) {
+        st->flags |= S_MEM;
+        if (crfFp && st->nVName && !(st->flags & S_NAMEID)) {
             fprintf(crfFp, "#%s %d\n", st->nVName, lineNo);
         }
     }
@@ -186,67 +184,63 @@ void sub_516c(register sym_t *st) {
  **************************************************/
 void sub_51cf(register sym_t *st) {
     if (st)
-        st->m18 |= 2;
+        st->flags |= 2;
 }
 
 /**************************************************
  * 109: 51E7 PMO +++
  * uin8_t param
  **************************************************/
-void sub_51e7(void) {
-    int16_t var2;
-    int16_t var4;
-    args_t *var6;
+void defineFuncSig(void) {
+    int16_t cnt;
+    int16_t i;
+    args_t *argList;
     register sym_t *st;
-    var6 = curFuncNode->a_args;
-    st   = p25_a28f;
-    while (st) {
-        st->m18 &= ~0x28;
-        if (var6)
-            st->m18 |= 0x200;
-        if (st->a_c7 == 1) {
-            sub_2569(st->a_expr);
-            st->a_expr = 0;
-            st->a_c7   = 0;
-            sub_5be1(&st->attr);
+
+    argList = curFuncNode->a_args;
+    for (st = p25_a28f; st; st = st->memberList) {
+        st->flags &= ~0x28;
+        if (argList)
+            st->flags |= S_ARG;
+        if (st->a_nodeType == EXPRNODE) {
+            freeExpr(st->a_expr);
+            st->a_expr     = 0;
+            st->a_nodeType = SYMNODE;
+            addIndirection(&st->attr);
         } /* 523d */
-        sub_516c(st);
-        sub_0493(st);
-        st = st->nMemberList;
+        defineArg(st);
+        emitVar(st);
     }
-    if (!var6)
+    if (!argList)
         return;
-    var4 = 0;
-    var2 = var6->cnt;
-    if (var2 == 1 && sub_5a76(var6->s8array, DT_VOID) && !p25_a28f)
+    i   = 0;
+    cnt = argList->cnt;
+    if (cnt == 1 && isVarOfType(argList->argVec, DT_VOID) && !p25_a28f)
         return;
-    st = p25_a28f;
-    while (st && var2--) {
-        if (var6->s8array[var4].dataType == DT_VARGS) {
-            st   = NULL;
-            var2 = 0;
+    for (st = p25_a28f; st && cnt--; st = st->memberList, i++) {
+        if (argList->argVec[i].dataType == DT_VARGS) {
+            st  = NULL;
+            cnt = 0;
             break;
-        } else if (!sub_591d(&var6->s8array[var4], &st->attr))
+        } else if (!haveSameDataType(&argList->argVec[i], &st->attr))
             break;
-        st = st->nMemberList;
-        var4++;
     }
-    if (st || (var2 && var6->s8array[var4].dataType != DT_VARGS))
+    if (st || (cnt && argList->argVec[i].dataType != DT_VARGS))
         prError("argument list conflicts with prototype");
-    var2 = 1;
+    cnt = 1;
 }
 
 /**************************************************
  * 110: 5356 PMO +++
  **************************************************/
-bool releaseNodeFreeList(void) {
+bool releaseSymFreeList(void) {
     register sym_t *st;
 
-    if (!s25FreeList)
+    if (!symFreeList)
         return false;
 
-    while ((st = s25FreeList)) {
-        s25FreeList = st->nMemberList;
+    while ((st = symFreeList)) {
+        symFreeList = st->memberList;
         free(st);
     }
     return true;
@@ -256,26 +250,26 @@ char blank[] = "";
 /**************************************************
  * 111: 5384 PMO +++
  **************************************************/
-sym_t *nodeAlloc(char *s) {
-    register sym_t *pn;
-    static int16_t nodeCnt = 0;
+sym_t *symAlloc(char *s) {
+    register sym_t *ps;
+    static int16_t symCnt = 0;
 
-    if (s25FreeList) {
-        pn          = s25FreeList;
-        s25FreeList = pn->nMemberList;
-        blkclr(pn, sizeof(sym_t));
+    if (symFreeList) {
+        ps          = symFreeList;
+        symFreeList = ps->memberList;
+        blkclr(ps, sizeof(sym_t));
     } else {
-        pn = xalloc(sizeof(sym_t));
+        ps = xalloc(sizeof(sym_t));
     }
-    pn->m21     = depth;
-    pn->nRefCnt = 1;
-    pn->nodeId  = ++nodeCnt;
+    ps->level   = depth;
+    ps->nRefCnt = 1;
+    ps->symId  = ++symCnt;
     if (s) {
-        pn->nVName = (char *)xalloc(strlen(s) + 1);
-        strcpy(pn->nVName, s);
+        ps->nVName = (char *)xalloc(strlen(s) + 1);
+        strcpy(ps->nVName, s);
     } else
-        pn->nVName = blank;
-    return pn;
+        ps->nVName = blank;
+    return ps;
 }
 
 /**************************************************
@@ -283,21 +277,28 @@ sym_t *nodeAlloc(char *s) {
  * optimiser has better code for --pn->nRefCnt
  **************************************************/
 void reduceNodeRef(register sym_t *pn) {
-
+    /* printf("%p %d %d %s\n", pn, pn->level, pn->nRefCnt,
+           pn->a_nodeType == 0   ? (*pn->nVName ? pn->nVName : "blank")
+           : pn->a_nodeType == 1 ? "EXPR"
+                                 : "FUNC"
+                                 ); /**/
     if (--pn->nRefCnt == 0) {
-        if (pn->m20 != 0 && pn->m20 != D_LABEL && pn->m20 != D_STRUCT && pn->m20 != D_UNION &&
-            pn->m20 != D_ENUM) {
-            if (pn->a_c7 == ANODE)
-                sub_583a(pn->a_args);
-            else if (pn->a_c7 == ENODE)
-                sub_2569(pn->a_expr);
-            if (pn->a_dataType == DT_POINTER)
-                reduceNodeRef(pn->a_nextSym);
+        if (pn->sclass != 0 && pn->sclass != D_LABEL && pn->sclass != D_STRUCT &&
+            pn->sclass != D_UNION && pn->sclass != D_ENUM) {
+            if (pn->a_nodeType == FUNCNODE)
+                freeArgs(pn->a_args);
+            else if (pn->a_nodeType == EXPRNODE)
+                freeExpr(pn->a_expr);
+#if BUGGY
+            /* this code is prone to release symbols too early */
+            if (ps->a_dataType == DT_COMPLEX)
+                reduceNodeRef(ps->a_nextSym);
+#endif
         }
         if (pn->nVName != blank)
             free(pn->nVName);
-        pn->nMemberList = s25FreeList;
-        s25FreeList     = pn;
+        pn->memberList = symFreeList;
+        symFreeList    = pn;
     }
 }
 
@@ -317,7 +318,7 @@ void enterScope(void) {
  **************************************************/
 void exitScope(void) {
 
-    checkScopeExit();
+    releaseScopeSym();
     --depth;
     prFuncBrace(T_RBRACE);
 }
@@ -325,128 +326,123 @@ void exitScope(void) {
 /**************************************************
  * 115: 54C0 PMO +++
  **************************************************/
-void checkScopeExit(void) {
+void releaseScopeSym(void) {
+    sym_t **pSlot;
     sym_t **ppSym;
-    sym_t **var4;
-    uint8_t var5;
-    char *var7;
-    register sym_t *st;
+    uint8_t sclass;
+    char *msg;
+    register sym_t *pSym;
 
-    for (ppSym = hashtab; ppSym < &hashtab[HASHTABSIZE]; ppSym++) {
-        var4 = ppSym;
-        while ((st = *var4)) {
-            if (st->m21 == depth) {
-                var7 = 0;
-                var5 = st->m20;
-                if ((st->m18 & 3) == 2) {
-                    switch (var5) {
+    for (pSlot = hashtab; pSlot < &hashtab[HASHTABSIZE]; pSlot++) {
+        ppSym = pSlot;
+        while ((pSym = *ppSym)) {
+            if (pSym->level == depth) {
+                msg    = 0;
+                sclass = pSym->sclass;
+                if ((pSym->flags & 3) == 2) {
+                    switch (sclass) {
                     case D_LABEL:
-                        var7 = "label";
+                        msg = "label";
                         break;
                     case D_STRUCT:
                     case D_UNION:
                     case T_EXTERN:
                         break;
                     default:
-                        var7 = "variable";
+                        msg = "variable";
                         break;
                     }
-                    if (var7)
-                        prError("undefined %s: %s", var7, st->nVName);
-                } else if ((depth || var5 == T_STATIC) && !(st->m18 & 2)) { /* 5555  */
-                    switch (var5) {
+                    if (msg)
+                        prError("undefined %s: %s", msg, pSym->nVName);
+                } else if ((depth || sclass == T_STATIC) && !(pSym->flags & 2)) { /* 5555  */
+                    switch (sclass) {
                     case D_LABEL:
-                        var7 = "label";
+                        msg = "label";
                         break;
                     case D_STRUCT:
-                        var7 = "structure";
+                        msg = "structure";
                         break;
                     case D_UNION:
-                        var7 = "union";
+                        msg = "union";
                         break;
                     case D_MEMBER:
-                        var7 = "member";
+                        msg = "member";
                         break;
                     case D_ENUM:
-                        var7 = "enum";
+                        msg = "enum";
                         break;
                     case D_CONST:
-                        var7 = "constant";
+                        msg = "constant";
                         break;
                     case T_TYPEDEF:
-                        var7 = "typedef";
+                        msg = "typedef";
                         break;
-                    case D_6:
-                        var7 = 0;
+                    case D_STACK:
+                        msg = 0;
                         break;
                     default:
-                        if (var5) {
-                            if (st->m18 & 1)
-                                var7 = "variable definition";
+                        if (sclass) {
+                            if (pSym->flags & S_MEM)
+                                msg = "variable definition";
                             else
-                                var7 = "variable declaration";
+                                msg = "variable declaration";
                         }
                         break;
                     }
-                    if (var7)
-                        prWarning("unused %s: %s", var7, st->nVName);
+                    if (msg)
+                        prWarning("unused %s: %s", msg, pSym->nVName);
 
                 } /* 55d2 */
-                *var4 = st->m8;
-                reduceNodeRef(st);
+                *ppSym = pSym->symList;
+                reduceNodeRef(pSym);
             } else
-                var4 = &st->m8;
+                ppSym = &pSym->symList;
         }
     }
-    var4 = &word_a291;
-    while ((st = *var4)) {
-        if (st->m21 == depth) {
-            *var4 = st->m8;
-            reduceNodeRef(st);
+    ppSym = &tmpSyms;
+    while ((pSym = *ppSym)) {
+        if (pSym->level == depth) {
+            *ppSym = pSym->symList; /* remove from list and reduce its ref count */
+            reduceNodeRef(pSym);
         } else
-            var4 = &st->m8;
+            ppSym = &pSym->symList; /* skip to next entry */
     }
 }
 
 /**************************************************
  * 116: 56A4 PMO +++
  **************************************************/
-sym_t *sub_56a4(void) {
+sym_t *newTmpSym(void) {
     register sym_t *st;
 
-    st = nodeAlloc(0);
-    st->m18 |= 0x83;
-    st->m8    = word_a291;
-    word_a291 = st;
+    st = symAlloc(0);
+    st->flags |= S_NAMEID + 2 + S_MEM;
+    st->symList = tmpSyms;
+    tmpSyms     = st;
     return st;
 }
 
 /**************************************************
  * 117: 56CD PMO +++
  **************************************************/
-sym_t *findMember(sym_t *p1, char *p2) {
-    register sym_t *st;
+sym_t *findMember(sym_t *pSym, char *name) {
+    register sym_t *ps;
 
-    st = p1->nMemberList;
-    for (;;) {
-        if (p1 == st) {
-            prError("%s is not a member of the struct/union %s", p2, p1->nVName);
-            return NULL;
-        }
-        if (strcmp(st->nVName, p2) == 0)
-            return st;
-        st = st->nMemberList;
-    }
+    for (ps = pSym->memberList; pSym != ps; ps = ps->memberList)
+        if (strcmp(ps->nVName, name) == 0)
+            return ps;
+    prError("%s is not a member of the struct/union %s", name, pSym->nVName);
+    return NULL;
 }
 
 /**************************************************
  * 118: 573B PMO +++
  **************************************************/
-void sub_573b(register sym_t *st, FILE *fp) {
+void emitSymName(register sym_t *st, FILE *fp) {
 
     if (st) {
-        if (st->m18 & 0x80)
-            fprintf(fp, "F%d", st->nodeId);
+        if (st->flags & S_NAMEID)
+            fprintf(fp, "F%d", st->symId);
         else
             fprintf(fp, "_%s", st->nVName);
     }
@@ -464,48 +460,48 @@ int16_t newTmpLabel(void) {
  * 120: 578D PMO +++
  * trivial optimiser differences
  **************************************************/
-args_t *sub_578d(register args_t *p) {
-    args_t *var2;
-    s8_t *var4;
-    int16_t var6;
-    if (!p)
-        return p;
-    var2 = xalloc(sizeof(args_t) + (p->cnt - 1) * sizeof(s8_t));
-    var6 = var2->cnt = p->cnt;
-    while (var6--) {
-        var4  = &var2->s8array[var6];
-        *var4 = p->s8array[var6];
-        if (var4->dataType == DT_POINTER)
-            var4->i_nextSym->nRefCnt++;
+args_t *cloneArgs(register args_t *pArgs) {
+    args_t *newList;
+    attr_t *pAttr;
+    int16_t i;
+    if (!pArgs)
+        return pArgs;
+    newList = xalloc(sizeof(args_t) + (pArgs->cnt - 1) * sizeof(attr_t));
+    i = newList->cnt = pArgs->cnt;
+    while (i--) {
+        pAttr  = &newList->argVec[i];
+        *pAttr = pArgs->argVec[i];
+        if (pAttr->dataType == DT_COMPLEX)
+            pAttr->nextSym->nRefCnt++;
     }
-    return var2;
+    return newList;
 }
 
 /**************************************************
  * 121: 583A PMO +++
  **************************************************/
-void sub_583a(register args_t *st) {
-    s8_t *var2;
-    if (st) {
-        for (var2 = st->s8array; st->cnt--; var2++) {
-            if (var2->c7 == ANODE && var2->i_args)
-                sub_583a(var2->i_args);
-            if (var2->dataType == DT_POINTER)
-                reduceNodeRef(var2->i_nextSym);
+void freeArgs(register args_t *pArgs) {
+    attr_t *pAttr;
+    if (pArgs) {
+        for (pAttr = pArgs->argVec; pArgs->cnt--; pAttr++) {
+            if (pAttr->nodeType == FUNCNODE && pAttr->pFargs)
+                freeArgs(pAttr->pFargs);
+            if (pAttr->dataType == DT_COMPLEX)
+                reduceNodeRef(pAttr->nextSym);
         }
-        free(st);
+        free(pArgs);
     }
 }
 
 /**************************************************
  * 122: 58BD PMO +++
  **************************************************/
-void sub_58bd(register s8_t *st, s8_t *p2) {
+void cloneAttr(register attr_t *st, attr_t *p2) {
     *p2 = *st;
-    if (p2->c7 == ENODE)
-        p2->i_expr = sub_21c7(p2->i_expr);
-    else if (p2->c7 == ANODE)
-        p2->i_args = sub_578d(p2->i_args);
+    if (p2->nodeType == EXPRNODE)
+        p2->pExpr = cloneExpr(p2->pExpr);
+    else if (p2->nodeType == FUNCNODE)
+        p2->pFargs = cloneArgs(p2->pFargs);
 }
 
 /**************************************************
@@ -513,95 +509,97 @@ void sub_58bd(register s8_t *st, s8_t *p2) {
  * some optimiser differences including movement
  * of some basic blocks
  **************************************************/
-bool sub_591d(register s8_t *st, s8_t *p2) {
+bool haveSameDataType(register attr_t *st, attr_t *p2) {
     int16_t var2;
 
     if (st == p2)
         return true;
-    if (st->c7 != p2->c7 || st->dataType != p2->dataType || st->i4 != p2->i4)
+    if (st->nodeType != p2->nodeType || st->dataType != p2->dataType ||
+        st->indirection != p2->indirection)
         return false;
     switch (st->dataType) {
     case DT_ENUM:
     case DT_STRUCT:
     case DT_UNION:
-        return st->i_nextSym == p2->i_nextSym;
-    case DT_POINTER:
-        return sub_591d(st->i_nextInfo, p2->i_nextInfo);
+        return st->nextSym == p2->nextSym;
+    case DT_COMPLEX:
+        return haveSameDataType(st->nextAttr, p2->nextAttr);
     }
-    if (st->c7 != ANODE || !st->i_args || !p2->i_args)
+    if (st->nodeType != FUNCNODE || !st->pFargs || !p2->pFargs)
         return true;
-    if (st->i_args->cnt != p2->i_args->cnt)
+    if (st->pFargs->cnt != p2->pFargs->cnt)
         return false;
-    var2 = st->i_args->cnt;
+    var2 = st->pFargs->cnt;
     do {
         if (var2-- == 0)
             return true;
-    } while (sub_591d(&st->i_args->s8array[var2], &p2->i_args->s8array[var2]));
+    } while (haveSameDataType(&st->pFargs->argVec[var2], &p2->pFargs->argVec[var2]));
     return false;
 }
 
 /**************************************************
  * 124: 5A4A PMO +++
  **************************************************/
-bool sub_5a4a(register s8_t *st) {
-    return st->dataType == DT_VOID && st->i4 == 1;
+bool isVoidStar(register attr_t *st) {
+    return st->dataType == DT_VOID && st->indirection == 1;
 }
 
 /**************************************************
  * 125: 5A76 PMO +++
  **************************************************/
-bool sub_5a76(register s8_t *st, uint8_t p2) {
+bool isVarOfType(register attr_t *st, uint8_t p2) {
 
-    return st->dataType == p2 && st->i4 == 0 && st->c7 == SNODE;
+    return st->dataType == p2 && st->indirection == 0 && st->nodeType == SYMNODE;
 }
 
 /**************************************************
  * 126: 5AA4 PMO +++
  **************************************************/
-bool sub_5aa4(register s8_t *st) {
-    return st->c7 == SNODE && (((st->i4 & 1) && st->c7 == SNODE) || st->dataType < DT_VOID);
+bool isLogicalType(register attr_t *st) {
+    return st->nodeType == SYMNODE &&
+           (((st->indirection & 1) && st->nodeType == SYMNODE) || st->dataType < DT_VOID);
 }
 
 /**************************************************
  * 127: 5AD5 PMO +++
  **************************************************/
-bool sub_5ad5(register s8_t *st) {
-    return st->c7 == SNODE && st->i4 == 0 &&  st->dataType <= DT_ENUM;
+bool isSimpleType(register attr_t *st) {
+    return st->nodeType == SYMNODE && st->indirection == 0 && st->dataType <= DT_ENUM;
 }
 
 /**************************************************
  * 128: 5B08 PMO +++
  **************************************************/
-bool sub_5b08(register s8_t *st) {
-    return (st->c7 == SNODE && st->i4 == 0 && st->dataType < DT_FLOAT);
+bool isIntType(register attr_t *st) {
+    return (st->nodeType == SYMNODE && st->indirection == 0 && st->dataType < DT_FLOAT);
 }
 
 /**************************************************
  * 129: 5B38 PMO +++
  **************************************************/
-bool sub_5b38(register s8_t *st) {
-    return st->c7 == SNODE && st->i4 == 0 &&
+bool isFloatType(register attr_t *st) {
+    return st->nodeType == SYMNODE && st->indirection == 0 &&
            (st->dataType == DT_FLOAT || st->dataType == DT_DOUBLE);
 }
 
 /**************************************************
  * 130: 5B69 PMO +++
  **************************************************/
-bool isValidDimType(register s8_t *st) {
+bool isValidIndex(register attr_t *st) {
 
-    return sub_5b08(st) || sub_5a76(st, DT_ENUM);
+    return isIntType(st) || isVarOfType(st, DT_ENUM);
 }
 
 /**************************************************
  * 131: 5B99 PMO +++
  * uint8_t parameter
  **************************************************/
-void sub_5b99(register s8_t *st) {
-    if (st->c7 == ANODE)
-        st->c7 = 0;
+void delIndirection(register attr_t *st) {
+    if (st->nodeType == FUNCNODE)
+        st->nodeType = SYMNODE;
     else
-        st->i4 >>= 1;
+        st->indirection >>= 1;
 
-    if (sub_5a76(st, 0x16))
-        *st = *(st->i_nextInfo);
+    if (isVarOfType(st, DT_COMPLEX))
+        *st = *(st->nextAttr);
 }

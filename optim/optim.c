@@ -1375,9 +1375,7 @@ void optimise() {
     } /* end while */
     if (!key_n)
         return;
-
-    fclose(stdout); /* This statement results in an error when you close */
-                    /* stdout again in main program. It can be removed. */
+    /* fclose(stdout); This statement removed as fclose(stdout) is also done in main */
     fprintf(stderr, "%dK, %d iterations\n", ((int)(l6 - l4) + 0x3ff) / 0x400, iteration);
 
     for (l1 = 0; l1 < NOPTIM; l1++)
@@ -2850,7 +2848,8 @@ void sub_404d() {
     if (root->pNext) {
         pr_psect(TEXT);
         for (ilist = root->pNext; ilist; ilist = ilist->pNext) {
-            if (ilist->tType == T_CALL && strcmp(ilist->iLhs->oPSym->label, "ncsv") == 0) {
+            /* 22-08-22 fix guard against calls to absolute locations */
+            if (ilist->tType == T_CALL && ilist->iLhs->oPSym && strcmp(ilist->iLhs->oPSym->label, "ncsv") == 0) {
                 ilist = ilist->pNext;
                 if (ilist->tType != T_DEFW) /* "defw" */
                     pr_error("Expecting defw after call ncsv");

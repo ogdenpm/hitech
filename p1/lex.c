@@ -61,6 +61,7 @@ void prErrMsg(void);
 int16_t skipWs(void);
 int8_t escCh(int16_t ch);
 
+sym_t *sigptr;
 
 /**************************************************
  * 56: 2671 PMO +++
@@ -75,7 +76,7 @@ uint8_t yylex(void) {
     if (ungetTok) {
         tok      = ungetTok;
         ungetTok = 0;
-        if (tok == T_ID && byte_8f86)
+        if (tok == T_ID && lexMember)
             yylval.ySym = sub_4e90(nameBuf);
         return tok;
     }
@@ -150,42 +151,42 @@ uint8_t yylex(void) {
         case '+':
             ch = getCh();
             if (ch == '+')
-                return T_INC;
+                return T_PREINC;
             ungetCh = ch;
             ch      = skipWs();
             if (ch == '=')
-                return T_PLUSEQ;
+                return P1_EQPLUS;
             ungetCh = ch;
             return T_PLUS;
         case '-':
             ch = getCh();
             if (ch == '-')
-                return T_DEC;
+                return T_PREDEC;
             if (ch == '>')
                 return T_POINTER;
 
             ungetCh = ch;
             ch      = skipWs();
             if (ch == '=')
-                return T_MINUSEQ;
+                return P1_EQMINUS;
             ungetCh = ch;
             return T_MINUS;
         case '*':
             ch = skipWs();
             if (ch == '=')
-                return T_MULEQ;
+                return P1_EQMUL;
             ungetCh = ch;
-            return T_STAR; /* deref or multiply */
+            return T_MUL; /* deref or multiply */
         case '/':
             ch = skipWs();
             if (ch == '=')
-                return T_DIVEQ;
+                return P1_EQDIV;
             ungetCh = ch;
             return T_DIV;
         case '%':
             ch = skipWs();
             if (ch == '=')
-                return T_MODEQ;
+                return P1_EQMOD;
             ungetCh = ch;
             return T_MOD;
         case '&':
@@ -195,7 +196,7 @@ uint8_t yylex(void) {
             ungetCh = ch;
             ch      = skipWs();
             if (ch == '=')
-                return T_ANDEQ;
+                return P1_EQAND;
             ungetCh = ch;
             return T_BAND;
         case '|':
@@ -205,13 +206,13 @@ uint8_t yylex(void) {
             ungetCh = ch;
             ch      = skipWs();
             if (ch == '=')
-                return T_OREQ;
+                return P1_EQOR;
             ungetCh = ch;
             return T_BOR;
         case '^':
             ch = skipWs();
             if (ch == '=')
-                return T_XOREQ;
+                return P1_EQXOR;
             ungetCh = ch;
             return T_XOR;
         case '<':
@@ -219,7 +220,7 @@ uint8_t yylex(void) {
             if (ch == '<') {
                 ch = skipWs();
                 if (ch == '=')
-                    return T_SHLEQ;
+                    return P1_EQSHL;
                 else {
                     ungetCh = ch;
                     return T_SHL;
@@ -233,7 +234,7 @@ uint8_t yylex(void) {
             if (ch == '>') {
                 ch = skipWs();
                 if (ch == '=')
-                    return T_SHREQ;
+                    return P1_EQSHR;
                 else {
                     ungetCh = ch;
                     return T_SHR;
@@ -509,31 +510,33 @@ void parseString(int16_t ch) {
  **************************************************/
 int16_t getCh(void) {
     int16_t ch;
-    if (ungetCh) {
-        ch      = ungetCh;
-        ungetCh = 0;
-    } else if ((ch = inBuf[inCnt++]) == 0) {
-        if (s_opt)
-            emitSrcInfo();
-        sInfoEmitted = false;
-        lInfoEmitted = false;
-
-        if (!fgets(inBuf, 512, stdin))
-            return EOF;
-        ch          = inBuf[0];
-        inCnt       = 1;
-        startTokCnt = 0;
-        lineNo++;
-        if (l_opt)
-            prErrMsg();
-    }
-#if defined(CPM) || defined(_WIN32)
-    return ch;
-#else
-    if (ch == 0x1a) /* CPM EOF */
-        return EOF;
-    return ch != '\r' ? ch : getCh();
+#if !defined(CPM) && !defined(_WIN32)
+    do {
 #endif
+        if (ungetCh) {
+            ch      = ungetCh;
+            ungetCh = 0;
+        } else if ((ch = inBuf[inCnt++]) == 0) {
+            if (s_opt)
+                emitSrcInfo();
+            sInfoEmitted = false;
+            lInfoEmitted = false;
+
+            if (!fgets(inBuf, 512, stdin))
+                return EOF;
+            ch          = inBuf[0];
+            inCnt       = 1;
+            startTokCnt = 0;
+            lineNo++;
+            if (l_opt)
+                prErrMsg();
+        }
+#if !defined(CPM) && !defined(_WIN32)
+        if (ch == 0x1a)
+            return EOF;
+    } while (ch != '\r');
+#endif
+    return ch;
 }
 
 /**************************************************

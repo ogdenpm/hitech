@@ -55,7 +55,7 @@ void prMsg(char *fmt, va_list args);
 #endif
 void copyTmp(void);
 void closeFiles(void);
-void sub_3abf(void);
+void mainParseLoop(void);
 
 /**************************************************
  * 71: 367E PMO +++
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
         }
     }
     sub_4d92();
-    sub_07e3();
+    resetExprStack();
     if (argc) {
         if (freopen(argv[0], "r", stdin) == 0)
             fatalErr("can't open %s", *argv);
@@ -126,13 +126,13 @@ int main(int argc, char *argv[]) {
     if (!(tmpFp = fopen(tmpFile, "w")))
         fatalErr("can't open %s", tmpFile);
 
-    s13_9d28.tType    = T_ICONST;
-    s13_9d1b.tType         = T_ICONST;
-    s13_9d1b.attr.dataType = s13_9d28.attr.dataType = DT_INT;
-    s13_9d1b.t_l      = 0;
-    s13_9d28.t_l      = 1;
+    eOne.tType    = T_ICONST;
+    eZero.tType         = T_ICONST;
+    eZero.attr.dataType = eOne.attr.dataType = DT_INT;
+    eZero.t_l      = 0;
+    eOne.t_l      = 1;
 
-    sub_3abf();
+    mainParseLoop();
     copyTmp();
 
     if (fclose(stdout) == -1)
@@ -275,6 +275,8 @@ void closeFiles(void) {
         fclose(tmpFp);
         unlink(tmpFile);
     }
+    if (crfFp) /* PMO - close missing in original */
+        fclose(crfFp);
 }
 /**************************************************
  * 79: 3A80 PMO +++
@@ -285,7 +287,7 @@ void *xalloc(size_t size) {
     do {
         if ((ptr = malloc(size)) != NULL)
             goto done;
-    } while (releaseNodeFreeList() || s13ReleaseFreeList());
+    } while (releaseSymFreeList() || releaseExprList());
     fatalErr("Out of memory");
 done:
     blkclr(ptr, size);
@@ -295,12 +297,12 @@ done:
 /**************************************************
  * 80: 3ABF PMO +++
  **************************************************/
-void sub_3abf(void) {
+void mainParseLoop(void) {
     uint8_t tok;
 
     while ((tok = yylex()) != T_EOF) {
         ungetTok = tok;
         sub_3adf();
     }
-    checkScopeExit();
+    releaseScopeSym();
 }

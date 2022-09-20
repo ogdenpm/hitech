@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 rem locally install applications
-if /I [%~1] == [-v] (echo %0: Rev 11  -- 5eb32b3 [2020-09-20]) & goto :EOF
+if /I [%~1] == [-v] (echo %0: Rev 12  -- 0bc2e9f [2022-08-26]) & goto :EOF
 if [%1] == [] goto usage
 if [%2] neq [] goto start
 :usage
@@ -67,38 +67,23 @@ if not exist %CONFIGFILE% (
 :: get the current time for date/time modified dir or suffix
 for /f "tokens=2 delims==." %%A in ('wmic os get LocalDateTime /format:list') do set NOW=%%A
 :: process the intall config file
-set INCLUDE=Y
+set SKIP=N
 for /f %%A in (%CONFIGFILE%) do (
-:: cannot set LINE with a comma in the text so convert comma to colon. Need to quote/unquote to do this
-    call :setSkipping ACTION %%A
-    if [!ACTION!] == [COPY] (
-        if [!INCLUDE!] == [Y] (
-            for /f "tokens=1,2,* delims=," %%B in ("%%A") do (
-                if /I [%PARENT%] == [%%B] (
-                    call :copy "%1" "%2" "%%C" "%%D"
-                )
+    set LINE=[%%A]
+    set CH=!LINE:~,2!]
+    if !CH! == [+] (
+        call :setSkip "!LINE!" %FILE% N Y
+    ) else if !CH! == [-] (
+        call :setSkip "!LINE!" %FILE% Y N
+    ) else if [!SKIP!] == [N] (
+        for /f "tokens=1,2,* delims=," %%B in ("%%A") do (
+            if /I [%PARENT%] == [%%B] (
+                call :copy "%1" "%2" "%%C" "%%D"
             )
         )
-    ) else (
-        call :updateSkipping INCLUDE !ACTION! %FILE% "%%A"
     )
 )
 goto :eof
-
-:setSkipping result line
-setlocal
-set LINE=%~2
-set RESULT=COPY
-if [%LINE%] neq [] (
-    if [%LINE:~,1%] == [-] (
-       set RESULT=EXCLUDE
-    ) else (
-       if [%LINE:~,1%] == [+] set RESULT=INCLUDE
-    )
-)
-endlocal & set %1=%RESULT%
-goto :eof
-
 
 :: the core code to copy the file to the desired location
 :copy root src dir suffix
@@ -127,28 +112,25 @@ echo Installing %~1 to %FILE%
 copy /b /y "%~1" "%FILE%"
 goto :eof
 
-:updateSkipping var val file match
+:: check if file is present in list, if it is
+:: set SKIP to the passed in trueval else the falseval
+:: supports * as a wild card and if list is empty it is treated
+:: as if a * was used
+:setSkip list file trueval falseval
 setlocal enabledelayedexpansion
-:: because setting a variable with a comma in it isn't supported in windows
-:: modify the input so that that each file is enclosed in []
-set match=%4
-set match=%match:,=][%
-set match=%match:"=%
-set match=[%match:~1%]
-:: now enclose the current file name in []
-set file=[%~3]
-:: try removing from the list (also allow * as a wild card)
-call set removed=!match:%file%=!
-if [%removed%] neq [] set removed=%removed:[*]=%
-if [%removed%] neq [%match%] (
-    if [%2] == [INCLUDE] (set result=Y) else (set result=N)
-) else (
-    if [%2] == [INCLUDE] (set result=N) else (set result=Y)
-)
-
-endlocal & if [%removed%] neq [%match%] set %1=%result%
+:: convert list to allow check for [file]
+set list=%~1
+set list=%list:,=][%
+:: also remove the leading +/-
+set list=[%list:~2%
+:: set a default if no file specified
+if %list% == [] set list=[*]
+call set removed=!list:[%~2]=.!
+if %list% neq %removed%  (
+    set result=%3
+) else if %list% neq %list:[*]=.% (
+    set result=%3
+) else set result=%4
+endlocal & set SKIP=%result%
 goto :eof
-
-
-
 

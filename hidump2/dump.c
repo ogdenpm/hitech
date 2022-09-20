@@ -27,12 +27,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* clang-format on */
+#ifdef __GNUC__
+#include <limits.h>
+#endif
 
 #ifdef _WIN32
-#define DIRSEP  "/\\:"
+#define DIRSEP "/\\:"
 #else
 #define DIRSEP "/"
+#define stricmp strcasecmp
 #endif
+
+#define MEMINITIAL  256
+#define MEMEXTEND   4096
+#define LABELEXTEND 128
 
 typedef struct {
     char *name;
@@ -79,7 +88,7 @@ void listrelocHandler();
 void lr_textHandler();
 void lr_relocHandler();
 void cond_exprHandler();
-void dumpFile();
+void procFile();
 bool readRecord(FILE *fp);
 
 _Noreturn void fatal(char *fmt, ...);
@@ -136,15 +145,15 @@ char *relocNames[] = { "RABS",         "RPSECT",         "RNAME",         "COMPL
                        "RSABS",        "RSPSECT",        "RSNAME",        "Unknown(11)",
                        "RELBITS RABS", "RELBITS RPSECT", "RELBITS RNAME", "RELBITS COMPLEX" };
 char *symNames[]   = { "",        "STACK",       "COMM",     "REG",    "LINENO", "FILNAM",
-                     "EXTERN",  "LOCAL",       "REDIRECT", "RC_END", "RC_LOW", "RC_HI",
-                     "RC_VAL",  "RC_ADD",      "RC_SUB",   "RC_MUL", "RC_DIV", "RC_SHL",
-                     "RC_SHR",  "RC_AND",      "RC_OR",    "RC_XOR", "RC_CPL", "RC_NEG",
-                     "RC_BITF", "Bad RC type", "RC_MOD",   "RC_RNG", "RC_KEY", "RC_DEFD" };
+                       "EXTERN",  "LOCAL",       "REDIRECT", "RC_END", "RC_LOW", "RC_HI",
+                       "RC_VAL",  "RC_ADD",      "RC_SUB",   "RC_MUL", "RC_DIV", "RC_SHL",
+                       "RC_SHR",  "RC_AND",      "RC_OR",    "RC_XOR", "RC_CPL", "RC_NEG",
+                       "RC_BITF", "Bad RC type", "RC_MOD",   "RC_RNG", "RC_KEY", "RC_DEFD" };
 
 // spacing added  around operators to make it easier to read expressions
 char *exprNames[]   = { "",    "low ", "high ",       "RC_VAL", " + ",  " - ", " * ",
-                      " / ", " << ", " >> ",        " & ",    " | ",  " ^ ", " ~",
-                      " -",  "bit",  "Bad RC type", " % ",    " >= ", "Key:" };
+                        " / ", " << ", " >> ",        " & ",    " | ",  " ^ ", " ~",
+                        " -",  "bit",  "Bad RC type", " % ",    " >= ", "Key:" };
 char *fninfoNames[] = { "Invalid", "FNCALL", "FNARG",    "FNINDIR",  "FNADDR",
                         "FNSIZE",  "FNROOT", "FNINDARG", "FNSIGARG", "FNBREAK" };
 
@@ -154,6 +163,34 @@ struct {
     uint32_t op;
 } stack[256];
 
+typedef struct {
+    uint8_t val;
+    uint16_t flags;
+    char *rname;
+} mem_t;
+
+#define HASVAL 0x100
+
+typedef struct {
+    unsigned addr;
+    char *label;
+} label_t;
+
+typedef struct _psect {
+    struct _psect *next;
+    char *pname;
+    uint16_t flags; /* after dumping this is set to 0xffff as a sentinal */
+    unsigned labCnt;
+    unsigned labSize;
+    label_t *labels;
+    unsigned lowUsed;
+    unsigned highUsed;
+    unsigned memSize;
+    mem_t *mem;
+} psect_t;
+
+int complexCnt;
+
 uint8_t recBuf[512];
 char *fname;
 int recLen;
@@ -161,191 +198,419 @@ int recNum;
 uint8_t major;
 uint8_t minor;
 uint8_t recType;
+char ascii[16 + 7 + 1]; /* 16 bytes + possible addition 7 reloc bytes */
+uint8_t asciiIdx;
+bool haveAscii;
+#define ASCIICOL (16 * 4 + 4 + 4)
+psect_t *psectList;
 
-typedef  struct {
-    uint16_t flags;
-    uint8_t val;
-    char *rname;
-    char *label;
-} loc_t;
+bool dumpRecords; /* use -R to force old record format */
+psect_t *curPsect;
+unsigned curBase;
 
-typedef struct {
-    size_t size;
-    size_t maxAddr;
-    loc_t *loc;
-} mem_t;
+#define TYPE(n) (unsigned)(((n) >> 4) & 0xf)
+#define SIZE(n) (unsigned)((n)&0xf)
 
-mem_t text, data;
+void printPsectInfo(char *pname, uint16_t flags);
+void addLabel(char *psectName, unsigned addr, char *name);
+psect_t *getPsect(char *pname);
+void displayPsect(psect_t *p);
 
-mem_t *curMem;
-int curBase;
-
-
-#define CHUNK 2048
-#define HASVAL  0x100
-#define TYPE(n)    (((n) >> 4) & 0xf)
-#define SIZE(n)    ((n) & 0xf)
-#define LINELIMIT   56
-
-
-
-void memChk(mem_t* mp, size_t addr) {
-    if (addr > mp->maxAddr)
-        mp->maxAddr = addr;
-    if (addr <= mp->size)
-        return;
-    addr += CHUNK;  /* provide a little extra room */
-    if ((mp->loc = realloc(mp->loc, addr * sizeof(loc_t))) == NULL) {
-        fprintf(stderr, "Out of memory\n");
-        exit(1);
+void releaseMem() {
+    psect_t *q;
+    for (psect_t *p = psectList; p; p = q) {
+        if (p->labSize) {
+            for (unsigned i = 0; i < p->labCnt; i++)
+                free(p->labels[i].label);
+            free(p->labels);
+        }
+        if (p->memSize) {
+            for (unsigned i = p->lowUsed; i < p->highUsed; i++)
+                if (p->mem[i].rname)
+                    free(p->mem[i].rname);
+            free(p->mem);
+        }
+        free(p->pname);
+        q = p->next;
+        free(p);
     }
+    psectList = NULL;
+}
 
-    memset(mp->loc + mp->size, 0, (addr - mp->size) * sizeof(loc_t));
-    mp->size = addr;
+void memChk(psect_t *mp, size_t addr) {
+    if (addr >= mp->memSize) {
+        size_t newSize;
+        for (newSize = MEMINITIAL; addr >= newSize; newSize += MEMEXTEND)
+            ;
+        if (!(mp->mem = realloc(mp->mem, sizeof(mem_t) * newSize)))
+            fatal("Out of memory");
+
+        memset(mp->mem + mp->memSize, 0, (newSize - mp->memSize) * sizeof(mem_t));
+        mp->memSize = newSize;
+    }
 }
 
 void addMem(uint8_t *pdata, int ldata) {
-    memChk(curMem, curBase + ldata - 1);
+    memChk(curPsect, curBase + ldata);
+    if (curPsect->lowUsed > curBase)
+        curPsect->lowUsed = curBase;
+    if (curPsect->highUsed < curBase + ldata)
+        curPsect->highUsed = curBase + ldata;
     for (int i = 0; i < ldata; i++) {
-        curMem->loc[curBase + i].val = *pdata++;
-        curMem->loc[curBase + i].flags |= HASVAL;
+        curPsect->mem[curBase + i].val = *pdata++;
+        curPsect->mem[curBase + i].flags |= HASVAL;
     }
 }
 
-
-void addReloc(int addr, char* name, int reloc) {
-    if (TYPE(curMem->loc[curBase + addr].flags))
-        fprintf(stderr, "log %04X already has relocation, skipping %s\n", curBase + addr, name);
+void addReloc(unsigned addr, char *name, uint8_t fixup) {
+    addr += curBase;
+    if (TYPE(curPsect->mem[addr].flags) & 0xff)
+        fprintf(stderr, "log %04X already has relocation, skipping %s\n", addr, name);
     else {
-        curMem->loc[curBase + addr].rname = strdup(name);
-        curMem->loc[curBase + addr].flags |= reloc;
-    }
-}
-
-
-void addLabel(mem_t* mp, int addr, char* name) {
-    memChk(mp, addr);
-    if (mp->loc[addr].label) {
-        char *tmp = malloc(strlen(mp->loc[addr].label) + strlen(name) + 2);
-        strcpy(tmp, mp->loc[addr].label);
-        strcat(tmp, ":");
-        strcat(tmp, name);
-        free(mp->loc[addr].label);
-        mp->loc[addr].label = tmp;
-    } else
-        mp->loc[addr].label = strdup(name);
-}
-
-void dumpMem(mem_t* mp, char *psect) {
-    if (mp->maxAddr == 0)
-        return;
-    printf("\t\tpsect %s\n", psect);
-
-    int chCnt = 0;
-    for (int i = 0; i <= mp->maxAddr;) {
-        if (mp->loc[i].label) {
-            if (chCnt)
-                putchar('\n');
-            char *s = mp->loc[i].label;
-            char *t;
-            while (t = strchr(s, ':')) {
-                *t = 0;
-                printf("\t\t%04X: %s:\n", i, s);
-                s = t + 1;
-            }
-            printf("\t\t%04X: %s:\n", i, s);
-            chCnt = 0;
-        }
-        char num[9];
-        int size = SIZE(mp->loc[i].flags);
-        int tType = TYPE(mp->loc[i].flags);
-        if (size > 4  || tType == 3 || tType == 4 || tType == 7 || tType == 8 || tType > RSNAME) {
-            printf("\nFixup(%d) Size(%d) not supported\n", tType, size);
-            size = 1;
-            tType = RABS;
-        } else if (size == 0) {
-            size = 1;
-            tType = RABS;
-        }
-        
-        for (int j = 0, k = size; k--; j += 2) {
-            if (mp->loc[i + k].flags & HASVAL)
-                sprintf(num + j, "%02X", mp->loc[i + k].val);
+        curPsect->mem[addr].flags |= fixup | HASVAL;
+        curPsect->mem[addr].rname = strdup(name);
+        if (TYPE(fixup) <= RRPSECT &&
+            (TYPE(fixup) & 3) < 2) { /* for abs and psect rel add local label */
+            if (SIZE(fixup) > 4)
+                fatal(
+                    "At %s %04X - Relocation of item > 4 bytes not supported in pretty format mode",
+                    name, addr);
+            uint32_t val = 0;
+            for (unsigned i = 0; i < SIZE(fixup); i++)
+                if (addr + i < curPsect->highUsed && (curPsect->mem[addr + i].flags & HASVAL))
+                    val += (curPsect->mem[addr + i].val) << (i * 8);
+            if (TYPE(fixup) < RRABS)
+                addLabel(name, val, NULL);
             else
-                sprintf(num + j, "XX");
-
-        }
-        char *rname = mp->loc[i].rname ? mp->loc[i].rname : "(abs)";
-        int sep = i % 16 == 0 && i % 8 ? 2 : 0;
-        if (chCnt + strlen(num) + (tType != RABS ? strlen(rname) + 2 : 0) + sep >= LINELIMIT || (i % 16 == 0 && chCnt)) {
-            putchar('\n');
-            chCnt = 0;
-        }
-        if (chCnt == 0)
-            chCnt = printf("\t\t%04X:", i);
-        else if (i % 8 == 0)
-            printf(" -");
-
-
-        switch (TYPE(mp->loc[i].flags)) {
-        case RABS:  chCnt += printf(" %s", num); break;
-        case RPSECT: chCnt += printf(" %s+%s", num, rname); break;
-        case RNAME: chCnt += printf(" %s+%s", rname, num); break;
-        case RRPSECT: chCnt += printf(" %s$%s", num, rname); break;
-        case RRNAME: chCnt += printf(" %s$%s", rname, num); break;
-        case RSPSECT: chCnt += printf(" %s@%s", num, rname); break;
-        case RSNAME: chCnt += printf(" %s$%s", rname, num); break;
-        }
-
-        while (size--) {
-            mp->loc[i].val = 0;
-            mp->loc[i].flags = 0;
-            if (mp->loc[i].rname) {
-                free(mp->loc[i].rname);
-                mp->loc[i].rname = NULL;
-            }
-            if (mp->loc[i].label) {
-                free(mp->loc[i].label);
-            mp->loc[i].label = NULL;
-            }
-            i++;
+                addLabel(name, (addr + val + 2) & ((1 << SIZE(fixup) * 8) - 1), NULL);
         }
     }
-    putchar('\n');
-    mp->maxAddr = 0;
 }
 
+/* add a label to the given psect, keeping the labels in address, name order
+   A name of NULL is treated specially as it is used to reflect a relocated
+   item's target
+   if an existing label exists at the address, then the add is ignored
+   if there is a NULL label entry and a non NULL label at the address is being
+   added then the new label replaces the NULL one
+
+*/
+void addLabel(char *psectName, unsigned addr, char *name) {
+    psect_t *mp = getPsect(psectName);
+    int insertAt;
+    if (mp->labCnt == 0 || addr > mp->labels[mp->labCnt - 1].addr) // most likely case
+        insertAt = mp->labCnt;
+    else {
+        for (insertAt = 0; addr > mp->labels[insertAt].addr; insertAt++) // get addr based insert
+            ;
+        if (addr == mp->labels[insertAt].addr) {
+            if (name == NULL)
+                return;
+            if (mp->labels[insertAt].label == NULL) {
+                if (name)
+                    mp->labels[insertAt].label = strdup(name);
+                return;
+            }
+            /* refine for label name if more than one label at address */
+            while (addr == mp->labels[insertAt].addr &&
+                   strcmp(name, mp->labels[insertAt].label) < 0)
+                insertAt++;
+        }
+    }
+    if (mp->labCnt == mp->labSize &&
+        !(mp->labels = realloc(mp->labels, (mp->labSize += LABELEXTEND) * sizeof(label_t))))
+        fatal("Out of memory");
+    if (insertAt != mp->labCnt)
+        memmove(&mp->labels[insertAt + 1], &mp->labels[insertAt],
+                sizeof(label_t) * (mp->labCnt - insertAt));
+    mp->labels[insertAt].addr  = addr;
+    mp->labels[insertAt].label = name ? strdup(name) : NULL;
+    mp->labCnt++;
+}
+
+void fixRelocLabels() {
+    char fake[128];
+    char *s;
+
+    for (psect_t *p = psectList; p; p = p->next) {
+        fake[1] = '\0';
+        if (strcmp(p->pname, "text") == 0 || strcmp(p->pname, "_TEXT") == 0)
+            fake[0] = '$';
+        else if (strcmp(p->pname, "data") == 0)
+            fake[0] = '\'';
+        else if (strcmp(p->pname, "bss") == 0)
+            fake[0] = '"';
+        else if (strcmp(p->pname, "(abs)") == 0)
+            fake[0] = '@';
+        else
+            sprintf(fake, "%s'", p->pname);
+        s = strchr(fake, '\0');
+        for (unsigned i = 0; i < p->labCnt; i++)
+            if (p->labels[i].label == NULL) {
+                sprintf(s, "%04X", p->labels[i].addr);
+                p->labels[i].label = strdup(fake);
+            }
+    }
+}
+
+/* locate the first label with a given address in the given psect */
+/* this version does a linear search even though a binary search would be more efficient */
+char *getLabel(char *psectName, unsigned addr) {
+    psect_t *mp = getPsect(psectName);
+
+    for (unsigned i = 0; i < mp->labCnt; i++)
+        if (mp->labels[i].addr == addr)
+            return mp->labels[i].label;
+    fatal("label at %04X not found in psect %s", addr, psectName);
+}
+
+psect_t *getPsect(char *pname) {
+    psect_t **p = &psectList;
+    if (*pname == '\0')
+        pname = "(abs)";
+    while (*p && strcmp((*p)->pname, pname))
+        p = &(*p)->next;
+    if (!*p) {
+        if (!(*p = calloc(1, sizeof(psect_t))))
+            fatal("Out of memory");
+        (*p)->pname   = strdup(pname);
+        (*p)->lowUsed = UINT_MAX;
+    }
+    return *p;
+}
+
+void printLabel(psect_t *mp, int n) {
+    printf("\t\t%s:\n", mp->labels[n].label);
+}
+
+int displayVal(psect_t *mp, size_t addr) {
+    int width    = 0;
+    uint32_t val = 0;
+    if (mp->mem[addr].flags == 0) {
+        width             = printf("xx");
+        ascii[asciiIdx++] = '?';
+    } else if (mp->mem[addr].flags == HASVAL) {
+        width = printf("%02X", mp->mem[addr].val);
+        if (' ' <= mp->mem[addr].val && mp->mem[addr].val <= '~') {
+            ascii[asciiIdx++] = mp->mem[addr].val;
+            haveAscii         = true;
+        } else
+            ascii[asciiIdx++] = '.';
+    } else {
+        int rType = TYPE(mp->mem[addr].flags);
+        int rSize = SIZE(mp->mem[addr].flags);
+
+        for (int i = 0; i < rSize; i++)
+            if (addr + i < mp->highUsed) {
+                if (mp->mem[addr + i].flags & HASVAL)
+                    val += (mp->mem[addr + i].val) << (i * 8);
+                ascii[asciiIdx++] = '.';
+            }
+        char *name = mp->mem[addr].rname;
+        switch (rType) {
+        case RABS:
+            width += printf("%s%s", *name ? "@" : "", getLabel(name, val));
+            break;
+        case RPSECT:
+            width += printf("%s", getLabel(name, val));
+            break;
+        case RNAME:
+            width += printf("%s", name);
+            if (val)
+                width += printf(val < 16 ? "+%d" : "+0x%X", val);
+            break;
+        case COMPLEX:
+            width += printf("%s", name);
+            break;
+        case RRABS:
+            width += printf("REL(%s%s)", *name ? "@" : "",
+                            getLabel(name, (addr + val + 2) & ((1 << rSize * 8) - 1)));
+            break;
+        case RRPSECT:
+            width += printf("REL(%s)", getLabel(name, (addr + val + 2) & ((1 << rSize * 8) - 1)));
+            break;
+        case RRNAME:
+            width += printf("REL(%s", name);
+            val = (val + 2) & ((1 << rSize * 8) - 1);
+            if (val)
+                width += printf(val < 16 ? "+%d" : "+0x%X", val);
+            width += printf(")");
+            break;
+        case UNK7:
+            width += printf("RELOC ERROR(7)");
+            break;
+        case RSABS:
+            width += printf("ASEG(%s)", *name ? name : "(abs)");
+            break;
+        case RSPSECT:
+            width += printf("SEG(%s)", *name ? name : "(abs)");
+            break;
+        case RSNAME:
+            width += printf("SEG(%s", name);
+            if (val)
+                width += printf(val < 16 ? "+%d" : "+0x%X", val);
+            width += printf(")");
+            break;
+        case UNK11:
+            width += printf("RELOC ERROR(11)");
+            break;
+        case RELBITS_RABS:
+            width += printf("ARBITS(%s)", *name ? name : "(abs)");
+            break;
+        case RELBITS_RPSECT:
+            width += printf("RBITS(%s)", *name ? name : "(abs)");
+            break;
+        case RELBITS_RNAME:
+            width += printf("RBITS(%s", name);
+            if (val)
+                width += printf(val < 16 ? "+%d" : "+0x%X", val);
+            width += printf(")");
+            break;
+        case RELBITS_COMPLEX:
+            printf("RBITS(%s)", name);
+            break;
+        }
+    }
+    return width;
+}
+
+#define BCNT(pm) (((pm).flags & 0xf) ? ((pm).flags & 0xf) : 1)
+
+void display() {
+    /* the order psects are displayed, NULL displays rest in order they were seen */
+    static char *order[] = { "cpm", "text", "_TEXT", "data", "bss", "stack", "" };
+    fixRelocLabels();
+    /* (abs) always goes first  */
+    for (psect_t *p = psectList; p; p = p->next)
+        if (strcmp(p->pname, "(abs)") == 0) {
+            displayPsect(p);
+            break;
+        }
+    /* next comes the absolute psects in address order */
+    psect_t *lowp;
+    do {
+        lowp             = NULL;
+        uint32_t lowAddr = UINT32_MAX;
+        for (psect_t *p = psectList; p; p = p->next) {
+            if ((p->flags & 0200) && p->flags != 0xffff &&
+                (p->memSize ? p->lowUsed < lowAddr // check actual data
+                 : p->labCnt
+                     ? p->labels[0].addr < lowAddr // if no data, then just defined labels e.g. bss
+                     : false)) { // psect no data & no labels will be handled as defaults
+                lowp    = p;
+                lowAddr = p->memSize ? p->lowUsed : p->labels[0].addr;
+            }
+        }
+        if (lowp)
+            displayPsect(lowp);
+    } while (lowp);
+    /* finally to relocatable segments in "order" */
+    int orderIdx = 0;
+    do {
+        char *psectName = order[orderIdx];
+        for (psect_t *p = psectList; p; p = p->next) {
+            if (strcmp(p->pname, psectName) == 0) { // found
+                if (p->flags != 0xffff)             // process if not already done
+                    displayPsect(p);
+                break;
+            } else if (p->flags != 0xffff && *psectName == '\0')
+                displayPsect(p);
+        }
+    } while (*order[orderIdx++]);
+}
+
+void printAscii(int col) {
+    if (haveAscii) {
+        ascii[asciiIdx] = '\0';
+        printf("%*s|%s|", col < ASCIICOL ? ASCIICOL - col : 1, "", ascii);
+    }
+    haveAscii = false;
+    asciiIdx  = 0;
+}
+
+void displayPsect(psect_t *p) {
+    unsigned addr;
+    unsigned rowAddr;
+    int col, tcol;
+    unsigned labIdx;
+    printf("\t\tpsect ");
+    printPsectInfo(p->pname, p->flags);
+    for (labIdx = 0; labIdx < p->labCnt && p->labels[labIdx].addr <= p->lowUsed; labIdx++)
+        printf("\n\t%04X  %s:", p->labels[labIdx].addr, p->labels[labIdx].label);
+    col     = ASCIICOL;
+    rowAddr = p->lowUsed & ~0xf;
+    for (addr = p->lowUsed; addr < p->highUsed; addr += BCNT(p->mem[addr])) {
+        if (rowAddr != (addr & ~0xf)) {
+            printAscii(col);
+            col = ASCIICOL;
+        }
+
+        for (; labIdx < p->labCnt && p->labels[labIdx].addr <= addr; labIdx++) {
+            printAscii(col);
+            printf("\n\t%04X  %s:", p->labels[labIdx].addr, p->labels[labIdx].label);
+            col = ASCIICOL;
+        }
+
+        tcol = (addr & 0xf) * 4 + ((addr & 0xf) / 4) + ((addr & 0xf) / 8);
+        if (tcol < col + 1) {
+            putchar('\n');
+            col = 0;
+        }
+        if (col == 0)
+            printf("\t%04X  ", rowAddr = (addr & ~0xf));
+        col += printf("%*s", tcol - col, "");
+        col += displayVal(p, addr);
+    }
+    printAscii(col);
+    if (p->memSize && addr != p->highUsed)
+        printf("\nWarning relocation item extends past end of psect mem\n");
+    for (; labIdx < p->labCnt; labIdx++)
+        printf("\n\t%04X  %s:", p->labels[labIdx].addr, p->labels[labIdx].label);
+    p->flags = 0xffff;
+    putchar('\n');
+    putchar('\n');
+}
 
 int main(int argc, char **argv) {
     char **parg;
+    FILE *fp;
 
     if (argc == 1) {
         char *s = argv[0];
         char *t;
-        while (t = strpbrk(s, DIRSEP))
+        while ((t = strpbrk(s, DIRSEP)))
             s = t + 1;
-        fprintf(stderr, "Usage: %s objfile+\n", s);
+        fprintf(stderr, "Usage: %s [-R] objfile+\n", s);
         exit(0);
     }
+
     for (parg = argv + 1; parg < argv + argc; parg++) {
-        recNum = 0;
-        if (freopen(fname = *parg, "rb", stdin) == NULL)
-            fatal("cannot open");
-        printf("%s\n", fname);
-        dumpFile();
-        dumpMem(&text, "_TEXT");
-        dumpMem(&data, "data");
+        if (stricmp(*parg, "-R") == 0)
+            dumpRecords = true;
+        else {
+            recNum = 0;
+            if ((fp = fopen(fname = *parg, "rb")) == NULL)
+                fatal("cannot open");
+            printf("%s\n", fname);
+            procFile(fp);
+            fclose(fp);
+            if (!dumpRecords) {
+                display();
+                releaseMem();
+            }
+        }
     }
     exit(0);
 }
 
-void dumpFile() {
+void procFile(FILE *fp) {
     handler_t *recEntry;
-    while (readRecord(stdin)) {
+    while (readRecord(fp)) {
         if (recType >= 20)
             fatal("Bad record type %d", recType);
         recEntry = &recHandlers[recType];
-        if (recType != TEXT && recType != RELOC)
+        if (dumpRecords ||
+            (recType != TEXT && recType != RELOC && recType != SYM && recType != PSECT))
             printf("\t%d\t%s\t%u\n", recNum, recEntry->name, recLen);
         recEntry->handler();
         if (recType == END)
@@ -368,7 +633,7 @@ bool readRecord(FILE *fp) {
     return true;
 }
 
-// data dump modified to print 20 items per line. Original dumped 21
+// data dump modified to print 16 items per line. Original dumped 21
 // also data offset is shown at start of line and a - is placed
 // between the two groups of 10 bytes on a line
 
@@ -376,59 +641,69 @@ void textHandler() {
     uint8_t *pdata;
     char *psname;
     int dataLen;
-    int addr = 0;
-    curBase   = get32(recBuf);
-    psname   = (char *)(recBuf + 4);
+    curBase = get32(recBuf);
+    psname  = (char *)(recBuf + 4);
     for (pdata = (uint8_t *)psname; *pdata; pdata++)
         ;
     pdata++;
     dataLen = recLen - (int)(strlen(psname) + 5);
     if (dataLen < 0)
         fatal("text record has length too small: %d", dataLen);
-    
 
-    if (strcmp(psname, "_TEXT") == 0)
-        curMem = &text;
-    else if (strcmp(psname, "data") == 0)
-        curMem = &data;
-    else
-        curMem = NULL;
-
-    if (curMem)
-        addMem(pdata, dataLen);
-    else {
-        printf("\t%d\tTEXT\t%u\n", recNum, recLen);
-        printf("\t\t%s\t0x%04X\t0x%04X\n", psname, curBase, dataLen);
-        while (addr != dataLen) {
-            printf("\t\t%0x4: ", curBase + addr);
-            for (uint8_t i = 20; i != 0 && addr != dataLen; addr++, i--) {
-                if (i == 10)
-                    printf("- ");
-                printf("%02X ", *pdata++);
+    if (dumpRecords) {
+        printf("\t\t%s\t0x%X\t%d", psname, curBase, dataLen);
+        int rowAddr = 1;
+        int col     = 0;
+        int tcol;
+        for (unsigned addr = curBase; addr < curBase + dataLen; addr++) {
+            if (rowAddr != (addr & ~0xf)) {
+                printAscii(col);
+                putchar('\n');
+                col = 0;
             }
-            putchar('\n');
+            tcol = (addr & 0xf) * 4 + ((addr & 0xf) / 4) + ((addr & 0xf) / 8);
+            if (col == 0)
+                printf("\t\t%04X  ", rowAddr = (addr & ~0xf));
+            if (*pdata && *pdata <= '~') {
+                ascii[asciiIdx++] = *pdata;
+                haveAscii         = true;
+            } else
+                ascii[asciiIdx++] = '.';
+            col += printf("%*s%02X", tcol - col, "", *pdata++);
         }
+        printAscii(col);
+        putchar('\n');
+    } else {
+        curPsect = getPsect(psname);
+        addMem(pdata, dataLen);
     }
 }
 
 /* modified to print out include unknown low 4 bits and show
  * true unknown bit rather than bit >> 4
  */
-void psectHandler() {
-    uint16_t flags;
-    uint8_t bit;
 
-    printf("\t\t%s", recBuf[2] != '\0' ? (char *)recBuf + 2 : "(abs)");
-    flags = get16(recBuf);
-
-    for (bit = 0; flags; flags >>= 1, bit++)
+void printPsectInfo(char *pname, uint16_t flags) {
+    printf("%s", pname);
+    for (uint8_t bit = 0; flags; flags >>= 1, bit++)
         if (flags & 1) {
             if (bit < 4 || bit >= 11)
                 printf("\tUNKNOWN(0x%X)", 1 << bit);
             else
                 printf("\t%s", psectNames[bit - 4]);
         }
-    putchar('\n');
+}
+
+void psectHandler() {
+    uint16_t flags = get16(recBuf);
+    char *pname    = recBuf[2] ? (char *)recBuf + 2 : "(abs)";
+
+    if (dumpRecords) {
+        printf("\t\t");
+        printPsectInfo(pname, flags);
+        putchar('\n');
+    } else
+        getPsect(pname)->flags = flags;
 }
 
 uint32_t convertToInfix(int idx) {
@@ -577,28 +852,33 @@ void parseComplex(uint8_t **pp) {
 void relocHandler() {
     uint8_t *p;
     uint8_t tType;
-    bool heading = false;
+    uint8_t flags;
+    uint16_t offset;
 
     for (p = recBuf; p < recBuf + recLen;) {
-        tType = p[2] >> 4;
+        offset = get16(p);
+        flags  = p[2];
+        p += 3;
+        tType = flags >> 4;
         if (tType == COMPLEX || tType == RELBITS_COMPLEX) {
-            if (!heading) {
-                printf("\t%d\tRELOC\t%u\n", recNum, recLen);
-                heading = true;
-            }
-            printf("\t\t%d\t%s\t\t%d", get16(p), relocNames[tType], p[2] & 0xf);
-            p += 3;
+            if (dumpRecords)
+                printf("\t\t%-3d %04X\t%s\t\t%d", offset, curBase + offset, relocNames[tType],
+                       flags & 0xf);
+            else
+                printf("\t\tcomplex-%d", ++complexCnt);
             parseComplex(&p);
-        } else if (curMem) {
-            addReloc(get16(p), p + 3, p[2]);
-            p += strlen((char *)p + 3) + 4;
-        } else {
-            if (!heading) {
-                printf("\t%d\tRELOC\t%u\n", recNum, recLen);
-                heading = true;
+            if (!dumpRecords) {
+                char complexId[16];
+                sprintf(complexId, "complex-%d", complexCnt);
+                addReloc(curBase + offset, complexId, flags);
             }
-            printf("\t\t%d\t%s\t%s\t%d\n", get16(p), relocNames[tType], p + 3, p[2] & 0xf);
-            p += strlen((char *)p + 3) + 4;
+        } else {
+            if (dumpRecords)
+                printf("\t\t%-3d %04X\t%s\t%s\t%d\n", offset, curBase + offset, relocNames[tType],
+                       p, flags & 0xf);
+            else
+                addReloc(offset, (char *)p, flags);
+            p += strlen((char *)p) + 1;
         }
     }
 }
@@ -687,7 +967,10 @@ void xsymHandler() {
             ;
         uint16_t flags = get16(p + 4);
         printf("\t\t%s\t%s\t%X:%" PRIX32, syname,
-               *psname ? psname : (flags & 6) ? "" : "(abs)", get16(p + 6), get32(p));
+               *psname       ? psname
+               : (flags & 6) ? ""
+                             : "(abs)",
+               get16(p + 6), get32(p));
 
         if (flags & 0x10)
             printf("\tGLOBAL");
@@ -716,30 +999,35 @@ void fnconfHandler() {
 
 void symHandler() {
     char *psname, *syname;
-    int loc;
+    uint32_t loc;
     for (uint8_t *p = recBuf; p < recBuf + recLen; p += strlen(psname) + strlen(syname) + 8) {
         syname = psname = (char *)p + 6;
         while (*syname++)
             ;
+        loc            = get32(p);
         uint16_t flags = get16(p + 4);
-        printf("\t\t%-15s %s\t%" PRId32, syname,
-               *psname ? psname : (flags & 6) ? "" : "(abs)", loc = get32(p));
-        if (flags == 6)
-            printf("\tLOCAL UNDEFINED\n");
-        else {
-            if (flags & 0x10)
-                printf("\tGLOBAL");
-            flags &= 0xf;
-            if (flags >= 9)
-                printf("\tUNKNOWN(%d)\n", flags);
-            else
-                printf("\t%s\n", symNames[flags]);
-        }
-        if (strcmp(psname, "_TEXT") == 0)
-            addLabel(&text, loc, syname);
-        else if (strcmp(psname, "data") == 0)
-            addLabel(&data, loc, syname);
 
+        if (dumpRecords) {
+            printf("\t\t%-15s %s\t%08" PRIX32, syname,
+                   *psname              ? psname
+                   : (flags & 0xf) == 6 ? ""
+                                        : "(abs)",
+                   loc);
+            if (flags == 6)
+                printf("\tLOCAL UNDEFINED\n");
+            else {
+                if (flags & 0x10)
+                    printf("\tGLOBAL");
+                flags &= 0xf;
+                if (flags >= 9)
+                    printf("\tUNKNOWN(%d)\n", flags);
+                else
+                    printf("\t%s\n", symNames[flags]);
+            }
+        } else if ((flags & 0xf) == 6)
+            printf("\t\t%s %s\n", flags & 0x10 ? "External" : "Local Undefined", syname);
+        else
+            addLabel(psname, loc, syname);
     }
 }
 

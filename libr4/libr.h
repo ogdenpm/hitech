@@ -33,10 +33,12 @@ typedef unsigned char uint8_t;
 #include <sys.h>
 #include <unixio.h>
 #define vfprintf    _doprnt
-#elif defined(_MSC_VER)
+#else
+#ifdef _MSC_VER
 #define strcasecmp  _stricmp
 #else
 #include <unistd.h> // for unlink
+#endif
 #endif
 
 #ifndef _MAX_PATH
@@ -99,7 +101,7 @@ extern struct sym symbols[];
 extern int _argc_;
 extern char **cmdLineNames;
 extern char **moduleStdNames;
-bool verbose;
+extern bool verbose;
 
 
 void allocModuleArrays(int name, char **buf);

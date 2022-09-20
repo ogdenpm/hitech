@@ -32,13 +32,13 @@
 #include "p1.h"
 
 int8_t depth;       /* a288 */
-uint8_t byte_a289;  /* a289 */
+uint8_t voidReturn;  /* a289 */
 bool unreachable;   /* a28a */
-int16_t word_a28b;  /* a28b */
+int16_t returnLabel;  /* a28b */
 sym_t *curFuncNode; /* a28d */
 sym_t *p25_a28f;    /* ad8f */
 
-int16_t sub_3d24(register sym_t *st, uint8_t p2);
+int16_t parseInitializer(register sym_t *st, bool p2);
 
 /**************************************************
  * 81: 3ADF +++
@@ -49,7 +49,7 @@ int16_t sub_3d24(register sym_t *st, uint8_t p2);
 void sub_3adf(void) {
     uint8_t tok;
     uint8_t scType;
-    s8_t attr;
+    attr_t attr;
     uint8_t varb;
     uint8_t scFlags;
 
@@ -66,36 +66,36 @@ void sub_3adf(void) {
         st       = sub_69ca(scType, &attr, scFlags & ~1, 0);
         tok      = yylex();
 
-        if (st && (st->m18 & 0x10) && st->a_c7 == ANODE) {
+        if (st && (st->flags & S_VAR) && st->a_nodeType == FUNCNODE) {
             if (varb && tok != T_COMMA && tok != T_SEMI && scType != T_TYPEDEF) {
-                byte_a289 = st->a_c7 == ANODE && st->a_i4 == 0 &&
+                voidReturn = st->a_nodeType == FUNCNODE && st->a_indirection == 0 &&
                             (st->a_dataType == DT_VOID || st->a_dataType == DT_INT);
                 ungetTok = tok;
-                sub_516c(st);
-                sub_0493(st);
+                defineArg(st);
+                emitVar(st);
                 curFuncNode = st;
-                sub_409b();
+                parseFunction();
                 return;
             }
-            if (p25_a28f && !(p25_a28f->m18 & 8))
+            if (p25_a28f && !(p25_a28f->flags & 8))
                 expectErr("function body");
             ++depth;
-            checkScopeExit();
+            releaseScopeSym();
             --depth;
-            sub_0493(st);
+            emitVar(st);
         } else if (tok == T_EQ) {
             if (scType == T_TYPEDEF)
                 prError("illegal initialisation");
-            sub_516c(st);
-            sub_0493(st);
+            defineArg(st);
+            emitVar(st);
             sub_3c7e(st);
             tok = yylex();
         } else if (st) {
-            if ((scFlags & 1) || st->m20 != T_EXTERN) {
-                sub_516c(st);
-                sub_0493(st);
+            if ((scFlags & 1) || st->sclass != T_EXTERN) {
+                defineArg(st);
+                emitVar(st);
             } else
-                sub_01ec(st);
+                emitDependentVar(st);
         }
         if (tok == T_ID || tok == T_STAR) {
             expectErr(",");
@@ -122,15 +122,15 @@ void sub_3c7e(sym_t *p1) {
 
     if (p1) {
         printf("[i ");
-        sub_573b(p1, stdout);
+        emitSymName(p1, stdout);
         putchar('\n');
         st = p1;
-        if ((var2 = sub_3d24(st, 1)) < 0) {
+        if ((var2 = parseInitializer(st, true)) < 0) {
             prError("initialisation syntax");
             skipToSemi();
-        } else if (st->a_c7 == ENODE && st->a_expr && sub_2105(st->a_expr)) {
-            sub_2569(st->a_expr);
-            st->a_expr = allocIConst(var2);
+        } else if (st->a_nodeType == EXPRNODE && st->a_expr && isZero(st->a_expr)) {
+            freeExpr(st->a_expr);
+            st->a_expr = newIConstLeaf(var2);
         }
         printf("]\n");
     } else
@@ -142,16 +142,12 @@ void sub_3c7e(sym_t *p1) {
  * minor optimiser differences including moving basic
  * blocks. Use of uint8_t parameter
  **************************************************/
-int16_t sub_3d24(register sym_t *st, uint8_t p2) {
-    int16_t var2;
+int16_t parseInitializer(register sym_t *st, bool p2) {
+    int16_t initCnt;
     uint8_t tok;
-    char *var5;
-    bool haveLbrace;
-    sym_t *var8;
-    sym_t *vara;
-    bool varb;
-    expr_t *vard;
-    bool vare;
+    char *s;
+
+
 
 #ifdef CPM
     /* manual string optimisation */
@@ -162,100 +158,103 @@ int16_t sub_3d24(register sym_t *st, uint8_t p2) {
 #define Dstr "..\n"
 #endif
 
-    var2 = -1;
-    if (p2 && st->a_c7 == ENODE && st->a_expr) {
+    initCnt = -1;
+    if (p2 && st->a_nodeType == EXPRNODE && st->a_expr) {
+        bool inBraces;
+
         printf(":U ..\n");
-        if ((haveLbrace = ((tok = yylex()) == T_LBRACE)))
+        if ((inBraces = ((tok = yylex()) == T_LBRACE)))
             tok = yylex();
-        if (tok == T_SCONST && st->attr.i4 == 0 && (st->attr.dataType & ~1) == 4) {
-            var2 = 0;
-            var5 = yylval.yStr;
-            while (var2 < strChCnt) {
-                printf("-> %d `c\n", *var5++);
-                ++var2;
-            }
+        if (tok == T_SCONST && st->attr.indirection == 0 && (st->attr.dataType & ~1) == DT_CHAR) {
+            for (initCnt = 0, s = yylval.yStr; initCnt < strChCnt; initCnt++)
+                printf("-> %d `c\n", *s++);
             free(yylval.yStr);
-            if (sub_2105(st->a_expr)) {
+            if (isZero(st->a_expr)) {
                 printf("-> %d `c\n", 0);
-                ++var2;
+                ++initCnt;
             }
-            if (haveLbrace)
+            if (inBraces)
                 tok = yylex();
-        } else if (!haveLbrace) /* 3e4a */
+        } else if (!inBraces) /* 3e4a */
             expectErr("{");
         else {
             ungetTok = tok;
-            if (st->a_i4 == 0 && st->a_dataType == DT_POINTER)
+            if (st->a_indirection == 0 && st->a_dataType == DT_COMPLEX)
                 st = st->a_nextSym;
             else
-                p2 = 0;
-            var2 = 0;
+                p2 = false;
+            initCnt = 0;
             for (;;) {
-                if (sub_3d24(st, p2) < 0)
+                if (parseInitializer(st, p2) < 0)
                     break;
-                var2++;
+                initCnt++;
                 if ((tok = yylex()) == T_RBRACE || tok != T_COMMA || (tok = yylex()) == T_RBRACE)
                     break;
                 ungetTok = tok;
             }
         }
         /* 3e22 */
-        if (haveLbrace && tok != T_RBRACE) {
+        if (inBraces && tok != T_RBRACE) { /* end of initialiser list */
             expectErr("}");
-            var2 = -1;
+            initCnt = -1;
         }
         printf(Dstr);
-    } else if ((p2 == 0 || st->a_c7 != ENODE) && st->a_i4 == 0 &&
+    } else if ((!p2 || st->a_nodeType != EXPRNODE) && st->a_indirection == 0 &&
                st->a_dataType == DT_STRUCT) { /* 3ec6 */
+        sym_t *pNextSym;
+        sym_t *pMember;
+        bool inBraces;
+
         if (p2)
             printf(Ustr);
         printf(Ustr);
-        if ((var8 = st->a_nextSym)) {
-            varb = (tok = yylex()) == T_LBRACE;
-            if (!varb)
+        if ((pNextSym = st->a_nextSym)) {
+            if (!(inBraces = (tok = yylex()) == T_LBRACE))
                 ungetTok = tok;
-            vara = var8->nMemberList;
+            pMember = pNextSym->memberList;
             do {
-                if ((sub_3d24(vara, 1) < 0))
+                if ((parseInitializer(pMember, true) < 0))
                     break;
-                if ((vara = vara->nMemberList) == var8)
+                if ((pMember = pMember->memberList) == pNextSym) /* end of circular list */
                     break;
-                if ((tok = yylex()) != T_COMMA) {
+                if ((tok = yylex()) != T_COMMA) { /* end of this set of initialisers */
                     ungetTok = tok;
                     break;
                 }
-            } while (!varb || (ungetTok = tok = yylex()) != T_RBRACE);
+            } while (!inBraces || (ungetTok = tok = yylex()) != T_RBRACE);
             /* 3f7c: */
-            if (varb) {
-                if ((tok = yylex()) == T_COMMA)
+            if (inBraces) {
+                if ((tok = yylex()) == T_COMMA) /* allow trailing , before } */
                     tok = yylex();
                 if (tok != T_RBRACE)
                     expectErr("}");
                 else
-                    var2 = 1;
+                    initCnt = 1;
             } else
-                var2 = 1;
+                initCnt = 1;
         } /* 3fcd */
         printf(Dstr);
         if (p2)
             printf(Dstr);
 
-    } else if ((p2 && st->attr.c7 == ENODE) || st->attr.c7 == ANODE ||
-               (!(st->a_i4 & 1) && st->attr.dataType >= T_AUTO))
+    } else if ((p2 && st->attr.nodeType == EXPRNODE) || st->attr.nodeType == FUNCNODE ||
+               (!(st->a_indirection & 1) && st->attr.dataType >= T_AUTO))
         prError("illegal initialisation");
     else {
-        vare = (tok = yylex()) == T_LBRACE;
-        if (!vare)
-            ungetTok = tok;
-        vard          = allocSType(&st->attr);
-        vard->attr.c7 = SNODE;
-        if ((vard = sub_1441(T_125, vard, sub_0a83(3))))
-            sub_05b5(vard->t_alt);
+        expr_t *vard;
+        bool inBraces ;
 
-        if (vare && yylex() != T_RBRACE)
+        if (!(inBraces = (tok = yylex()) == T_LBRACE))
+            ungetTok = tok;
+        vard          = newSTypeLeaf(&st->attr);
+        vard->attr.nodeType = SYMNODE;
+        if ((vard = parseExpr(T_125, vard, parseConstExpr(3))))
+            sub_05b5(vard->t_rhs);
+
+        if (inBraces && yylex() != T_RBRACE)
             expectErr("}");
-        sub_2569(vard);
-        var2 = 1;
+        freeExpr(vard);
+        initCnt = 1;
     }
-    return var2;
+    return initCnt;
 }

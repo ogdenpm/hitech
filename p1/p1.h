@@ -40,6 +40,7 @@
 #include <string.h>
 #ifdef __GNUC__
 #include <unistd.h>
+#define _MAX_PATH PATH_MAX
 #endif
 #if defined(__STDC__) || defined(__STDC_VERSION__)
 #include <stdbool.h>
@@ -97,76 +98,107 @@ typedef union {
 typedef struct _s8 {
     union {
         struct _sym *_nextSym;
-        struct _s8 *_nextInfo;
+        struct _s8 *_nextAttr; /* short hand for &_nextSym->attr */
         int16_t _labelId;
     } u1;
     union {
-        struct _sym *_pSym;
         struct _expr *_pExpr;
-        struct _args *_pArgs;
-        struct _s8 *_pInfo;
+        struct _args *_pFargs;
     } u2;
-    uint16_t i4;
+    uint16_t indirection;
     uint8_t dataType;
-    char c7;
-} s8_t;
+    char nodeType;
+} attr_t;
 
-#define i_nextSym  u1._nextSym
-#define i_nextInfo u1._nextInfo
-#define i_labelId  u1._labelId
+#define nextSym  u1._nextSym
+#define nextAttr u1._nextAttr /* short hand for &nextSym->attr */
+#define labelId  u1._labelId
 
-#define i_sym      u2._pSym
-#define i_expr     u2._pExpr
-#define i_args     u2._pArgs
-#define i_info     u2._pInfo
+#define pExpr     u2._pExpr
+#define pFargs     u2._pFargs
+
+;
 
 typedef struct _sym {
-    s8_t attr;
-    struct _sym *m8;
-    struct _sym *nMemberList;
-    int16_t nodeId;
-    int16_t m14;
-    int16_t m16;
-    int16_t m18;
-    uint8_t m20;
-    char m21;
+    attr_t attr;
+    struct _sym *symList;
+    struct _sym *memberList;
+    int16_t symId;
+    int16_t memberId;
+    int16_t bwidth;
+    int16_t flags;
+    uint8_t sclass;
+    char level;
     char nRefCnt;
     char *nVName;
 } sym_t;
 
-#define a_labelId  attr.i_labelId
-#define a_i4       attr.i4
-#define a_dataType attr.dataType
-#define a_c7       attr.c7
-#define a_nextSym  attr.i_nextSym
-#define a_expr     attr.i_expr
-#define a_sym      attr.i_sym
-#define a_info     attr.i_info
-#define a_args     attr.i_args
+
+
+/* flags flags */
+#define S_MEM         1
+#define S_REG         4
+#define S_VAR         0x10
+#define S_ARGDECL     0x20
+#define S_IMPLICIT    0x40
+#define S_NAMEID      0x80
+#define S_EMITTED     0x100
+#define S_ARG         0x200
+#define S_BITFIELD    0x400
+
+#define a_labelId     attr.labelId
+#define a_indirection attr.indirection
+#define a_dataType    attr.dataType
+#define a_nodeType    attr.nodeType
+#define a_nextSym     attr.nextSym
+#define a_expr        attr.pExpr
+#define a_args        attr.pFargs
 
 typedef struct {
-    char s0[3];
-    char c3;
-    uint8_t uc4;
-    int16_t i5;
-    uint8_t c7;
-} t8_t;
+    char name[3];
+    char prec;
+    uint8_t operandFlags;
+    int16_t operatorFlags;
+    uint8_t nodeType;
+} op_t;
+/* operand flags */
+#define O_LEAF      1 /* leaf expression */
+#define O_BINARY    2 /* binary expression */
+#define O_ALT      4 /* unary/binary expression */
+#define O_RTOL         8
+#define O_16        16
+
+/* operator flags */
+#define OP_RBOOL    1 /* requires right bool */
+#define OP_LBOOL    2 /* requires left bool */
+#define OP_SCALE    4 /* operation scales for pointers */
+#define OP_FLOAT    0x10
+#define OP_INT      0x20
+#define OP_UNSIGNED 0x40
+#define OP_VOIDFUNC 0x80   /* promote void in function args */
+#define OP_SIZEOF   0x100  /* sizeof op */
+#define OP_SEP      0x200  /* separates expressions */
+#define OP_MEMBER   0x800  /* access member */
+#define OP_AREL     0x1000 /* arithmetic rel */
+#define OP_RTOL     0x2000 /* right to left associative */
+#define OP_DREF     0x4000 /* deref */
+#define OP_EREL     0x8000 /* equality rel*/
 
 typedef struct _args {
     int16_t cnt;
-    s8_t s8array[1];
+    attr_t argVec[1];
 } args_t;
 
 typedef struct _s12 {
-    sym_t *p25;
-    s8_t *p8;
-    sym_t *p25_1;
-    uint16_t i6;
-    uint8_t uc8;
-    bool uc9;
+    sym_t *pSym1;
+    attr_t *pAttr;
+    sym_t *pSym2;
+    uint16_t indirection;
+    bool badInd;
+    bool needDim;
     bool uca;
     bool ucb;
-} s12_t;
+} decl_t;
 
 typedef struct _expr {
     uint8_t tType;
@@ -176,25 +208,24 @@ typedef struct _expr {
         char *_t_s;
         struct _sym *_t_pSym;
         struct {
-            struct _expr *_t_next;
-            struct _expr *_t_alt;
+            struct _expr *_lhs;
+            struct _expr *_rhs;
         } s1;
         struct {
-            int16_t _t_i0;
-            int16_t _t_i2;
-
+            int16_t _id;
+            int16_t _chCnt;
         } s2;
     } u1;
-#define t_ul   u1._t_ul
-#define t_l    u1._t_l
-#define t_s    u1._t_s
-#define t_next u1.s1._t_next
-#define t_alt  u1.s1._t_alt
-#define t_i0   u1.s2._t_i0
-#define t_i2   u1.s2._t_i2
-#define t_pSym u1._t_pSym
+#define t_ul    u1._t_ul
+#define t_l     u1._t_l
+#define t_s     u1._t_s
+#define t_lhs   u1.s1._lhs
+#define t_rhs   u1.s1._rhs
+#define t_id    u1.s2._id
+#define t_chCnt u1.s2._chCnt
+#define t_pSym  u1._t_pSym
 
-    s8_t attr;
+    attr_t attr;
 } expr_t;
 
 typedef struct {
@@ -210,94 +241,94 @@ typedef struct {
 } case_t;
 
 typedef struct {
-    uint8_t type1;
-    uint8_t type2;
-} s2_t;
+    uint8_t op;
+    uint8_t prec;
+} opStk_t;
 
-extern s2_t *p2List;          /* 8bc7 */
-extern int16_t strId;         /* 8bd7 */
-extern uint8_t byte_8f85;     /* 8f85 */
-extern bool byte_8f86;        /* 8f86 */
-extern char *keywords[];      /* 8f87 */
-extern char *tmpFile;         /* 91db */
-extern t8_t opTable[68];      /* 9271 */
-extern uint8_t byte_968b;     /* 968b */
-extern int16_t word_968c;     /* 968c */
-extern int16_t tmpLabelId;    /* 968e */
-extern int16_t word_9caf;     /* 9caf */
-extern char ca9CB1[64];       /* 9cb1 */
-extern expr_t **s13SP;        /* 9cf1 */
-extern s2_t s2_9cf3[20];      /* 9cf3 */
-extern expr_t s13_9d1b;       /* 9d1b */
-extern expr_t s13_9d28;       /* 9d28 */
-extern expr_t *s13FreeList;   /* 9d35 */
-extern uint8_t byte_9d37;     /* 9d37 */
-extern expr_t *s13Stk[20];    /* 9d38 */
-extern char lastEmitSrc[64];  /* 9d60 */
-extern bool sInfoEmitted;     /* 9da0 */
-extern int16_t inCnt;         /* 9da1 */
-extern char lastEmitFunc[40]; /* 9da3 */
-extern YYTYPE yylval;         /* 9dcb */
-extern char nameBuf[32];      /* 9dcf */
-extern uint8_t ungetTok;      /* 9def */
-extern int16_t strChCnt;      /* 9df0 */
-extern bool lInfoEmitted;     /* 9df2 */
-extern int16_t startTokCnt;   /* 9df3 */
-extern int16_t ungetCh;       /* 9df5 */
-extern char errBuf[512];      /* 9df7 */
-extern FILE *crfFp;           /* 9ff7 */
-extern char crfNameBuf[30];   /* 9ff9 */
-extern char srcFile[100];     /* a017 */
-extern char *crfFile;         /* a07b */
-extern bool s_opt;            /* a07d */
-extern bool w_opt;            /* a07e */
-extern int16_t lineNo;        /* a07f */
-extern char *srcFileArg;      /* a081 */
-extern bool l_opt;            /* a083 */
-extern FILE *tmpFp;           /* a084 */
-extern char inBuf[512];       /* a086 */
-extern int16_t errCnt;        /* a286 */
-extern int8_t depth;         /* a288 */
-extern uint8_t byte_a289;     /* a289 */
-extern bool unreachable;      /* a28a */
-extern int16_t word_a28b;     /* a28b */
-extern sym_t *curFuncNode;    /* a28d */
-extern sym_t *p25_a28f;       /* ad8f */
-extern sym_t *word_a291;      /* as91 */
-extern sym_t *s25FreeList;    /* a293 */
-extern sym_t **hashtab;       /* a295 */
-extern s12_t *p12_a297;       /* a297 */
-extern uint8_t byte_a299;     /* a299 */
-extern uint8_t byte_a29a;     /* a29a */
+extern opStk_t *opSP;           /* 8bc7 */
+extern int16_t strId;           /* 8bd7 */
+extern uint8_t byte_8f85;       /* 8f85 */
+extern bool lexMember;          /* 8f86 */
+extern char *keywords[];        /* 8f87 */
+extern char *tmpFile;           /* 91db */
+extern op_t opTable[68];        /* 9271 */
+extern uint8_t byte_968b;       /* 968b */
+extern int16_t word_968c;       /* 968c */
+extern int16_t tmpLabelId;      /* 968e */
+extern int16_t lastLineNo;       /* 9caf */
+extern char emittedSrcFile[64]; /* 9cb1 */
+extern expr_t **exprSP;         /* 9cf1 */
+extern opStk_t opStk[20];       /* 9cf3 */
+extern expr_t eZero;            /* 9d1b */
+extern expr_t eOne;             /* 9d28 */
+extern expr_t *exprFreeList;    /* 9d35 */
+extern uint8_t byte_9d37;       /* 9d37 */
+extern expr_t *exprStk[20];     /* 9d38 */
+extern char lastEmitSrc[64];    /* 9d60 */
+extern bool sInfoEmitted;       /* 9da0 */
+extern int16_t inCnt;           /* 9da1 */
+extern char lastEmitFunc[40];   /* 9da3 */
+extern YYTYPE yylval;           /* 9dcb */
+extern char nameBuf[32];        /* 9dcf */
+extern uint8_t ungetTok;        /* 9def */
+extern int16_t strChCnt;        /* 9df0 */
+extern bool lInfoEmitted;       /* 9df2 */
+extern int16_t startTokCnt;     /* 9df3 */
+extern int16_t ungetCh;         /* 9df5 */
+extern char errBuf[512];        /* 9df7 */
+extern FILE *crfFp;             /* 9ff7 */
+extern char crfNameBuf[30];     /* 9ff9 */
+extern char srcFile[100];       /* a017 */
+extern char *crfFile;           /* a07b */
+extern bool s_opt;              /* a07d */
+extern bool w_opt;              /* a07e */
+extern int16_t lineNo;          /* a07f */
+extern char *srcFileArg;        /* a081 */
+extern bool l_opt;              /* a083 */
+extern FILE *tmpFp;             /* a084 */
+extern char inBuf[512];         /* a086 */
+extern int16_t errCnt;          /* a286 */
+extern int8_t depth;            /* a288 */
+extern uint8_t voidReturn;       /* a289 */
+extern bool unreachable;        /* a28a */
+extern int16_t returnLabel;       /* a28b */
+extern sym_t *curFuncNode;      /* a28d */
+extern sym_t *p25_a28f;         /* ad8f */
+extern sym_t *tmpSyms;        /* as91 */
+extern sym_t *symFreeList;      /* a293 */
+extern sym_t **hashtab;         /* a295 */
+extern decl_t *curDecl;         /* a297 */
+extern uint8_t defSClass;       /* a299 */
+extern uint8_t byte_a29a;       /* a29a */
 
 /* emit.c */
-void sub_01ec(register sym_t *p);
+void emitDependentVar(register sym_t *p);
 void prFuncBrace(uint8_t tok);
-void emitLabelDef(int16_t p);
-void sub_0273(register sym_t *st);
-void sub_02a6(case_t *p1);
-void sub_0353(sym_t *p, char c);
-void sub_042d(register expr_t *p);
-void sub_0493(register sym_t *st);
-void sub_053f(register expr_t *st, char *pc);
+void emitLocalLabelDef(int16_t p);
+void emitLabelDef(register sym_t *st);
+void emitCase(case_t *p1);
+void emitStructUnion(sym_t *p, char c);
+void emitCast(register expr_t *p);
+void emitVar(register sym_t *st);
+void emitAscii(register expr_t *st, char *pc);
 void sub_05b5(expr_t *p1);
 void sub_05d3(expr_t *p1);
-void sub_07e3(void);
+void resetExprStack(void);
 
 /* expr.c */
 expr_t *sub_07f5(char p1);
-expr_t *sub_0a83(uint8_t n);
+expr_t *parseConstExpr(uint8_t n);
 expr_t *sub_0bfc(void);
-expr_t *sub_1441(uint8_t p1, register expr_t *lhs, expr_t *rhs);
-expr_t *sub_1b4b(long num, uint8_t p2);
-bool sub_2105(register expr_t *st);
-bool s13ReleaseFreeList(void);
-expr_t *sub_21c7(register expr_t *st);
-expr_t *allocId(register sym_t *st);
-expr_t *allocIConst(long p1);
-expr_t *allocSType(s8_t *p1);
-void pushS13(expr_t *p1);
-void sub_2569(register expr_t *st);
+expr_t *parseExpr(uint8_t p1, register expr_t *lhs, expr_t *rhs);
+expr_t *newIntLeaf(long num, uint8_t p2);
+bool isZero(register expr_t *st);
+bool releaseExprList(void);
+expr_t *cloneExpr(register expr_t *st);
+expr_t *newIdLeaf(register sym_t *st);
+expr_t *newIConstLeaf(long p1);
+expr_t *newSTypeLeaf(attr_t *p1);
+void pushExpr(expr_t *p1);
+void freeExpr(register expr_t *st);
 expr_t *sub_25f7(register expr_t *st);
 
 /* lex.c */
@@ -328,43 +359,44 @@ void sub_3adf(void);
 void sub_3c7e(sym_t *p1);
 
 /* stmt.c */
-void sub_409b(void);
+void parseFunction(void);
 
 /* sym.c */
 void sub_4d92(void);
 sym_t *sub_4e90(register char *buf);
-sym_t *sub_4eed(register sym_t *st, uint8_t p2, s8_t *p3, sym_t *p4);
-void sub_516c(register sym_t *st);
+sym_t *sub_4eed(register sym_t *st, uint8_t p2, attr_t *p3, sym_t *p4);
+void defineArg(register sym_t *st);
 void sub_51cf(register sym_t *st);
-void sub_51e7(void);
-bool releaseNodeFreeList(void);
+void defineFuncSig(void);
+bool releaseSymFreeList(void);
 void enterScope(void);
 void exitScope(void);
-void checkScopeExit(void);
-sym_t *sub_56a4(void);
+void releaseScopeSym(void);
+sym_t *newTmpSym(void);
 sym_t *findMember(sym_t *p1, char *p2);
-void sub_573b(register sym_t *st, FILE *fp);
+void emitSymName(register sym_t *st, FILE *fp);
 int16_t newTmpLabel(void);
-args_t *sub_578d(register args_t *p);
-void sub_58bd(register s8_t *st, s8_t *p2);
-bool sub_591d(register s8_t *st, s8_t *p2);
-bool sub_5a4a(register s8_t *st);
-bool sub_5a76(register s8_t *st, uint8_t p2);
-bool sub_5aa4(register s8_t *st);
-bool sub_5ad5(register s8_t *st);
-bool sub_5b08(register s8_t *st);
-bool sub_5b38(register s8_t *st);
-bool isValidDimType(register s8_t *st);
-void sub_5b99(register s8_t *st);
+args_t *cloneArgs(register args_t *p);
+void cloneAttr(register attr_t *st, attr_t *p2);
+bool haveSameDataType(register attr_t *st, attr_t *p2);
+bool isVoidStar(register attr_t *st);
+bool isVarOfType(register attr_t *st, uint8_t p2);
+bool isLogicalType(register attr_t *st);
+bool isSimpleType(register attr_t *st);
+bool isIntType(register attr_t *st);
+bool isFloatType(register attr_t *st);
+bool isValidIndex(register attr_t *st);
+void delIndirection(register attr_t *st);
 
 /* type.c */
-void sub_5be1(register s8_t *st);
+void addIndirection(register attr_t *st);
 void sub_5c19(uint8_t p1);
-uint8_t sub_5dd1(uint8_t *pscType, register s8_t *attr);
+uint8_t sub_5dd1(uint8_t *pscType, register attr_t *attr);
 sym_t *sub_60db(uint8_t p1);
 sym_t *sub_6360(void);
-sym_t *sub_69ca(uint8_t p1, register s8_t *p2, uint8_t p3, sym_t *p4);
-void sub_7454(register s8_t *st);
+sym_t *sub_69ca(uint8_t p1, register attr_t *p2, uint8_t p3, sym_t *p4);
+void emitAttr(register attr_t *st);
+
 
 #ifdef _WIN32
 void initMemAddr(void); /* for now only needed for windows */

@@ -15,22 +15,28 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="a.c">
+    <ClCompile Include="io.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="b.c">
+    <ClCompile Include="lib.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="c.c">
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ds.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="e.c">
+    <ClCompile Include="text.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="extra.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sym.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="misc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="reloc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

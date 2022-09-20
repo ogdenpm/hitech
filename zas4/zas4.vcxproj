@@ -183,6 +183,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\zas\fname.c" />
     <ClCompile Include="cclass.c" />
     <ClCompile Include="code.c" />
     <ClCompile Include="expr.c" />

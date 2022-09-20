@@ -38,7 +38,7 @@ sym_t *symTable[MAX_SYMBOLS]; /* a2a0 */
 rval_t retProp;               /* a752 */
 
 static int hash(register char *str, int hashSize);              /* 102 4F35 +-- */
-static int sym_cmpfunc(const void *pps1, const void *pps2); /* 107 51AD +-- */
+/*static*/ int sym_cmpfunc(const void *pps1, const void *pps2); /* 107 51AD +-- */
 
 /**************************************************************************
  102	hash	+++
@@ -136,7 +136,7 @@ void resetVals() {
 /**************************************************************************
  107	sym_cmpfunc	sub_51adh	+++
  **************************************************************************/
-static int sym_cmpfunc(const void *pps1, const void *pps2) {
+/*static*/ int sym_cmpfunc(const void *pps1, const void *pps2) {
     register sym_t const *ps1 = *(sym_t const **)pps1;
     sym_t const *ps2          = *(sym_t const **)pps2;
 

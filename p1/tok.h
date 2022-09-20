@@ -37,18 +37,17 @@
 #define T_RBRACE    3
 #define T_LBRACE    4
 #define S_CLASS     5
-#define D_6         6
+#define D_STACK  6
 #define D_LABEL     7
 #define D_STRUCT    8
 #define D_UNION     9
 #define D_MEMBER    10
 #define D_ENUM      11
 #define D_CONST     12
-
 #define T_3DOT      13
 #define D_14        14
 #define D_15        15
-#define T_18        18
+
 #define T_ASM       19
 #define T_AUTO      20
 #define T_BREAK     21
@@ -80,26 +79,28 @@
 #define T_UNSIGNED  47
 #define T_VOID      48
 #define T_WHILE     49
-#define T_60        60
-#define T_61        61
+#define T_EROOT     60
+#define D_FUNC      61
 #define T_LPAREN    62
 #define T_RPAREN    63
-#define T_64        64
+#define T_ARRAYIDX  64
 #define T_LBRACK    65
 #define T_RBRACK    66
 #define T_DOT       67
 #define T_POINTER   68
-#define T_69        69
+#define D_DEREF     69
 #define D_ADDRESSOF 70
+#define T_NEG       71
 #define T_LNOT      72
 #define T_BNOT      73
-#define T_INC       74
-#define T_75        75 /* ? post / prefix variant */
-#define T_DEC       76
-#define T_77        77 /* ? post/prefix variant */
+#define T_PREINC    74
+#define T_POSTINC   75
+#define T_PREDEC    76
+#define T_POSTDEC   77
 #define T_SIZEOF    78
-#define T_79        79
+#define T_CAST      79
 #define T_STAR      80
+#define T_MUL       80
 #define T_BAND      81
 #define T_MINUS     82
 #define T_DIV       83
@@ -120,20 +121,20 @@
 #define T_QUEST     98
 #define T_COLON     99
 #define T_EQ        100
-#define T_PLUSEQ    101
-#define T_102       102 /* ? postfix variant */
-#define T_MINUSEQ   103
-#define T_104       104 /* ? post fix variant */
-#define T_MULEQ     105
-#define T_DIVEQ     106
-#define T_MODEQ     107
-#define T_SHREQ     108
-#define T_SHLEQ     109
-#define T_ANDEQ     110
-#define T_XOREQ     111
-#define T_OREQ      112
+#define P1_EQPLUS    101
+#define P1_POSTINC  102 /* ? postfix variant */
+#define P1_EQMINUS   103
+#define P1_POSTDEC  104 /* ? post fix variant */
+#define P1_EQMUL     105
+#define P1_EQDIV     106
+#define P1_EQMOD     107
+#define P1_EQSHR     108
+#define P1_EQSHL     109
+#define P1_EQAND     110
+#define P1_EQXOR     111
+#define P1_EQOR      112
 #define T_COMMA     113
-#define T_114       114
+#define T_SEMICOLON 114
 #define T_ID        115
 #define T_ICONST    116
 #define T_LCONST    117
@@ -141,16 +142,16 @@
 #define S_TYPE      119
 #define T_120       120
 #define T_121       121
-#define T_122       122
+#define P1_COND      122
 #define T_123       123
-#define T_124       124
+#define P1_CONVERT   124
 #define T_125       125
-#define T_126       126
+#define D_MEMBERID  126
 #define T_FCONST    127
-#define T_128       128
+#define T_OPTOP     128
 
 #define DT_UNSIGNED 1 /* bit to indicate unsigned data type*/
-#define DT_2        2
+#define DT_BOOL     2
 #define DT_CHAR     4
 #define DT_UCHAR    5
 #define DT_SHORT    6
@@ -165,14 +166,14 @@
 #define DT_DOUBLE   16
 #define DT_ENUM     18
 #define DT_VOID     20
-#define DT_POINTER  22
+#define DT_COMPLEX  22
 #define DT_VARGS    24
 #define DT_STRUCT   26
 #define DT_UNION    28
 
 /* node types */
-#define ANODE       2 /* function args node */
-#define ENODE       1 /* expression node */
-#define SNODE       0 /* symbol node */
+#define FUNCNODE    2 /* function args node */
+#define EXPRNODE    1 /* expression node */
+#define SYMNODE     0 /* symbol node */
 
 #endif
