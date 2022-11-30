@@ -239,7 +239,6 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\tool-src\dumpomf\version.c" />
     <ClCompile Include="cclass.c" />
     <ClCompile Include="code.c" />
     <ClCompile Include="expr.c" />
@@ -251,6 +250,7 @@
     <ClCompile Include="parse.c" />
     <ClCompile Include="sym.c" />
     <ClCompile Include="tlab.c" />
+    <ClCompile Include="version.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cclass.h" />
@@ -262,7 +262,7 @@
     <None Include="zas.licenseheader" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\..\tool-src\dumpomf\version.rc" />
+    <ResourceCompile Include="version.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

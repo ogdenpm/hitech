@@ -20,8 +20,8 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Mark Ogden"
 #ifdef GIT_PORT
-            VALUE "FileDescription", GIT_APPNAME "[" GIT_PORT "]"
-            VALUE "LegalCopyright", "port (C)" GIT_YEAR "Mark Ogden"
+            VALUE "FileDescription", GIT_APPNAME " [" GIT_PORT "]"
+            VALUE "LegalCopyright", "port (C)" GIT_YEAR "  Mark Ogden"
 #else
             VALUE "FileDescription", GIT_APPNAME
             VALUE "LegalCopyright", "(C)" GIT_YEAR "  Mark Ogden"
