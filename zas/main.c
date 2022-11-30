@@ -52,6 +52,9 @@ char *lstFileName;    /* 9e6a */
 char *objFileName;    /* 9e6c */
 FILE *objFp;          /* 9e6e */
 
+
+
+
 /***************************************************************
  59	main	sub_2ef4 +++
  * a block of 3 basic blocks is located differently, specifically
@@ -62,6 +65,12 @@ FILE *objFp;          /* 9e6e */
 int main(int argc, char **argv) {
     size_t extPt;
 
+#ifdef AUTOVER
+    if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
+        showVersion(stdout, argv[1][1] == 'V');
+        exit(0);
+    }
+#endif
     for (--argc, ++argv; argc > 0 && **argv == '-'; ++argv, --argc) {
         switch (argv[0][1]) {
         case 'E':

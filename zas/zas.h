@@ -259,4 +259,11 @@ extern int jmpOptCnt;                /* 9e7c */
 extern rval_t retProp;               /* a752 */
 
 extern uint32_t curLoc32;
+
+#ifdef AUTOVER
+#ifdef _WIN32
+#define strcasecmp _strcmpi
+#endif
+void showVersion(FILE *fp, bool full);
+#endif
 #endif
