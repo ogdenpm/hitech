@@ -1,0 +1,39 @@
+#include <verrsrc.h>
+#ifdef AUTOVER
+#include "Generated/version.h"
+#else
+#include "version.in"
+#endif
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION GIT_VERSION_RC
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG 
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080904b0"
+        BEGIN
+            VALUE "CompanyName", "Mark Ogden"
+#ifdef GIT_PORT
+            VALUE "FileDescription", GIT_APPNAME "[" GIT_PORT "]"
+            VALUE "LegalCopyright", "port (C)" GIT_YEAR "Mark Ogden"
+#else
+            VALUE "FileDescription", GIT_APPNAME
+            VALUE "LegalCopyright", "(C)" GIT_YEAR "  Mark Ogden"
+#endif
+            VALUE "FileVersion", GIT_VERSION
+            VALUE "OriginalFilename", GIT_APPNAME ".exe"
+            VALUE "ProductName", GIT_APPNAME
+            VALUE "ProductVersion", GIT_VERSION
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x809, 1200
+    END
+END
