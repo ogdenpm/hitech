@@ -116,7 +116,7 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\nv2.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
@@ -157,7 +157,7 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\nv2.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
@@ -194,7 +194,7 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\nv2.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
@@ -235,7 +235,7 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\nv2.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>

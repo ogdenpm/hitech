@@ -16,7 +16,7 @@ OBJS = $(CSRCS:.c=.o)
 CC = gcc
 LD = gcc
 
-CFLAGS=-O3 -I$(SRCDIR) -Wall -DAUTOVER
+CFLAGS=-O3 -I$(SRCDIR) -Wall
 
 RM = rm -f
 
@@ -30,7 +30,7 @@ VPATH=$(SRCDIR)
 	$(CC) -c $(CFLAGS) $<
 
 version:
-	(cd $(SRCDIR); ../Scripts/version.pl Generated/ Generated/version.h)
+	(cd $(SRCDIR); ../Scripts/gitver.pl -w)
 
 $(TARGET): $(OBJS) 
 	$(CC) -o$@ $(OBJS)

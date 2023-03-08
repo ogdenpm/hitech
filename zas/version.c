@@ -43,27 +43,27 @@ void showVersion(FILE *fp, bool full) {
 #ifdef APP_PORT
           " <" APP_PORT ">"
 #endif
-          " " GIT_VERSION,
+          " " GIT_VERSION "\n",
           fp);
     if (full) {
 #ifdef APP_DESCRIPTION
-        fputs("\n" APP_DESCRIPTION, fp);
+        fputs(APP_DESCRIPTION "\n", fp);
 #endif
 
 #ifdef APP_LIBS
         for (char **p = libvers; *p; p++) {
-            fputs("\nLibrary: ", fp);
+            fputs("Library: ", fp);
             fputs(*p, fp);
+            fputc('\n', fp);
         }
 #endif
 #ifdef APP_CONTRIBUTOR
-        fputs("\nContributors: " APP_CONTRIBUTOR, fp);
+        fputs("Contributors: " APP_CONTRIBUTOR "\n", fp);
 #endif
-        fprintf(fp, "\n%d bit " BUILD "build: " __DATE__ " " __TIME__,
+        fprintf(fp, "%d bit " BUILD "build: " __DATE__ " " __TIME__ "\n",
                 (int)(sizeof(void *) * CHAR_BIT));
     }
 #ifdef APP_EMAIL
-        fputs("\n\nSupport email: " APP_EMAIL, fp);
+    fputs("\nSupport email: " APP_EMAIL "\n", fp);
 #endif
-    fputc('\n', fp);
 }
