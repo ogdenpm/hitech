@@ -65,7 +65,7 @@ FILE *objFp;          /* 9e6e */
 int main(int argc, char **argv) {
     size_t extPt;
 
-#ifdef AUTOVER
+#ifndef CPM 
     if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
         showVersion(stdout, argv[1][1] == 'V');
         exit(0);

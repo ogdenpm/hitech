@@ -65,6 +65,9 @@
     <ClInclude Include="Generated\version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="appinfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="zas.licenseheader" />

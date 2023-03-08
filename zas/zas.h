@@ -260,7 +260,7 @@ extern rval_t retProp;               /* a752 */
 
 extern uint32_t curLoc32;
 
-#ifdef AUTOVER
+#ifndef CPM
 #ifdef _WIN32
 #define strcasecmp _strcmpi
 #endif
