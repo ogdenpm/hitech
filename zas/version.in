@@ -1,0 +1,2 @@
+#define APP_NAME    "zas"
+#define GIT_VERSION "@@"

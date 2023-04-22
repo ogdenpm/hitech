@@ -48,9 +48,6 @@
     <ClCompile Include="fname.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="version.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kwd.h">
@@ -62,19 +59,11 @@
     <ClInclude Include="cclass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Generated\version.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="appinfo.h">
+    <ClInclude Include="_version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="zas.licenseheader" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="version.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
   </ItemGroup>
 </Project>

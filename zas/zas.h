@@ -39,6 +39,7 @@
 #include <string.h>
 #ifndef CPM
 #include <stdbool.h>
+#include "showVersion.h"
 #ifndef _MSC_VER
 #define fgets afgets
 char *afgets(char *str, int n, FILE *stream);
@@ -260,10 +261,5 @@ extern rval_t retProp;               /* a752 */
 
 extern uint32_t curLoc32;
 
-#ifndef CPM
-#ifdef _WIN32
-#define strcasecmp _strcmpi
-#endif
-void showVersion(FILE *fp, bool full);
-#endif
+
 #endif

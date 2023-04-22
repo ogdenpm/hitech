@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
 
 #ifndef CPM 
     if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
-        showVersion(stdout, argv[1][1] == 'V');
+        showVersion(argv[1][1] == 'V');
         exit(0);
     }
 #endif

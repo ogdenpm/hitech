@@ -6,12 +6,14 @@
 SRCDIR=../
 TARGET = zas
 
-CSRCS = code.c cclass.c expr.c lex.c macro.c main.c kwd.c parse.c sym.c tlab.c fname.c version.c
+CSRCS = code.c cclass.c expr.c lex.c macro.c main.c kwd.c parse.c sym.c tlab.c fname.c
+VSRC  = version.c
 
 HDRS  = cclass.h kwd.h zas.h
 
 
 OBJS = $(CSRCS:.c=.o)
+VOBJ = $(VSRC:.c=.o)
 
 CC = gcc
 LD = gcc
@@ -32,10 +34,12 @@ VPATH=$(SRCDIR)
 version:
 	(cd $(SRCDIR); ../Scripts/gitver.pl -w)
 
-$(TARGET): $(OBJS) 
-	$(CC) -o$@ $(OBJS)
+$(TARGET): $(OBJS) $(VOBJ)
+	$(CC) -o$@ $(OBJS) $(VOBJ)
 
 $(OBJS) : $(HDRS)
+
+$(VOBJ) : gitVer.h
 
 clean:
 	$(RM) $(OBJS)

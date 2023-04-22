@@ -56,6 +56,7 @@
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
+    <Import Project="..\hishared\hishared.vcxitems" Label="Shared" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -102,7 +103,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\hishared</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -116,13 +117,13 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>gitVer.h</Outputs>
+      <Outputs>_version.h</Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
       <Inputs>.force</Inputs>
@@ -141,7 +142,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\hishared</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -157,13 +158,13 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>gitVer.h</Outputs>
+      <Outputs>_version.h</Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
       <Inputs>.force</Inputs>
@@ -180,7 +181,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\hishared</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -194,13 +195,13 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>gitVer.h</Outputs>
+      <Outputs>_version.h</Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
       <Inputs>.force</Inputs>
@@ -219,7 +220,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\hishared</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -235,13 +236,13 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\gitver.cmd -w</Command>
+      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generate Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>gitVer.h</Outputs>
+      <Outputs>_version.h</Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
       <Inputs>.force</Inputs>
@@ -262,20 +263,15 @@
     <ClCompile Include="parse.c" />
     <ClCompile Include="sym.c" />
     <ClCompile Include="tlab.c" />
-    <ClCompile Include="version.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="appinfo.h" />
     <ClInclude Include="cclass.h" />
-    <ClInclude Include="Generated\version.h" />
     <ClInclude Include="kwd.h" />
     <ClInclude Include="zas.h" />
+    <ClInclude Include="_version.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="zas.licenseheader" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="version.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
