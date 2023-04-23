@@ -120,7 +120,7 @@
       <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generate Version</Message>
+      <Message>Generating Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>_version.h</Outputs>
@@ -161,7 +161,7 @@
       <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generate Version</Message>
+      <Message>Generating Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>_version.h</Outputs>
@@ -198,7 +198,7 @@
       <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generate Version</Message>
+      <Message>Generating Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>_version.h</Outputs>
@@ -239,7 +239,7 @@
       <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generate Version</Message>
+      <Message>Generating Version</Message>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>_version.h</Outputs>
@@ -271,6 +271,7 @@
     <ClInclude Include="_version.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="_appinfo.h" />
     <None Include="zas.licenseheader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

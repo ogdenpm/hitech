@@ -65,5 +65,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="zas.licenseheader" />
+    <None Include="_appinfo.h">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -65,12 +65,8 @@ FILE *objFp;          /* 9e6e */
 int main(int argc, char **argv) {
     size_t extPt;
 
-#ifndef CPM 
-    if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
-        showVersion(argv[1][1] == 'V');
-        exit(0);
-    }
-#endif
+    CHK_SHOW_VERSION(argc, argv);
+
     for (--argc, ++argv; argc > 0 && **argv == '-'; ++argv, --argc) {
         switch (argv[0][1]) {
         case 'E':
