@@ -60,6 +60,7 @@ typedef unsigned char uint8_t;
 #endif
 #define const
 #endif
+#include "showversion.h"
 
 #ifndef INT_MAX
 #define INT_MAX 32767 /* max for int */
@@ -1064,6 +1065,7 @@ void clr_len_inbuf() {
  **************************************************************************/
 int main(int argc, char **argv) {
 
+    CHK_SHOW_VERSION(argc, argv);
     --argc, ++argv; /* would be cleaner as a for loop */
     while (0 < argc && argv[0][0] == '-') {
         switch (argv[0][1]) {
