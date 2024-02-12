@@ -33,7 +33,7 @@
 #define _P1_H
 
 #include "cclass.h"
-#include "stdio.h"
+#include <stdio.h>
 #include "tok.h"
 #include <stdarg.h>
 #include <stdlib.h>

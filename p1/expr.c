@@ -251,14 +251,14 @@ expr_t *sub_0bfc(void) {
     uint8_t hasRhs;
     uint8_t prec;
     int16_t var17;
-    int16_t var19; /* not used */
+    // int16_t var19; /* not used */
     register sym_t *st;
 
     savExprSP = exprSP;
     savOpSP   = opSP;
     pushOp(T_EROOT);
     hasLhs = false;
-    var19  = 0;
+    // var19  = 0;
     for (;;) {
         hasMember = lexMember = opSP->op == T_DOT || opSP->op == T_POINTER;
         tok                   = yylex();

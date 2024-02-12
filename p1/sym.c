@@ -281,7 +281,7 @@ void reduceNodeRef(register sym_t *pn) {
            pn->a_nodeType == 0   ? (*pn->nVName ? pn->nVName : "blank")
            : pn->a_nodeType == 1 ? "EXPR"
                                  : "FUNC"
-                                 ); /**/
+                                 ); */
     if (--pn->nRefCnt == 0) {
         if (pn->sclass != 0 && pn->sclass != D_LABEL && pn->sclass != D_STRUCT &&
             pn->sclass != D_UNION && pn->sclass != D_ENUM) {
