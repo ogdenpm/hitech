@@ -32,6 +32,7 @@
  * 06-Jun-2022
  */
 #include "zas.h"
+#include "showVersion.h"
 
 FILE *crfFp;          /* 2694 */
 char crfNameBuf[30];  /* 2696 */
@@ -60,6 +61,8 @@ FILE *objFp;          /* 26ee */
  ***************************************************************/
 int main(int argc, char **argv) {
     size_t extPt;
+
+    CHK_SHOW_VERSION(argc, argv);
 
     for (--argc, ++argv; argc > 0 && **argv == '-'; ++argv, --argc) {
         switch (argv[0][1]) {
