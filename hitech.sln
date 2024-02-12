@@ -17,8 +17,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "link", "link\link.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "enhuff", "enhuff\enhuff.vcxproj", "{1ECFB514-3D00-4188-AC54-A7C5DA582B60}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgen4", "cgen4\cgen4.vcxproj", "{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "p1", "p1\p1.vcxproj", "{6B219BFE-39CB-4BE9-A9F9-69DBA2D64F9B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libr4", "libr4\libr4.vcxproj", "{6F8C9E63-E8B2-4B71-9994-00DEF9155632}"
@@ -38,6 +36,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zc", "zc\zc.vcxproj", "{632E844D-09D2-4CA3-80BF-D899687C930E}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cref", "cref\cref.vcxproj", "{EE530851-14A7-4B83-8F2A-AA2B1D90F01F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hishared", "hishared\hishared.vcxitems", "{632682D0-F3CC-4AC0-B73A-85D716F7F2FF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,13 +103,6 @@ Global
 		{1ECFB514-3D00-4188-AC54-A7C5DA582B60}.Release|x64.Build.0 = Release|x64
 		{1ECFB514-3D00-4188-AC54-A7C5DA582B60}.Release|x86.ActiveCfg = Release|Win32
 		{1ECFB514-3D00-4188-AC54-A7C5DA582B60}.Release|x86.Build.0 = Release|Win32
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Debug|x64.ActiveCfg = Debug|x64
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Debug|x64.Build.0 = Debug|x64
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Debug|x86.ActiveCfg = Debug|Win32
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Debug|x86.Build.0 = Debug|Win32
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Release|x64.ActiveCfg = Release|x64
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Release|x86.ActiveCfg = Release|Win32
-		{57FA9DC8-0137-4D8F-9B6F-4DAFEF09B787}.Release|x86.Build.0 = Release|Win32
 		{6B219BFE-39CB-4BE9-A9F9-69DBA2D64F9B}.Debug|x64.ActiveCfg = Debug|x64
 		{6B219BFE-39CB-4BE9-A9F9-69DBA2D64F9B}.Debug|x64.Build.0 = Debug|x64
 		{6B219BFE-39CB-4BE9-A9F9-69DBA2D64F9B}.Debug|x86.ActiveCfg = Debug|Win32
@@ -196,5 +189,25 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {05481138-B290-4E03-9CC6-7D915B511A74}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		hishared\hishared.vcxitems*{091e7c8c-9a2c-4a92-bb87-3f4d2fb8e8ec}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{18b6c1ae-1ae3-4db8-b14c-7ee6185cec1e}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{1ccbed8d-77fa-4138-b54c-6f6724377f5b}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{1ecfb514-3d00-4188-ac54-a7c5da582b60}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{3a7df337-59be-4ec2-8c7e-1634fb044168}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{632682d0-f3cc-4ac0-b73a-85d716f7f2ff}*SharedItemsImports = 9
+		hishared\hishared.vcxitems*{632e844d-09d2-4ca3-80bf-d899687c930e}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{66230ec1-88f0-466c-9eec-9936459a769f}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{6b219bfe-39cb-4be9-a9f9-69dba2d64f9b}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{6f8c9e63-e8b2-4b71-9994-00def9155632}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{74a87bb8-c1d1-461a-a6ce-75c39772c02e}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{7d87dc78-444b-4350-a3a7-a0b533e4c906}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{83c36d07-2112-44dd-b48f-5adaa946b725}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{9086a8d7-0c23-4a01-a4c1-51af858c1180}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{ad0800d6-0a6e-499d-a132-b91f991ee9eb}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{b962fa3d-2c42-4765-9dd5-19e985aa3a8b}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{bca87708-6a75-4ed8-9066-1807307d6fec}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{ee530851-14a7-4b83-8f2a-aa2b1d90f01f}*SharedItemsImports = 4
 	EndGlobalSection
 EndGlobal
