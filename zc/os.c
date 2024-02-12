@@ -1,7 +1,11 @@
-#define _CRT_SECURE_NO_WARNINGS
+
 #include "zc.h"
 #include <sys/stat.h>
+
+#ifdef _MSC_VER
 #include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+#endif
 
 #ifndef S_IFREG
 #define S_IFREG _S_IFREG
@@ -17,14 +21,14 @@ bool canExecute(char *name) {
 
 char *fname(char *name) {
     char *t;
-    while (t = strpbrk(name, PATHSEP))
+    while ((t = strpbrk(name, PATHSEP)))
         name = t + 1;
     return name;
 }
 
 void mkDepsDir() {
     struct stat buf;
-    if (mkdir(DEPSDIR) != 0 && (stat(DEPSDIR, &buf) != 0 || (buf.st_mode & S_IFDIR) == 0))
+    if (mkdir(DEPSDIR, 0777) != 0 && (stat(DEPSDIR, &buf) != 0 || (buf.st_mode & S_IFDIR) == 0))
         error("Cannot create " DEPSDIR);
 }
 
@@ -39,7 +43,7 @@ char *newStr(char *prefix, char *path, char *suffix) {
     if (path)
         strcat(tmp, path);
     if (suffix) {
-        if (s = strrchr(fname(tmp), '.'))
+        if ((s = strrchr(fname(tmp), '.')))
             *s = '\0';
         strcat(tmp, suffix);
     }

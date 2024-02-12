@@ -20,8 +20,6 @@
  *	The zero'th argument is set to the name parameter.
  */
 #ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_NONSTDC_NO_WARNINGS
 #include "missing/dirent.h"
 #include <conio.h>
 #else
@@ -87,7 +85,7 @@ char **_getargs(char *_str, char *_name) {
     quote = 0;
     name  = _name;
     str   = _str;
-    if (interactive = str == NULL)
+    if ((interactive = str == NULL))
         str = "\\";
     else {
         while (*str == ' ' || *str == '\t')
@@ -220,7 +218,7 @@ bool match(char *regexp, char *text) {
     if (*regexp == '*')
         return matchstar(regexp + 1, text);
 
-    if (*text != '\0' && mapcase(*regexp) == mapcase(*text) || *regexp == '?')
+    if (*text && (mapcase(*regexp) == mapcase(*text) || *regexp == '?'))
         return match(regexp + 1, text + 1);
     return false;
 }

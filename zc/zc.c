@@ -30,6 +30,7 @@
  */
 #include "zc.h"
 #include <stdarg.h>
+#include "showVersion.h"
 /* build configuration */
 /* HPATH default hitech path if not specified in environment var HITECH */
 /* DEFTMP if TMP / TEMP environments are to be checked, incase they are not defined */
@@ -98,8 +99,6 @@ struct _target {
 #define HITECH    "HITECH"
 #define LIBDIR    "LIBDIR80"
 #define INCDIR    "INCDIR80"
-#define TEMP1     "TEMP"
-#define TEMP2     "TMP"
 
 #ifndef DEFPATH /* not defined using -DDEFPATH=... */
 #define DEFPATH HPATH
@@ -140,10 +139,6 @@ static uint8_t iud_idx, /* index into iuds[] */
     c_as_idx,           /*   "     "  c_as[] */
     otoh_idx;           /*   "     "  otoh[] */
 
-static unsigned code_adr, /* start of rom */
-    ram_adr,              /* start of ram */
-    ram_size;             /* size of ram */
-
 static char *paths[] = { "cpp" ESUFFIX, "p1" ESUFFIX,   "cgen" ESUFFIX,     "optim" ESUFFIX,
                          "zas" ESUFFIX, "link" ESUFFIX, "objtohex" ESUFFIX, "cref" ESUFFIX };
 
@@ -177,9 +172,7 @@ static char tmpbuf[PATH_MAX]; /* gen. purpose buffer */
 static char *single;          /* single object file to be deleted */
 static short nfiles;          /* number of source or object files seen */
 static char *outfile;         /* output file name for link/objtohex */
-static char *usrObj;          /* first user object, used in creating a default outfile */
 static short nerrs;           /* errors from passes */
-static short plen;            /* length of path */
 static char *xrname;
 static char *targetExt; /* extent used for target */
 
@@ -214,6 +207,8 @@ static void addObjtohexFlag(char *s) {
 int main(int argc, char **argv) {
     register char *cp;
 
+    CHK_SHOW_VERSION(argc, argv);
+
     if (strcmp(argv[1], "-q") == 0) {
         argv++;
         argc--;
@@ -223,7 +218,7 @@ int main(int argc, char **argv) {
     }
 #if EDUC
     fprintf(stderr, "Licensed for Educational purposes only\n");
-#endif EDUC
+#endif // EDUC
 
     if (argc == 1)
         argv = _getargs((char *)0, PROMPT);
@@ -367,14 +362,14 @@ void setPaths() {
     bool haveLib = false;
     bool haveInc = false;
     /* get environment overrides */
-    if (env = getenv(LIBDIR)) {
+    if ((env = getenv(LIBDIR))) {
         strcpy(tmp, env);
         if (*(s = fname(tmp)))
             strcat(s, DIRSEP);
         hitechLib = xstrdup(tmp);
         haveLib   = true;
     }
-    if (env = getenv(INCDIR)) {
+    if ((env = getenv(INCDIR))) {
         strcat(strcpy(tmp, "-I"), env);
         s = fname(tmp);
         if (*(s = fname(tmp)))
@@ -382,7 +377,7 @@ void setPaths() {
         cpppath = xstrdup(tmp);
         haveInc = true;
     }
-    if (env = getenv(HITECH)) {
+    if ((env = getenv(HITECH))) {
         strcpy(tmp, env);
         if (*(s = fname(tmp)))
             strcat(s, DIRSEP);
@@ -543,11 +538,10 @@ static bool doexec(char *name, char **vec) {
     short len;
     char **pvec;
     char *args[BIGLIST];
-    intptr_t ok;
     int i     = 0;
 
     args[i++] = fname(name);
-    while (args[i++] = *vec++)
+    while ((args[i++] = *vec++))
         ;
 
     if (verbose) {
@@ -565,7 +559,7 @@ static bool doexec(char *name, char **vec) {
         return true;
 #ifdef _WIN32
     // name fixed if needed
-    ok = (int)_spawnvp(_P_WAIT, name, args);
+    int ok = (int)_spawnvp(_P_WAIT, name, args);
     if (ok == -1)
         error("could not run %s", name);
     if (ok != 0)
@@ -576,7 +570,7 @@ static bool doexec(char *name, char **vec) {
     int status;
     if ((pid = fork()) == 0) {
         execvp(name, (char *const *)args);
-        fprintf(stderr, "%s ", args[0]]);
+        fprintf(stderr, "%s ", args[0]);
         error("exec fail", NULL);
     }
     if (pid == -1)
@@ -621,7 +615,7 @@ static void compile(char *s) {
     vec[j++] = s;
     if (keepi) {
         if (genDeps)
-            vec[j++] = newStr(".deps/", fname(s), ".obj.d");
+            vec[j++] = newStr(".deps/", fname(s), ".d");
         else
             vec[j++] = newStr(NULL, s, ".i");
     } else
@@ -636,7 +630,7 @@ static void compile(char *s) {
     if (xref)
         vec[i++] = newStr("-C", crtmp, NULL);
     vec[i++] = tmpf1;
-    vec[i++] = keepp1 ? newStr(NULL, fname(s), ".p1") :  tmpf2;
+    vec[i++] = keepp1 ? newStr(NULL, fname(s), ".p1") : tmpf2;
     vec[i++] = tmpf3;
     vec[i++] = (char *)0;
     if (!doexec(pass1, vec) || keepp1)
@@ -652,7 +646,7 @@ static void compile(char *s) {
         i        = 0;
         vec[i++] = tmpf1;
         cp = vec[i++] = (asmlst || keepas) ? newStr(NULL, fname(s), ".as") : tmpf2;
-        vec[i]   = (char *)0;
+        vec[i]        = (char *)0;
         if (!doexec(optim, vec))
             return;
         if (keepas)
@@ -673,8 +667,44 @@ static void compile(char *s) {
     if (asmlst)
         rm(cp);
 }
-
+/* clang-format off */
+/* the code below uses printf rather than extended length strings to allow processing by Hitech C for UZI builds */
 _Noreturn void usage() {
-    printf("Usage\n");
+    printf("\nUsage: zc [-q] options inputfile+\n");
+    printf("Where:\n");
+    printf("-q         - supresses the sign on message\n");
+    printf("inputfiles of the form\n");
+    printf("  file.c/file.as are compiled/assembled before linking\n");
+    printf("  -Lname are expanded to {LIBDIR80}/libname.lib, where {LIBDIR80} is the default library path\n");
+    printf("The case insensitive options supported are:\n");
+    printf("--ASMLIST  - create a listing file for the assembler pass\n");
+    printf("             Warning compiling file.c with this option will overwite an existing file.as\n");
+    printf("-1         - for debugging stops after running P1\n");
+    printf("-Atarget?  - sets alternative target build. If target is missing it defaults to TOP, see below\n");
+    printf("-C         - stop before linking\n");
+    printf("-CRname?   - create a cross reference file, using name if specified\n");
+    printf("-Dvar(=val)? - adds var to the cpp define list, if val is omitted the default is 1\n");
+    printf("-E[CPHM]*  - run only cpp. C,P,H are passed to cpp, M creates make depdendency file in .deps/file.d\n");
+    printf("-Fname?    - creates a symbol file, if name is omitted it defaults to l.sym\n");
+    printf("-H         - show this help\n");
+    printf("-Ipath     - adds path to the cpp include search path\n");
+    printf("-K         - does a dry run of the compilation\n");
+    printf("-Lname     - adds {LIBDIR80}/libname.lib to the libraries to be searched\n");
+    printf("-Mname?    - creates a map file, if name is omitted it defaults to l.map\n");
+    printf("-O(F)?     - optimise code, F optimises for speed\n");
+    printf("-Oname     - specifies the output filename\n");
+    printf("-R         - add wildcard name specification on command line\n");
+    printf("-S         - stop after code generation\n");
+    printf("-Uvar?     - undefines the specified var, or if no var, undefines all predefined vars\n");
+    printf("-V         - verbose mode; list commands executed\n");
+    printf("-X         - purge local symbols\n");
+    printf("-(Z80|Z180|Z280) - sets the target CPU, default is Z80. Currently Z180 is treated as Z80\n");
+    printf("\ntarget determines the startup, defines and libraries and is one of\n");
+    printf("CPM        - CPM build using latest library files, includes support for CPM3+ features\n");
+    printf("CPM2       - CPM build excluding CP/M 3 features but smaller code\n");
+    printf("UZI        - UZI180 build\n");
+    printf("TOP        - creates self relocating build to load into top of the TPA\n");
+    printf("if no target is specified via -A, then the default is " DEFTARGET "\n");
+/* clang - format on */
     exit(1);
 }

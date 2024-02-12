@@ -1,7 +1,3 @@
-#ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_NONSTDC_NO_WARNINGS
-#endif
 #include <ctype.h>
 
 #include <stdbool.h>
@@ -15,6 +11,9 @@
 #else
 #include <limits.h> /* picks up PATH_MAX in GCC */
 #include <unistd.h> /* for getpid */
+#include <fcntl.h>
+#include <sys/wait.h>
+#define stricmp strcasecmp
 #endif
 
 #ifndef PATH_MAX
@@ -42,7 +41,7 @@ int main ( int argc , char **argv );
 void setPaths ( void );
 void setTarget ( void );
 void addCppFlag ( char *s );
-void addLinkFlag ( char *s , bool errOnDup );
+void addLinkFlag ( char *s );
 int unx_exec ( char *name , char **vec );
 _Noreturn void error(char *s, ...);
 char *xstrdup(char *s);
