@@ -1,7 +1,8 @@
+
 @echo off
 setlocal enabledelayedexpansion
 rem locally install applications
-if /I [%~1] == [-v] (echo %0: Rev 12  -- 0bc2e9f [2022-08-26]) & goto :EOF
+if /I [%~1] == [-v] (echo %0: 2023.4.19.15 [6256cd3]) & goto :EOF
 if [%1] == [] goto usage
 if [%2] neq [] goto start
 :usage
