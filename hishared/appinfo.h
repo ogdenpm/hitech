@@ -8,9 +8,9 @@
 #endif
 #ifndef APP_OWNER
 #define APP_OWNER		"HI-TECH"
-#endif
 #ifndef APP_MODS
 #define APP_MODS		"port Mark Ogden"
+#endif
 #endif
 #ifndef APP_DESCRIPTION
 #define APP_DESCRIPTION APP_PRODUCT " reverse engineered to modern C"

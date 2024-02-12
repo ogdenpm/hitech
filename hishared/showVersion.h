@@ -13,11 +13,12 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef char const verstr[];
 #ifdef _MSC_VER
 #ifndef strcasecmp
-#define strcasecmp  _stricmp
+#define strcasecmp  stricmp
 #endif
 #endif
 
