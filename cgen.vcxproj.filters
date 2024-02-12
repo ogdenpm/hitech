@@ -28,6 +28,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="version.in" />
+    <None Include="_appinfo.h">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
