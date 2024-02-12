@@ -60,40 +60,52 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\hishared\Cbuild.props" />
+    <Import Project="..\hishared\Version.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\hishared\Cbuild.props" />
+    <Import Project="..\hishared\Version.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\hishared\Cbuild.props" />
+    <Import Project="..\hishared\Version.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\hishared\Cbuild.props" />
+    <Import Project="..\hishared\Version.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)Install\$(PlatformTarget)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\$(ProjectName)\$(PlatformTarget)-$(Configuration)\</IntDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)Install\$(PlatformTarget)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\$(ProjectName)\$(PlatformTarget)-$(Configuration)\</IntDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)Install\$(PlatformTarget)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\$(ProjectName)\$(PlatformTarget)-$(Configuration)\</IntDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)Install\$(PlatformTarget)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\$(ProjectName)\$(PlatformTarget)-$(Configuration)\</IntDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -117,16 +129,20 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Version</Message>
+      <Message>
+      </Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>_version.h</Outputs>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Inputs>.force</Inputs>
+      <Inputs>
+      </Inputs>
     </CustomBuildStep>
     <ResourceCompile>
       <PreprocessorDefinitions>AUTOVER</PreprocessorDefinitions>
@@ -158,16 +174,20 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Version</Message>
+      <Message>
+      </Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>_version.h</Outputs>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Inputs>.force</Inputs>
+      <Inputs>
+      </Inputs>
     </CustomBuildStep>
     <ResourceCompile>
       <PreprocessorDefinitions>AUTOVER</PreprocessorDefinitions>
@@ -195,16 +215,20 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Version</Message>
+      <Message>
+      </Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>_version.h</Outputs>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Inputs>.force</Inputs>
+      <Inputs>
+      </Inputs>
     </CustomBuildStep>
     <ResourceCompile>
       <PreprocessorDefinitions>AUTOVER</PreprocessorDefinitions>
@@ -236,16 +260,20 @@
       <Message>install</Message>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>call $(SolutionDir)\Scripts\getVersion.cmd -W</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Version</Message>
+      <Message>
+      </Message>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Outputs>_version.h</Outputs>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Inputs>.force</Inputs>
+      <Inputs>
+      </Inputs>
     </CustomBuildStep>
     <ResourceCompile>
       <PreprocessorDefinitions>AUTOVER</PreprocessorDefinitions>
