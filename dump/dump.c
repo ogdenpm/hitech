@@ -29,6 +29,8 @@
 #include <stdarg.h>
 #endif
 
+#include "showVersion.h"
+
 #ifndef uchar
 #define uchar unsigned char
 #endif
@@ -219,6 +221,8 @@ int main(argc, argv) int argc;
 char **argv;
 {
     char **next_arg;
+
+    CHK_SHOW_VERSION(argc, argv);
 
     if (argc == 1) {           /* When starting the program without     */
         *(argv + 1) = "l.obj"; /* parameters, process the file "l.obj"  */
