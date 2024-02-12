@@ -51,7 +51,7 @@ static UConst char sccsid[] = "@(#)yylex.c	1.9 19/08/29 2010-2019 J. Schilling";
  *    documentation and/or other materials provided with the distribution.
  *
  * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:  This product includes
+ *    must display the following acknowledgment:  This product includes
  *    software developed or owned by Caldera International, Inc.
  *
  * 4. Neither the name of Caldera International, Inc. nor the names of other

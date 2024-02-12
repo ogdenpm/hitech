@@ -96,6 +96,7 @@ static UConst char sccsid[] = "@(#)cpp.c	1.54 21/05/30 2010-2021 J. Schilling";
 #endif
 
 #include "version.h"
+#include "showVersion.h"
 
 #define STATIC static
 
@@ -441,7 +442,7 @@ STATIC char *refill(register char *p) {
         np = pbeg;
         p  = inptr + BUFFERSIZ;
     }
-    macdam += np - inptr;
+    macdam += (int)(np - inptr);
     outptr = inptr = np;
     while (op < p)
         *np++ = *op++;
@@ -461,7 +462,7 @@ STATIC char *refill(register char *p) {
             return (p);
         } else { /* get more text from file(s) */
             maclvl = 0;
-            if (0 < (ninbuf = fread(pbuf, 1, BUFFERSIZ, fin))) {
+            if (0 < (ninbuf = (int)fread(pbuf, 1, BUFFERSIZ, fin))) {
                 pend  = pbuf + ninbuf;
                 *pend = '\0';
                 return (p);
@@ -912,7 +913,7 @@ STATIC char *unfill(register char *p) {
         *--np = *--op; /* slide over new */
     if (bob(np))
         pperror("token too long");
-    d = np - outptr;
+    d = (int)(np - outptr);
     outptr += d;
     inptr += d;
     macdam += d;
@@ -1187,7 +1188,7 @@ STATIC char *dodef(char *p) { /* process '#define' */
             if ((toktyp + COFF)[(int)*pin] == IDENT) {
                 for (qf = pf; --qf >= formal;) {
                     if (equfrm(*qf, pin, p)) {
-                        *psav++ = qf - formal + 1;
+                        *psav++ = (char)(qf - formal + 1);
                         *psav++ = WARN;
                         pin     = p;
                         break;
@@ -1203,7 +1204,7 @@ STATIC char *dodef(char *p) { /* process '#define' */
                         ++cf;
                     for (qf = pf; --qf >= formal;) {
                         if (equfrm(*qf, pin, cf)) {
-                            *psav++ = qf - formal + 1;
+                            *psav++ = (char)(qf - formal + 1);
                             *psav++ = WARN;
                             pin     = cf;
                             break;
@@ -1839,6 +1840,9 @@ int main(int argc, char *argv[]) {
     register int i, c;
     register char *p;
     char *tf, **cp2;
+
+    CHK_SHOW_VERSION(argc, argv);
+
 #ifndef CPM
     char *sysdir = NULL;
 #endif
@@ -1941,7 +1945,7 @@ int main(int argc, char *argv[]) {
                 printf("\n");
                 printf("Copyright (C) 1978 AT&T (John F. Reiser)\n");
                 printf("Copyright (C) 2010-2021 Joerg Schilling\n");
-                printf("Changes Copyright (C) 2022 Mark Ogden\n");
+                printf("Additional Changes Mark Ogden\n");
                 exit(0);
             }
 #ifndef CPM

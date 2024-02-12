@@ -19,8 +19,7 @@
  *	pointer.
  *	The zero'th argument is set to the name parameter.
  */
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_NONSTDC_NO_WARNINGS
+
 #include "dirent.h"
 #include <ctype.h>
 #include <stdarg.h>

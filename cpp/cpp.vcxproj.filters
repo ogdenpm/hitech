@@ -44,5 +44,11 @@
     <ClInclude Include="version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="_version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="_appinfo.h" />
   </ItemGroup>
 </Project>

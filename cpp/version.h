@@ -3,5 +3,5 @@
 /*
  * The version for cpp
  */
-#define	VERSION		"2.3+"
-#define	VERSION_DATE	"2022/07/12"
+#define	VERSION		"2.3"
+#define	VERSION_DATE	"2021/05/29"

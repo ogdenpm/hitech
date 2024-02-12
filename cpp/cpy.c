@@ -188,7 +188,7 @@ yydefault:
         case 0: /* brand new error */
 
             yyerror("syntax error");
-        yyerrlab:
+        //yyerrlab:
             ++yynerrs;
 
         case 1:
