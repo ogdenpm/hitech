@@ -30,6 +30,7 @@
  * 09-Jul-2022
  */
 #include "p1.h"
+#include "showVersion.h"
 
 char *tmpFile = "p1.tmp"; /* 91db */
 char errBuf[512];         /* 9df7 */
@@ -64,6 +65,8 @@ void mainParseLoop(void);
  **************************************************/
 int main(int argc, char *argv[]) {
     register char *st;
+
+    CHK_SHOW_VERSION(argc, argv);
 
     initMemAddr(); /* get data area range */
 

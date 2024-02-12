@@ -534,7 +534,7 @@ int16_t getCh(void) {
 #if !defined(CPM) && !defined(_WIN32)
         if (ch == 0x1a)
             return EOF;
-    } while (ch != '\r');
+    } while (ch == '\r');
 #endif
     return ch;
 }
@@ -545,7 +545,7 @@ int16_t getCh(void) {
 void prErrMsg(void) {
     register char *iy;
     if (!lInfoEmitted) {
-        iy = depth ? curFuncNode->nVName : "";
+        iy = depth && curFuncNode ? curFuncNode->nVName : "";
 
         if (!l_opt && (strcmp(srcFile, lastEmitSrc) || strcmp(iy, lastEmitFunc))) {
             fprintf(stderr, "%s:", srcFile);
