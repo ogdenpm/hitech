@@ -1,0 +1,5 @@
+#define APP_NAME	"cpp"
+#define APP_PRODUCT	"cpp-2.3"
+#define APP_OWNER	"John F. Reiser & Joerg Schilling"
+#define APP_MODS	"changes Mark Ogden"
+#define APP_DESCRIPTION	"cpp-2.3 modified for Z80 cross compilation"
