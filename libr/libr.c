@@ -28,43 +28,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <signal.h>
+#include <stdint.h>
+#include "libr.h"
 #include "showVersion.h"
 
-#if !defined(_STDC_VERSION__) || __STDC_VERSION < 201112L
-#define _Noreturn
-#endif
-#if defined(_MSC_VER) && !defined(__STDC__)
-#define __STDC__ 1
-#endif
-
-#ifdef __STDC__
-#include <stdarg.h>
-#endif
-#if CPM
-#include <sys.h>
-#else
-#define index strchr
-#ifndef _MSC_VER
-#include <unistd.h>     // for unlink
-#endif
-#endif
-
-
-/*
- *	Assigned type abbreviations
- */
-
-#ifndef uchar
-#define uchar unsigned char
-#endif
-
-#ifndef uint
-#define uint unsigned
-#endif
-
-#ifndef ulong
-#define ulong unsigned long
-#endif
 
 /*
  *	These definitions are not present in the header files of the compiler.
@@ -111,9 +78,9 @@ char symbolsRead;
 int symCnt;
 FILE *libraryFp; // file pointer
 long moduleSize;
-char moduleBuf[512];
+uint8_t moduleBuf[512];
 FILE *tempFp; // file pointer
-char libBuf[512];
+uint8_t libBuf[512];
 long unusedLong;
 FILE *libContentFp; // file pointer
 int symSize;
@@ -152,84 +119,7 @@ char *moduleName; // file name
  * ok   - Code generated during compilation differs slightly,
  *        but is logically correct;
  ****************************************************************/
-#ifdef __STDC__
-#define P(s) s
-#else
-#define P(s) ()
-#endif
 
-/* libr.c */
-int cmpNames P((char *st, char *p2));
-void allocModuleArrays P((int p1, char **p2));
-uchar lookupName P((char *p1));
-void processUnmatched P((void (*fun)(char *, uint)));
-void copyUnchangedSymbols P((char *name, long dummy));
-void copyUnchangedModules P((char *name, long dummy));
-void deleteModule P((void));
-void extractNamedModule P((char *p1, long dummy));
-void extractModules P((void));
-void openTemp P((void));
-int writeFile P((char *buf, uint size, uint count, FILE *fp));
-void closeTemp P((void));
-void openLibrary P((char *name));
-void openContent P((void));
-void rewindLibrary P((void));
-void commitNewLibrary P((void));
-void visitModules P((void (*funptr)(char *, long)));
-void visitSymbols P((void (*action)(char *, int)));
-void copySymbolsToTemp P((void));
-void copyModuleToTemp P((void));
-void extractOneModule P((char *name));
-void copyNewModule P((char *p1, uint moduleId));
-void copyNewSymbols P((char *moduleName, uint moduleId));
-void conv_u32tob P((unsigned long p1, char *p2));
-void conv_u16tob P((uint p1, char *p2));
-uint conv_btou16 P((uchar * p1));
-long conv_btou32 P((uchar * p1));
-void readName P((char *p1));
-void writeName P((char *p1));
-void unexp_eof P((void));
-void checkToList P((char *p1, int tType));
-void listOneModule P((char *p1, long dummy));
-void listModules P((char *key, char *name));
-void printSymbol P((char *name, int tType));
-void printObjAndSymbols P((char *p1, long dummy));
-void listWithSymbols P((void));
-int main P((int argc, char **argv));
-#ifdef CPM
-void fatal_err P((int p1, int p2, int p3, int p4, int p5));
-#else
-void vfatal_err P((char *fmt, va_list args));
-void fatal_err P((char *fmt, ...));
-#endif
-_Noreturn void open_err P((char *p1));
-void seek_err P((char *p1));
-#ifdef CPM
-void simpl_err P((char *p1, char *p2, int p3, int p4, int p5));
-void warning P((char *p1, char *p2, int p3, int p4, int p5));
-void badFormat P((char *name, char *fmt, uint p3, uint p4, int p5, int p6));
-#else
-void simpl_err P((char *p1, char *p2));
-void warning P((char *p1, char *p2));
-void badFormat P((char *name, char *fmt, ...));
-#endif
-void noModule P((char *p1, uint dummy));
-void finish P((int p1));
-void sigintHandler P((int p1));
-char *xalloc P((int p1));
-void parseIdentRec P((void));
-uint get_modu16 P((uchar * p1));
-void addSymbol P((uchar * name, int flags));
-int scanModule(char *name);
-uint conv_btou16a P((uchar * st));
-void getRecord P((void));
-void skipRecord P((void));
-void parseSymbolRec P((void));
-void copyMatchedSymbols P((char *p1, long dummy));
-void copyMatchedModules P((char *p1, long dummy));
-void replaceModule P((void));
-
-#undef P
 
 #if CPM
 char *strrchr(char *, int);
@@ -281,8 +171,8 @@ void allocModuleArrays(int p1, char **p2) {
 /**************************************************************************
  3	lookupName	ok++
  **************************************************************************/
-uchar lookupName(char *p1) {
-    char l1;
+uchar lookupName(uint8_t *p1) {
+    uint8_t l1;
 
     if (num_ofiles == 0)
         return 1;
@@ -290,7 +180,7 @@ uchar lookupName(char *p1) {
     do {
         if (l1-- == 0)
             return 0;
-    } while (cmpNames(cmdLineNames[l1], p1) != 0);
+    } while (cmpNames(cmdLineNames[l1], (char *)p1) != 0);
 
     moduleFlags[l1] = 1;
     return l1 + 1;
@@ -299,13 +189,13 @@ uchar lookupName(char *p1) {
 /**************************************************************************
  4	processUnmatched	ok++
  **************************************************************************/
-void processUnmatched(void (*fun)(char *, uint)) {
+void processUnmatched(void (*fun)(uint8_t *, uint)) {
     int l1;
 
     l1 = 0;
     while (l1 != num_ofiles) {
         if (moduleFlags[l1] == 0)
-            fun(cmdLineNames[l1], l1);
+            fun((uint8_t *)cmdLineNames[l1], l1);
         ++l1;
     }
 }
@@ -313,7 +203,7 @@ void processUnmatched(void (*fun)(char *, uint)) {
 /**************************************************************************
  5	copyUnchangedSymbols	ok++
  **************************************************************************/
-void copyUnchangedSymbols(char *name, long dummy) {
+void copyUnchangedSymbols(uint8_t *name, long dummy) {
 
     if (lookupName(name) == 0)
         copySymbolsToTemp();
@@ -322,7 +212,7 @@ void copyUnchangedSymbols(char *name, long dummy) {
 /**************************************************************************
  6	copyUnchangedModules	ok++
  **************************************************************************/
-void copyUnchangedModules(char *name, long dummy) {
+void copyUnchangedModules(uint8_t *name, long dummy) {
 
     if (lookupName(name) == 0)
         copyModuleToTemp();
@@ -347,10 +237,10 @@ void deleteModule() {
 /**************************************************************************
  8	extractNamedModule	ok++
  **************************************************************************/
-void extractNamedModule(char *p1, long dummy) {
+void extractNamedModule(uint8_t *p1, long dummy) {
 
     if (lookupName(p1) != 0)
-        extractOneModule(p1);
+        extractOneModule((char *)p1);
 }
 
 /**************************************************************************
@@ -376,7 +266,7 @@ void openTemp() {
 /**************************************************************************
  11	writeFile	ok++
  **************************************************************************/
-int writeFile(char *buf, uint size, uint count, FILE *fp) {
+int writeFile(uint8_t *buf, uint size, uint count, FILE *fp) {
 
     if ((size = (uint)fwrite(buf, size, count, fp)) != count) {
         fatal_err("Write error on %s file", (fp == tempFp) ? "temp" : "output");
@@ -495,7 +385,7 @@ void commitNewLibrary() {
 /**************************************************************************
  17	visitModules	ok++
  **************************************************************************/
-void visitModules(void (*funptr)(char *, long)) {
+void visitModules(void (*funptr)(uint8_t *, long)) {
     int cntModulesLeft;
 
     for (cntModulesLeft = num_modules; cntModulesLeft; --cntModulesLeft) {
@@ -526,7 +416,7 @@ void visitModules(void (*funptr)(char *, long)) {
 /**************************************************************************
  18	sub_0727	ok++
  **************************************************************************/
-void visitSymbols(void (*action)(char *, int)) {
+void visitSymbols(void (*action)(uint8_t *, int)) {
     int cnt;
     int tType;
 
@@ -545,7 +435,7 @@ void visitSymbols(void (*action)(char *, int)) {
 void copySymbolsToTemp() {
     int l1, l2;
 
-    writeFile(libBuf, 1, (l1 = (int)strlen(libBuf + 12) + 13), tempFp);
+    writeFile(libBuf, 1, (l1 = (int)strlen((char *)libBuf + 12) + 13), tempFp);
     tempFileSize += l1;
     newSymSize += (l1 + symSize);
     l1 = symSize;
@@ -603,12 +493,12 @@ void extractOneModule(char *name) {
 /**************************************************************************
  22	copyNewModule	ok++	used when replacing modules
  **************************************************************************/
-void copyNewModule(char *p1, uint moduleId) {
+void copyNewModule(uint8_t *p1, uint moduleId) {
     unsigned int l1, l2, l3;
     register FILE *st;
 
-    if ((st = fopen(p1, "rb")) == 0)
-        open_err(p1);
+    if ((st = fopen((char *)p1, "rb")) == 0)
+        open_err((char *)p1);
     l3 = 0;
     l1 = moduleSizes[moduleId];
 
@@ -624,19 +514,19 @@ void copyNewModule(char *p1, uint moduleId) {
 /**************************************************************************
  23	copyNewSymbols	ok++	used when replacing modules
  **************************************************************************/
-void copyNewSymbols(char *moduleName, uint moduleId) {
+void copyNewSymbols(uint8_t *moduleName, uint moduleId) {
     int modsize, simsize, cnt;
     register struct sym *st;
 
-    moduleSizes[moduleId] = (modsize = scanModule(moduleName));
+    moduleSizes[moduleId] = (modsize = scanModule((char *)moduleName));
 
     cnt                   = (int)(curSymPtr - symbols);
     simsize               = cnt * 2; /* flag & trailing 0 */
 
     for (st = symbols; st != curSymPtr; ++st)
-        simsize += (int)strlen(st->name); /* add in the symbol lengths */
+        simsize += (int)strlen((char *)st->name); /* add in the symbol lengths */
 
-    newSymSize += (int)(strlen(moduleName) + simsize +
+    newSymSize += (int)(strlen((char *)moduleName) + simsize +
                    13); /* 13 -> header size + trailing 0 of module name */
     conv_u16tob(simsize, libBuf);
     conv_u16tob(cnt, libBuf + 2);
@@ -657,18 +547,18 @@ void copyNewSymbols(char *moduleName, uint moduleId) {
 /**************************************************************************
  24	conv_u32tob	sub_0bd5h	ok++
  **************************************************************************/
-void conv_u32tob(unsigned long p1, char *p2) {
+void conv_u32tob(unsigned long p1, uint8_t *p2) {
 
-    *p2       = (char)p1;
-    *(p2 + 1) = (char)(p1 >> 8);
-    *(p2 + 2) = (char)(p1 >> 0x10);
+    *p2       = (uint8_t)p1;
+    *(p2 + 1) = (uint8_t)(p1 >> 8);
+    *(p2 + 2) = (uint8_t)(p1 >> 0x10);
     *(p2 + 3) = p1 >> 0x18;
 }
 
 /**************************************************************************
  25	conv_u16tob	sub_0c31h	ok++
  **************************************************************************/
-void conv_u16tob(uint p1, char *p2) {
+void conv_u16tob(uint p1, uint8_t *p2) {
 
     *p2       = p1;
     *(p2 + 1) = p1 >> 8;
@@ -693,7 +583,7 @@ long conv_btou32(register uchar *p1) {
 /**************************************************************************
  28	readName	ok++
  **************************************************************************/
-void readName(register char *p1) {
+void readName(register uint8_t *p1) {
     int l1;
 
     do {
@@ -706,7 +596,7 @@ void readName(register char *p1) {
 /**************************************************************************
  29	writeName	ok++
  **************************************************************************/
-void writeName(register char *p1) {
+void writeName(register uint8_t *p1) {
 
     do {
         ++tempFileSize;
@@ -724,12 +614,12 @@ void unexp_eof() {
 /**************************************************************************
  31	checkToList	ok++
  **************************************************************************/
-void checkToList(char *p1, int tType) {
+void checkToList(uint8_t *p1, int tType) {
 
     if (((char)tType == 0 ? listDefinedOpt : listUndefinedOpt) == 0)
         return;
-    if (strcmp(listModuleName, p1) != 0) {
-        if (*p1 != '_' || strcmp(listModuleName, p1 + 1) != 0)
+    if (strcmp(listModuleName, (char *)p1) != 0) {
+        if (*p1 != '_' || strcmp(listModuleName, (char *)p1 + 1) != 0)
             return;
     }
     listModuleFound = 1;
@@ -739,7 +629,7 @@ void checkToList(char *p1, int tType) {
 /**************************************************************************
  32	listOneModule	Print obj name from library	ok++
  **************************************************************************/
-void listOneModule(char *p1, long dummy) {
+void listOneModule(uint8_t *p1, long dummy) {
 
     if (lookupName(p1) == 0)
         return;
@@ -749,7 +639,7 @@ void listOneModule(char *p1, long dummy) {
         if (!listModuleFound)
             return;
     }
-    printf("%-15.15s", p1);
+    printf("%-15.15s", (char *)p1);
     if (listModuleName != 0)
         printf(" %c", (listModuleType >= 7) ? '?' : symbolTypes[listModuleType]);
     putchar('\n');
@@ -781,13 +671,13 @@ void listModules(char *key, char *name) {
 /**************************************************************************
  34	printSymbol	ok++	Print symbol name with the key s
  **************************************************************************/
-void printSymbol(char *name, int tType) {
+void printSymbol(uint8_t *name, int tType) {
 
     if (curColumn >= columns) {
         printf("\t\t");
         curColumn = 0;
     }
-    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), name);
+    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), (char *)name);
     if (++curColumn >= columns) {
         printf("\n");
         return;
@@ -798,11 +688,11 @@ void printSymbol(char *name, int tType) {
 /**************************************************************************
  35	printObjAndSymbols	ok+	Print obj name and symbol names
  **************************************************************************/
-void printObjAndSymbols(char *p1, long dummy) {
+void printObjAndSymbols(uint8_t *p1, long dummy) {
 
     if (lookupName(p1) == 0)
         return;
-    printf("%-16.15s", p1); // Print obj name from library with the key s
+    printf("%-16.15s", (char *)p1); // Print obj name from library with the key s
     curColumn = 0;
     visitSymbols(printSymbol); // Print symbol name with the key s
     if (curColumn == 0)
@@ -998,9 +888,9 @@ void badFormat(char *name, char *fmt, ...) {
 /**************************************************************************
  44	noModule	ok++	module not found
  **************************************************************************/
-void noModule(char *p1, uint dummy) {
+void noModule(uint8_t *p1, uint dummy) {
 
-    simpl_err("no such module: %s", p1);
+    simpl_err("no such module: %s", (char *)p1);
 }
 
 /**************************************************************************
@@ -1023,19 +913,12 @@ void sigintHandler(int p1) {
 /**************************************************************************
  47	allocmem	sub_1304h	ok
  **************************************************************************/
-char *xalloc(int p1) {
-    char *l1;
-    register char *st;
+void *xalloc(int len) {
+    void *p;
 
-    if ((l1 = malloc(p1)) == 0)
+    if ((p = malloc(len)) == 0)
         fatal_err("Cannot get memory");
-
-    st = l1;
-    while (p1-- != 0) { // Clearing area
-        *st = 0;
-        ++st;
-    }
-    return l1;
+    return memset(p, 0, len);
 }
 
 /**************************************************************************
@@ -1095,7 +978,7 @@ void addSymbol(uchar *name, int flags) {
     st = curSymPtr;
     if ((st->flags = flags) != 6)
         hasNonExtern = 1;
-    strcpy((curSymPtr->name = xalloc((int)strlen(name) + 1)), name);
+    strcpy((char *)(curSymPtr->name = xalloc((int)strlen((char *)name) + 1)),(char *) name);
 
     ++curSymPtr;
 }
@@ -1219,7 +1102,7 @@ void parseSymbolRec() {
 /**************************************************************************
  56	copyMatchedSymbols	ok++
  **************************************************************************/
-void copyMatchedSymbols(char *p1, long dummy) {
+void copyMatchedSymbols(uint8_t *p1, long dummy) {
 
     if (lookupName(p1) != 0) {
         copyNewSymbols(p1, lookupName(p1) - 1);
@@ -1231,7 +1114,7 @@ void copyMatchedSymbols(char *p1, long dummy) {
 /**************************************************************************
  57	copyMatchedModules	ok++
  **************************************************************************/
-void copyMatchedModules(char *p1, long dummy) {
+void copyMatchedModules(uint8_t *p1, long dummy) {
 
     if (lookupName(p1) != 0) {
         copyNewModule(p1, lookupName(p1) - 1);
