@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #if !defined(_STDC_VERSION__) || __STDC_VERSION < 201112L
 #define _Noreturn
@@ -109,8 +110,8 @@ uchar rec_typ;       /* Record type		*/
 int rec_len;         /* Record length	*/
 uchar buf_data[512]; /* Record data buffer	*/
 
-char order32[] = { 0, 1, 2, 3 }; /* 32 bit order */
-char order16[] = { 0, 1 };       /* 16 bit order */
+uint8_t order32[] = { 0, 1, 2, 3 }; /* 32 bit order */
+uint8_t order16[] = { 0, 1 };       /* 16 bit order */
 
 /*	This version of the program implements the features marked CP/M:
 
@@ -299,7 +300,7 @@ void cod_text() {
     while (*ptr != 0)
         ++ptr;
     ptr++;
-    data_bytes = rec_len - (5 + (int)strlen(psect_name));
+    data_bytes = rec_len - (5 + (int)strlen((char *)psect_name));
 
     if (BITTST(data_bytes, 15) != 0)
         error("text record has length too small: %d", data_bytes);
@@ -359,7 +360,7 @@ void cod_reloc() {
         if (l1 >= 7)
             error("unknown relocation type: 0X%x0", l1);
         printf("\t\t%d\t%s\t%s\t%d\n", calc_val(l2), reloc_types[l1], l2 + 3, (*(l2 + 2) & 0xF));
-        l2 += strlen(l2 + 3) + 4;
+        l2 += strlen((char *)l2 + 3) + 4;
     }
 }
 
@@ -398,7 +399,7 @@ void cod_sym() {
         else                                     /* when linking with unmodified */
             printf("\n");                        /* standard library		*/
 
-        l1 += strlen(l2) + strlen(l3) + 8;
+        l1 += strlen((char *)l2) + strlen((char *)l3) + 8;
     }
 }
 
