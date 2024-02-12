@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="version.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="mkpat.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -26,19 +23,16 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="version.in" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="version.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Generated\version.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="mkpat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="_version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="_appinfo.h">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
