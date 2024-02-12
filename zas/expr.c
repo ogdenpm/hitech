@@ -79,10 +79,10 @@ rval_t *evalExpr() {
                     since the first location is an int32_t in both cases
                     and the eSym memory loc is unused in the psec structure
                     and will be zero when allocated.
-                    curPsect->symRval would work, but here the conversion
-                    is explicit
+                    curPsect->symRval avoids the explicit conversion which
+                    gcc complains about
                 */
-                *pv = *(rval_t *)&curPsect->symPsec;
+                *pv = curPsect->symRval;
                 if ((curPsect->sFlags & S_ABSPSECT) == S_ABSPSECT)
                     pv->pSym = NULL;
                 else

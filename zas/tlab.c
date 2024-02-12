@@ -39,7 +39,14 @@ tmpLabel_t *lowLabel;            /* af92 */
  112	sub_53e5h +++
  **************************************************************************/
 void initLocalLabels() {
-    lowLabel = tmpLabelTab - 1; /* deliberately before start, technically undefined behaviour */
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+    lowLabel = tmpLabelTab - 1; /* deliberately before start, but always incremented before use */
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
     if (phase != 2)
         tmpLabelPtr = lowLabel;
