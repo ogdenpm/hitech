@@ -296,7 +296,6 @@
     <None Include="_appinfo.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dump.h" />
     <ClInclude Include="_version.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
