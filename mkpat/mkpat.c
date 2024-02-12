@@ -1,4 +1,12 @@
-#include "mkpat.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include "showVersion.h"
+#ifndef _MSC_VER
+#define stricmp strcasecmp
+#endif
 unsigned short crc16(unsigned char *data_p, size_t length);
 
 #define NODATAREF
@@ -110,7 +118,7 @@ int getRecord(FILE *fp) {
 
 void dumpPattern(FILE *fpout) {
     int j;
-    int splitRef = 0;
+
     int loc;
     bool hasPublic = false;
     int abs     = 0;
@@ -377,10 +385,7 @@ void doFile(char *file, FILE *fpout) {
 int main(int argc, char **argv) {
     FILE *fpout;
 
-    if (argc == 2 && strcasecmp(argv[1], "-v") == 0) {
-        showVersion(stdout, argv[1][1] == 'V');
-        exit(0);
-    }
+    CHK_SHOW_VERSION(argc, argv);
 
     if (argc < 3 || (fpout = fopen(argv[1], "wt")) == NULL) {
         fprintf(stderr, "usage: %s patfile objfile+\n", argv[0]);
