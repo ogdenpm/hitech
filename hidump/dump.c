@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "showVersion.h"
 // clang-format on
 #ifdef _WIN32
 #define DIRSEP "/\\:"
@@ -166,6 +167,7 @@ uint32_t curBase; /* base address for relocation */
 int main(int argc, char **argv) {
     char **parg;
 
+    CHK_SHOW_VERSION(argc, argv);
     if (argc == 1) {
         char *s = argv[0];
         char *t;
