@@ -408,7 +408,10 @@ void setPaths() {
     }
     /* set up paths for temp files */
 #ifdef DEFTMP
-    if (!(env = getenv(TEMP1)) && !(env = getenv(TEMP2)))
+    if (!(env = getenv("TMP")))
+#ifdef _WIN32
+        if (!(env = getenv(TEMP)))
+#endif
         env = DEFTMP;
     strcpy(tmp, env);
     if (*(s = fname(tmp)))
