@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     int16_t blkIdx;
     long remaining;
     uint16_t cnt;
-    uint16_t crc;
+    uint16_t crc = 0; // avoid compiler warning
     long curAddr;
     char *wrMode;
 
@@ -794,6 +794,8 @@ void doSym() {
         } else if (pOpt && sOpt) {
             u32tob(symEntry + 10, varE);
             switch (*pname) {
+            default:
+                fprintf(stderr, "Unexpected *pname '%c' %s line %d\n", *pname, __FILE__, __LINE__);
             case '_':
             case 't':
                 var23 = 0xa200;
