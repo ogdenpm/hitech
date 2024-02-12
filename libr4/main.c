@@ -1,4 +1,5 @@
 #include "libr.h"
+#include "showVersion.h"
 
 int width            = 80;      /* Output width */
 char commands[]      = "rdxms"; /* Program Keys */
@@ -29,6 +30,8 @@ uint32_t *moduleSizes;     /* Pointer to an area of modsize num_ofiles * sizeof(
 int main(int argc, char *argv[]) {
     char *p;
     char *s;
+
+    CHK_SHOW_VERSION(argc, argv);
 
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
         signal(SIGINT, sigintHandler);

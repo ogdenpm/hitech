@@ -50,22 +50,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="version.in" />
     <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="version.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Generated\version.h">
+    <None Include="_appinfo.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="libr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="missing\dirent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="_version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
