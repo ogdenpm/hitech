@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "showVersion.h"
 
 #if defined(__STDC__) || defined(__STDC_VERSION__)
 #include <stdbool.h>
@@ -215,8 +216,8 @@ typedef struct member {    /* Offset Member Description			*/
                            /*		            3 0001000 -	register?*/
                            /*		            4 0010000 -		*/
     uint8_t b_ndpth;       /* +4   4 s_ndpth Nesting depth of block	*/
-    uint8_t b_b5;          /* +5   5					*/
-    uint8_t b_b6;          /* +6   6					*/
+    uint8_t bWidth;          /* +5   5					*/
+    uint8_t bOffset;          /* +6   6					*/
     struct member *b_next; /* +7   7					*/
                            /* +8   8					*/
     uint16_t b_size;       /* +9   9 s_size Type size			*/
@@ -289,12 +290,18 @@ extern uint8_t byte_B014;        /* sub_3CDF, sub_3DC9 */
 extern char *warningMsg;         /* msgptr  Pointer str printf       */
 extern int word_B017;            /* leaveBlock, sub_6D1, sub_283E, sub_2BD0, sub_61AA */
 extern bool wflag;               /* Warning messages */
+#if 0
 extern bool pflag;               /* Not used */
 extern bool hflag;               /* Not used */
+#endif
 extern int errcnt;               /* Number of errors */
+#if 0
 extern bool bflag;               /* Not used */
+#endif
 extern char *baseHeap;           /* Current highest memory */
+#if 0
 extern bool eflag;               /* Not used */
+#endif
 extern bool rflag;
 
 /* ===== End of bss section ======= */
@@ -315,7 +322,7 @@ extern char *regNames[];
 /* ===== End of data section ======= */
 
 /*
- * Libbrary Function prototypes
+ * Library Function prototypes
  *
  */
 #ifdef CPM

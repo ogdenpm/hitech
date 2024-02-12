@@ -34,15 +34,21 @@ uint8_t byte_B014;        /* sub_3CDF, sub_3DC9 */
 char *warningMsg;         /* Pointer for printf      */
 int word_B017;            /* leaveBlock, sub_6D1, sub_283E, sub_2BD0, sub_61AA */
 bool wflag;               /* Warning messages	   */
+#if 0
 bool pflag;               /* Not used		   */
 bool hflag;               /* Not used		   */
-int errcnt;               /* Number of errors	   */
-bool bflag;               /* Not used		   */
-#ifdef CPM
-char *baseHeap;           /* Current highest memory  */
 #endif
-bool eflag;               /* Not used		   */
-bool rflag;               /* Not used		   */
+int errcnt;               /* Number of errors	   */
+#if 0
+bool bflag;               /* Not used		   */
+#endif
+#ifdef CPM
+char *baseHeap; /* Current highest memory  */
+#endif
+#if 0
+bool eflag; /* Not used		   */
+#endif
+bool rflag;
 
 /* ===== End of bss section ======= */
 
@@ -853,13 +859,13 @@ uint8_t array_AB54[] = { 14, 13, 12, 0, 0, 0,         /* groups of 6 bytes, each
 
 /* offsets into character array below */
 static int16_t array_987D[] = { 0,     0,     4,     9,     0x0A,  0x0C,  0x0E,  0x1C,  0x2D,
-                         0x31,  0x3E,  0x52,  0x54,  0x62,  0x7C,  0x8E,  0x0A0, 0x0A1,
-                         0x0A3, 0x0B3, 0x0C3, 0x0D7, 0x0E7, 0x0E8, 0x0EB, 0x0F9, 0x0FB,
-                         0x0FD, 0x10B, 0x119, 0x11A, 0x11F, 0x12F, 0x130, 0x147, 0x155,
-                         0x165, 0x173, 0x18B, 0x19B, 0x1A9, 0x1B9, 0x1BE, 0x1CE, 0x1DE,
-                         0x1EE, 0x1EF, 0x1F4, 0x204, 0x214, 0x216, 0x217, 0x218, 0x219,
-                         0x21A, 0x21B, 0x21C, 0x21D, 0x21E, 0x22E, 0x22F, 0x23F, 0x243,
-                         0x244, 0x254, 0x255, 0x256, 0x26F, 0x28D, 0x2A6, 0x2B6, 0x2B8 };
+                                0x31,  0x3E,  0x52,  0x54,  0x62,  0x7C,  0x8E,  0x0A0, 0x0A1,
+                                0x0A3, 0x0B3, 0x0C3, 0x0D7, 0x0E7, 0x0E8, 0x0EB, 0x0F9, 0x0FB,
+                                0x0FD, 0x10B, 0x119, 0x11A, 0x11F, 0x12F, 0x130, 0x147, 0x155,
+                                0x165, 0x173, 0x18B, 0x19B, 0x1A9, 0x1B9, 0x1BE, 0x1CE, 0x1DE,
+                                0x1EE, 0x1EF, 0x1F4, 0x204, 0x214, 0x216, 0x217, 0x218, 0x219,
+                                0x21A, 0x21B, 0x21C, 0x21D, 0x21E, 0x22E, 0x22F, 0x23F, 0x243,
+                                0x244, 0x254, 0x255, 0x256, 0x26F, 0x28D, 0x2A6, 0x2B6, 0x2B8 };
 
 static uint8_t array_990D[] = {
     "Qhi\0"                           /* [0 or 1] 000h */
@@ -1378,7 +1384,7 @@ void parseData() {
 /*********************************************************
  * sub_808 OK++ PMO				 Used in: sub_B19
  * code identical except for where the original code had
- * l = l4b->b_b6 immediately followed
+ * l = l4b->bOffset immediately followed
  * by hl = 0. The useless l = l4b->b-b6 code is no longer there
  * Note there appears to be a problem with hitech code generation
  * around << of a long value
@@ -1407,9 +1413,10 @@ int sub_808(register member_t *sb, node_t *p2a) {
                     prDefb0s(l2); /* emit defb 0 to pad to item boundary */
                 }
                 if (l4b->b_sloc & 0x10) {
-                    p2a = sub_43EF(BAND, p2a, sub_415E((1L << (int8_t)(l4b->b_b5)) - 1L));
-                    if (l4b->b_b6 != 0)
-                        l6a = sub_43EF(BOR, l6a, sub_43EF(LSHIFT, p2a, sub_415E(0L)));
+                    p2a = sub_43EF(BAND, p2a, sub_415E((1L << (int8_t)(l4b->bWidth)) - 1L));
+                    if (l4b->bOffset != 0)
+                        /* PMO: bug fix, replaced 0L arg to sub_415E with bit offset l4b->bOffset*/
+                        l6a = sub_43EF(BOR, l6a, sub_43EF(LSHIFT, p2a, sub_415E(l4b->bOffset)));
                     else
                         l6a = p2a;
 
@@ -1938,7 +1945,7 @@ int max(int num1, int num2) {
 
 #define NVARS 14
 
-struct type {
+struct tType {
     char *t_str;
     int t_size;
     int t_alig;
@@ -1953,17 +1960,17 @@ struct type {
 void sub_1680() {
     member_t *sb;
     int16_t cnt;
-    register struct type *tp;
+    register struct tType *tp;
 
     /*
      *	Initializaion of type pointers
      */
-    static struct type vars[NVARS] = { /* sub_1680 */
-                                       { "i", 2, 0, 1 },  { "s", 2, 0, 1 },  { "c", 1, 0, 1 },
-                                       { "l", 4, 0, 1 },  { "ui", 2, 0, 2 }, { "us", 2, 0, 2 },
-                                       { "uc", 1, 0, 2 }, { "ul", 4, 0, 2 }, { "f", 4, 0, 3 },
-                                       { "d", 4, 0, 3 },  { "x", 2, 0, 1 },  { "ux", 2, 0, 2 },
-                                       { "b", 0, 0, 0 },  { "v", 0, 0, 0 }
+    static struct tType vars[NVARS] = { /* sub_1680 */
+                                        { "i", 2, 0, 1 },  { "s", 2, 0, 1 },  { "c", 1, 0, 1 },
+                                        { "l", 4, 0, 1 },  { "ui", 2, 0, 2 }, { "us", 2, 0, 2 },
+                                        { "uc", 1, 0, 2 }, { "ul", 4, 0, 2 }, { "f", 4, 0, 3 },
+                                        { "d", 4, 0, 3 },  { "x", 2, 0, 1 },  { "ux", 2, 0, 2 },
+                                        { "b", 0, 0, 0 },  { "v", 0, 0, 0 }
     };
 
     /* Clear hash table */
@@ -2149,7 +2156,7 @@ void parseMembers(int p1) {
         sb          = (member_t *)allocMem(sizeof(member_t)); /* Create member_t */
         sb->b_class = MEMBER;
         if (*l5 == ':') {
-            sb->b_b5 = atoi(l5 + 1);
+            sb->bWidth = atoi(l5 + 1);
             sb->b_sloc |= 0x10;
             l5 = getToken();
         }
@@ -2271,13 +2278,13 @@ void sub_1CEF(register member_t *sb) {
         } else {
             l1 = l4b->b_off = sub_1C6D(l1, sub_1CC4(l4b));
             if (l4b->b_sloc & 0x10) {
-                if (16 < l3 + l4b->b_b5 || l4b->b_b5 == 0) {
+                if (16 < l3 + l4b->bWidth || l4b->bWidth == 0) {
                     if (l3 != 0)
                         l4b->b_off = (l1 += 2);
                     l3 = 0;
                 }
-                l4b->b_b6 = l3;
-                l3 += l4b->b_b5;
+                l4b->bOffset = l3;
+                l3 += l4b->bWidth;
                 if (l3 == 32) {
                     l3 = 0;
                     l1 += 2;
@@ -2947,7 +2954,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
 
         case 'C':
             if (la2->a_c0 == BFIELD)
-                printf("%d", la2->info.mp[1]->b_b6);
+                printf("%d", la2->info.mp[1]->bOffset);
             else {
                 ll9 = la2->info.l;
                 if (sub_46F7(ll9) == 0)
@@ -2957,7 +2964,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             break;
         case 'T':
             if (la2->a_c0 == BFIELD)
-                printf("%d", la2->info.mp[1]->b_b5);
+                printf("%d", la2->info.mp[1]->bWidth);
             else {
                 ll9 = la2->info.l;
                 if (sub_46F7(ll9) == 0)
@@ -4729,16 +4736,19 @@ int sub_66BC(int p1, int p2, int p3, char *p4) {
  *
  *********************************************************/
 int main(int argc, char **argv) {
+    CHK_SHOW_VERSION(argc, argv);
 #ifdef CPM
     baseHeap = sbrk(0); /* Current highest memory */
 #endif
     --argc, ++argv;
     while (argc > 0 && **argv == '-') { /* Parsing options */
         switch (argv[0][1]) {
+#if 0
         case 'P':
         case 'p':
             pflag = true;
             break; /* Not use */
+#endif
         case 'W':
         case 'w':
             wflag = true;
@@ -4746,6 +4756,7 @@ int main(int argc, char **argv) {
         case 'R':
             rflag = true;
             break;
+#if 0
         case 'B':
             bflag = true;
             break; /* Not use */
@@ -4755,6 +4766,7 @@ int main(int argc, char **argv) {
         case 'H':
             hflag = true;
             break; /* Not use */
+#endif
         default:
             fatalErr("Illegal\tswitch %c", argv[0][1]);
             break;
@@ -4774,7 +4786,6 @@ int main(int argc, char **argv) {
     }
     /* Exit with error code */
     exit(errcnt != 0); /* Generated code is not significantly different */
-
 }
 
 /*
