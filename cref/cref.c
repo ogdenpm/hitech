@@ -36,15 +36,13 @@
  *
  */
 
-#ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
-#endif
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "showVersion.h"
 
 /*
  * CP/M has a very limited command line length, to work around this
@@ -250,6 +248,7 @@ void addXref(char *name, uint16_t line, uint8_t flag) {
 }
 
 int main(int argc, char **argv) {
+    CHK_SHOW_VERSION(argc, argv);
     --argc, ++argv;
 #ifdef USE_GETARGS
     if (argc == 0) {
