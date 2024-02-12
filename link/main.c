@@ -18,6 +18,7 @@
 #endif
 
 #include "link.h"
+#include "showversion.h"
 
 #ifndef CPM
 static void errMessage(char const *fmt, ...);
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
 #ifndef CPM
     moduleFp = stdin;
 #endif
+    CHK_SHOW_VERSION(argc, argv);
 #if CPM
     if (argc == 1) {
         argv = _getargs(0, "link");
