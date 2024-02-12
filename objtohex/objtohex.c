@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #endif
+#include "showVersion.h"
 
 uint8_t order32[4] = { 0, 1, 2, 3 };
 uint8_t order16[2] = { 0, 1 };
@@ -134,6 +135,8 @@ int main(int argc, char **argv) {
     uint16_t crc;
     long curAddr;
     char *wrMode;
+
+    CHK_SHOW_VERSION(argc, argv);
 
     progname = "objto";
     swapFd   = -1;
