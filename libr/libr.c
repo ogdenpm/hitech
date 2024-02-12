@@ -28,6 +28,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <signal.h>
+#include "showVersion.h"
 
 #if !defined(_STDC_VERSION__) || __STDC_VERSION < 201112L
 #define _Noreturn
@@ -377,7 +378,7 @@ void openTemp() {
  **************************************************************************/
 int writeFile(char *buf, uint size, uint count, FILE *fp) {
 
-    if ((size = fwrite(buf, size, count, fp)) != count) {
+    if ((size = (uint)fwrite(buf, size, count, fp)) != count) {
         fatal_err("Write error on %s file", (fp == tempFp) ? "temp" : "output");
     }
     return size;
@@ -484,7 +485,7 @@ void commitNewLibrary() {
     writeFile(libBuf, 1, 4, libraryFp);
 
     l2 = 4;
-    while ((l1 = fread(libBuf, 1, 512, tempFp)) != 0) {
+    while ((l1 = (int)fread(libBuf, 1, 512, tempFp)) != 0) {
         writeFile(libBuf, 1, l1, libraryFp);
         l2 += l1;
     }
@@ -544,7 +545,7 @@ void visitSymbols(void (*action)(char *, int)) {
 void copySymbolsToTemp() {
     int l1, l2;
 
-    writeFile(libBuf, 1, (l1 = strlen(libBuf + 12) + 13), tempFp);
+    writeFile(libBuf, 1, (l1 = (int)strlen(libBuf + 12) + 13), tempFp);
     tempFileSize += l1;
     newSymSize += (l1 + symSize);
     l1 = symSize;
@@ -611,7 +612,7 @@ void copyNewModule(char *p1, uint moduleId) {
     l3 = 0;
     l1 = moduleSizes[moduleId];
 
-    while ((l2 = fread(moduleBuf, 1, l1 > 512 ? 512 : l1, st)) != 0) {
+    while ((l2 = (unsigned int)fread(moduleBuf, 1, l1 > 512 ? 512 : l1, st)) != 0) {
         writeFile(moduleBuf, 1, l2, tempFp);
         l3 += l2;
         tempFileSize += l2;
@@ -629,13 +630,13 @@ void copyNewSymbols(char *moduleName, uint moduleId) {
 
     moduleSizes[moduleId] = (modsize = scanModule(moduleName));
 
-    cnt                   = (curSymPtr - symbols);
+    cnt                   = (int)(curSymPtr - symbols);
     simsize               = cnt * 2; /* flag & trailing 0 */
 
     for (st = symbols; st != curSymPtr; ++st)
-        simsize += strlen(st->name); /* add in the symbol lengths */
+        simsize += (int)strlen(st->name); /* add in the symbol lengths */
 
-    newSymSize += (strlen(moduleName) + simsize +
+    newSymSize += (int)(strlen(moduleName) + simsize +
                    13); /* 13 -> header size + trailing 0 of module name */
     conv_u16tob(simsize, libBuf);
     conv_u16tob(cnt, libBuf + 2);
@@ -658,9 +659,9 @@ void copyNewSymbols(char *moduleName, uint moduleId) {
  **************************************************************************/
 void conv_u32tob(unsigned long p1, char *p2) {
 
-    *p2       = p1;
-    *(p2 + 1) = p1 >> 8;
-    *(p2 + 2) = p1 >> 0x10;
+    *p2       = (char)p1;
+    *(p2 + 1) = (char)(p1 >> 8);
+    *(p2 + 2) = (char)(p1 >> 0x10);
     *(p2 + 3) = p1 >> 0x18;
 }
 
@@ -825,11 +826,10 @@ void listWithSymbols() {
 /**************************************************************************
  37	main	sub_0f38h	ok+
  **************************************************************************/
-int main(argc, argv) int argc;
-char **argv;
-{
+int main(int argc, char **argv) {
     char *l1;
     char *l2;
+    CHK_SHOW_VERSION(argc, argv);
 
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
         signal(SIGINT, sigintHandler);
@@ -871,7 +871,7 @@ char **argv;
         fatal_err(
             "Keys: r(eplace), d(elete), (e)x(tract), m(odules), s(ymbols)");
 
-    cmdIndex = l1 - commands;
+    cmdIndex = (int)(l1 - commands);
 
     if (*(l2 + 1) != 0) {
         l1 = *argv;
@@ -1095,7 +1095,7 @@ void addSymbol(uchar *name, int flags) {
     st = curSymPtr;
     if ((st->flags = flags) != 6)
         hasNonExtern = 1;
-    strcpy((curSymPtr->name = xalloc(strlen(name) + 1)), name);
+    strcpy((curSymPtr->name = xalloc((int)strlen(name) + 1)), name);
 
     ++curSymPtr;
 }
