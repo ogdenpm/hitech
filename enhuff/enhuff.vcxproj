@@ -260,12 +260,12 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ENCODE.C" />
-    <ClCompile Include="ENHUFF.C" />
-    <ClCompile Include="MISC.C" />
+    <ClCompile Include="encode.c" />
+    <ClCompile Include="enhuff.c" />
+    <ClCompile Include="misc.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HUFF.H" />
+    <ClInclude Include="huff.h" />
     <ClInclude Include="_appinfo.h" />
     <ClInclude Include="_version.h" />
   </ItemGroup>

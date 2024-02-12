@@ -15,18 +15,18 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ENCODE.C">
+    <ClCompile Include="encode.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ENHUFF.C">
+    <ClCompile Include="enhuff.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MISC.C">
+    <ClCompile Include="misc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HUFF.H">
+    <ClInclude Include="huff.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="_appinfo.h">

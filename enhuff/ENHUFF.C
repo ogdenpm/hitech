@@ -82,8 +82,7 @@ int main(int argc, char ** argv) {
     outfile = *argv++;
     if(freopen(outfile, "r", stdout)) {
         fprintf(stderr, "File %s exists; want to overwrite it? ", outfile);
-        fgets(buf, sizeof buf, stdin);
-        if(buf[0] != 'y' && buf[0] != 'Y')
+        if (fgets(buf, sizeof buf, stdin) == 0 || (buf[0] != 'y' && buf[0] != 'Y'))
             exit(1);
     }
     if(!freopen(outfile, "wb", stdout))
