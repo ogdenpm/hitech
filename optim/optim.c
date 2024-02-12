@@ -54,8 +54,8 @@ typedef unsigned short uint16_t;
 typedef short int16_t;
 typedef unsigned char uint8_t;
 #ifndef bool
-#define bool char
-#define true 1
+#define bool  char
+#define true  1
 #define false 0
 #endif
 #define const
@@ -296,27 +296,27 @@ typedef union {
 /****************************************************************
  *	Descriptions of uninitialized variables and arrays
  ****************************************************************/
-char yyline[80];                  /* 6f00	Working buffer */
-int charsLeft;                    /* 6f50	Length string in input buffer */
-char *ptr_inbuf;                  /* 6f52	Pointer to input buffer */
-int yytype;                       /* 6f54 */
-char inp_buf[80];                 /* 6f56	Input buffer */
-bool key_l;                       /* 6fa6	Prints additional information on each pass */
-bool key_n;                       /* 6fa7	Prints statistics */
-bool key_f;                       /* 6fa8	The action is not clear */
-bool key_s;                       /* 6fa9	Key_s = 1 Unbuffered stdout */
-int num_warn;                     /* 6faa	Number of errors */
-bool key_r;                       /* 6fac */
-operator_t const *tableBase;      /* 6fad	Pointer to operators[] */
-char *yytext;                     /* 6faf	ok */
-YYSTYPE yylval;                   /* 6fb1	Contains different types of data */
-int symbolId;                     /* 6fb3	??? used only in sub_0ca2 */
-sym_t *gPs;                       /* 6fb5	??? */
-inst_t *gPi;                      /* 6fb7 */
-/* moved to static in function */ /* int word_6fb9; /* 6fb9	??? */
-bool hasChanged;                  /* 6fbb */
-bool usesIXorIY;                  /* 6fbc */
-int optimiseCounters[18];         /* 6fbd	Array of counters types of optimizations */
+char yyline[80];             /* 6f00	Working buffer */
+int charsLeft;               /* 6f50	Length string in input buffer */
+char *ptr_inbuf;             /* 6f52	Pointer to input buffer */
+int yytype;                  /* 6f54 */
+char inp_buf[80];            /* 6f56	Input buffer */
+bool key_l;                  /* 6fa6	Prints additional information on each pass */
+bool key_n;                  /* 6fa7	Prints statistics */
+bool key_f;                  /* 6fa8	The action is not clear */
+bool key_s;                  /* 6fa9	Key_s = 1 Unbuffered stdout */
+int num_warn;                /* 6faa	Number of errors */
+bool key_r;                  /* 6fac */
+operator_t const *tableBase; /* 6fad	Pointer to operators[] */
+char *yytext;                /* 6faf	ok */
+YYSTYPE yylval;              /* 6fb1	Contains different types of data */
+int symbolId;                /* 6fb3	??? used only in sub_0ca2 */
+sym_t *gPs;                  /* 6fb5	??? */
+inst_t *gPi;                 /* 6fb7 */
+// moved to static in function  int word_6fb9; /* 6fb9	??? */
+bool hasChanged;          /* 6fbb */
+bool usesIXorIY;          /* 6fbc */
+int optimiseCounters[18]; /* 6fbd	Array of counters types of optimizations */
 enum {
     O_RED_LAB = 0,   /*	  6fbd //  0 Redundant labels */
     O_JMP_TO_JMP,    /*	  6fbf //  1 Jumps to jumps */
@@ -381,26 +381,29 @@ int asdf;
  *	Definitions of valid characters and their types in oprtmizer
  */
 char ccClass[] = { /* 62cc */
-                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,      _S,      _Z,
-                   _Z,      _S,      _S,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
-                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,
-                   _Z,      _Z,      _Z,      _L,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
-                   _Z,      _Z,      _Z,      _Z,      _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X,
-                   _D | _X, _D | _X, _D | _X, _Z,      _Z,      _Z,      _Z,      _Z,      _L,      _Z,      _U | _X,
-                   _U | _X, _U | _X, _U | _X, _U | _X, _U | _X, _U,      _U,      _U,      _U,      _U,      _U,
-                   _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,
-                   _U,      _U,      _U,      _Z,      _Z,      _Z,      _Z,      _L,      _Z,      _L | _X, _L | _X,
-                   _L | _X, _L | _X, _L | _X, _L | _X, _L,      _L,      _L,      _L,      _L,      _L,      _L,
-                   _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,
-                   _L,      _L,      _Z,      _Z,      _Z,      _Z,      _Z
+                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _S,
+                   _S,      _Z,      _Z,      _S,      _S,      _Z,      _Z,      _Z,      _Z,
+                   _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
+                   _Z,      _Z,      _Z,      _Z,      _Z,      _S,      _Z,      _Z,      _Z,
+                   _L,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,      _Z,
+                   _Z,      _Z,      _Z,      _D | _X, _D | _X, _D | _X, _D | _X, _D | _X, _D | _X,
+                   _D | _X, _D | _X, _D | _X, _D | _X, _Z,      _Z,      _Z,      _Z,      _Z,
+                   _L,      _Z,      _U | _X, _U | _X, _U | _X, _U | _X, _U | _X, _U | _X, _U,
+                   _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,
+                   _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,      _U,
+                   _U,      _Z,      _Z,      _Z,      _Z,      _L,      _Z,      _L | _X, _L | _X,
+                   _L | _X, _L | _X, _L | _X, _L | _X, _L,      _L,      _L,      _L,      _L,
+                   _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,      _L,
+                   _L,      _L,      _L,      _L,      _L,      _L,      _Z,      _Z,      _Z,
+                   _Z,      _Z
 };
 
-#define ISALPHA(c)  (ccClass[c] & (_U | _L))
-#define ISUPPER(c)  (ccClass[c] & _U)
-#define ISDIGIT(c)  (ccClass[c] & _D)
-#define ISXDIGIT(c) (ccClass[c] & _X)
-#define ISSPACE(c)  (ccClass[c] & _S)
-#define ISALNUM(c)  (ccClass[c] & (_U | _L | _D))
+#define ISALPHA(c)  (ccClass[(uint8_t)c] & (_U | _L))
+#define ISUPPER(c)  (ccClass[(uint8_t)c] & _U)
+#define ISDIGIT(c)  (ccClass[(uint8_t)c] & _D)
+#define ISXDIGIT(c) (ccClass[(uint8_t)c] & _X)
+#define ISSPACE(c)  (ccClass[(uint8_t)c] & _S)
+#define ISALNUM(c)  (ccClass[(uint8_t)c] & (_U | _L | _D))
 
 /*
  * Determining the condition number
@@ -814,7 +817,7 @@ void heapchk(void const *p);
 
 int strtoi(char const *s, int base) {
     int val;   /* number */
-    int digit; /* digit */
+    int digit = 255; /* init to avoid compiler warning */
 
     val = 0;
     while (*s) {
@@ -826,7 +829,7 @@ int strtoi(char const *s, int base) {
                 digit = (ISUPPER(*s) ? (char)(*s | 0x20) : (char)*s) - ('a' - 10);
             }
         }
-        /* #pragma warning(suppress : 6001) /* function only called after verified there is a digit */
+
         if (digit >= base) {
             pr_warning("Digit out of range");
             return 0;
@@ -870,7 +873,7 @@ int const_value() {
     case 'H':
     case 'h':
         base = 16;
-        /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
+        /* deference ignored - original code did the dreference */
         GETCH();
         break;
 
@@ -879,7 +882,7 @@ int const_value() {
     case 'Q':
     case 'q':
         base = 8;
-        /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
+        /* deference ignored - original code did the dreference */
         GETCH();
         break;
     default:
@@ -927,7 +930,7 @@ int get_token() {
             while (PEEKCH() && PEEKCH() != '\'')
                 *pc++ = GETCH();
             if (PEEKCH() == '\'')
-                /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
+                /* deference ignored - original code did the dreference */
                 GETCH();
             else
                 pr_warning("Unterminated string");
@@ -984,7 +987,7 @@ int get_token() {
             break;
         }
         while (ISSPACE(PEEKCH()))
-            /* #pragma warning(suppress : 6269) /* deference ignored - original code did the dreference */
+            /* deference ignored - original code did the dreference */
             GETCH();
 
         *pc = '\0';
@@ -1266,7 +1269,7 @@ void freeOperand(register operand_t *po) {
  **************************************************************************/
 void freeInst(register inst_t *ilist) {
 
-    ilist->pAlt     = freeInstList;
+    ilist->pAlt  = freeInstList;
     freeInstList = ilist;
 }
 /**************************************************************************
@@ -1280,8 +1283,8 @@ operand_t *allocOperand() {
         HEAP(ilist);
         freeOperandList = ((list_t *)ilist)->pNext;
         ilist->tType = ilist->aux = 0;
-        ilist->oVal           = 0;
-        ilist->oPSym          = NULL;
+        ilist->oVal               = 0;
+        ilist->oPSym              = NULL;
         return ilist;
     }
     return (operand_t *)alloc_mem(sizeof(operand_t));
@@ -1320,7 +1323,7 @@ inst_t *syntheticLabel(register inst_t *ilist) {
     ilist->iPSym         = allocBlankSym();
     ilist->iSymId        = ++symbolId;
     ilist->iPSym->tPInst = ilist;
-    ilist->tType          = T_SYMBOL;
+    ilist->tType         = T_SYMBOL;
     return ilist;
 }
 
@@ -1394,7 +1397,8 @@ void chkIXYUsage() {
     usesIXorIY = false;
     for (ilist = root; ilist; ilist = ilist->pNext) {
         if (ilist->tType != T_SYMBOL &&
-            ((ilist->iLhs && ilist->iLhs->tType == T_INDEXED) || (ilist->iRhs && ilist->iRhs->tType == T_INDEXED) ||
+            ((ilist->iLhs && ilist->iLhs->tType == T_INDEXED) ||
+             (ilist->iRhs && ilist->iRhs->tType == T_INDEXED) ||
              (ilist->iLhs && ilist->iLhs->tType == T_REG && ilist->iLhs->aux >= REG_IX))) {
             usesIXorIY = true;
             return;
@@ -1423,7 +1427,7 @@ void sub_0ed1() {
                         syntheticLabel(pi1);
                         newLabel = true;
                     }
-                    po->tType      = T_CONST;
+                    po->tType     = T_CONST;
                     po->oPOperand = pi1->pNext->iLhs;
                     po->oVal      = 0;
                 }
@@ -1433,7 +1437,7 @@ void sub_0ed1() {
                     syntheticLabel(pi1);
                 for (pi2 = pi1->pNext; pi2; pi2 = pi2->pNext) {
                     if ((po = pi2->iLhs) && po->tType == T_BWD && po->oVal == pi1->aux) {
-                        po->tType      = T_CONST;
+                        po->tType     = T_CONST;
                         po->oPOperand = pi1->pNext->iLhs;
                         po->oVal      = 0;
                         break;
@@ -1476,15 +1480,15 @@ bool sub_1071(register inst_t *ilist) {
     if (pi3 == pi1->pNext || pi3->tType == T_INVALID || pi3 == ilist)
         return false;
 
-    ilist->pNext->pAlt  = pi3;
-    pi1->pNext->pAlt = ilist;
+    ilist->pNext->pAlt = pi3;
+    pi1->pNext->pAlt   = ilist;
 
-    pi3->pNext->pAlt = pi1;
+    pi3->pNext->pAlt   = pi1;
 
-    pi2              = pi1->pNext;
-    pi1->pNext       = pi3->pNext;
-    pi3->pNext       = ilist->pNext;
-    ilist->pNext        = pi2;
+    pi2                = pi1->pNext;
+    pi1->pNext         = pi3->pNext;
+    pi3->pNext         = ilist->pNext;
+    ilist->pNext       = pi2;
     logOptimise(O_CODE_MOTIONS); /* 6fdd opt_msg[16] = "Code motions" */
     removeInstruction(ilist);
     return logOptimise(O_JMP_TO_PLUS1); /* 6fc9 opt_msg[6] = "Jumps to .+1" */
@@ -1497,13 +1501,14 @@ void sub_122f() {
     operand_t *po;
     register inst_t *ilist;
 
-    for (ilist = root->pNext; ilist; ilist = ilist->pNext) /* set initial values for symbols */
-        if (ilist->tType == T_SYMBOL)
+    for (ilist = root->pNext; ilist; ilist = ilist->pNext) { /* set initial values for symbols */
+        if (ilist->tType == T_SYMBOL) {
             if (ilist->iPSym->label[0] == '_') /* check for public name */
                 ilist->aux = INT_MAX;
             else
                 ilist->aux = 0;
-
+        }
+    }
     for (ilist = root->pNext; ilist; ilist = ilist->pNext) { /* update reference counts */
         if (ilist->tType == T_JP || ilist->tType == T_DJNZ) {
             if ((po = ilist->iLhs) && po->tType == T_CONST && po->oPSym && po->oPSym->p.pInst)
@@ -1512,7 +1517,8 @@ void sub_122f() {
     }
     for (ilist = switchVectors; ilist; ilist = ilist->pNext) { /* do the same for the jump tables */
         if (ilist->tType == T_DEFW) {
-            if (ilist->iLhs && (po = ilist->iLhs)->tType == T_CONST && po->oPSym && po->oPSym->p.pInst)
+            if (ilist->iLhs && (po = ilist->iLhs)->tType == T_CONST && po->oPSym &&
+                po->oPSym->p.pInst)
                 po->oPSym->p.pInst->aux++;
         }
     }
@@ -1523,7 +1529,8 @@ void sub_122f() {
  **************************************************************************/
 bool sub_1369(register operand_t const *ilist) {
 
-    return ilist->tType == T_CONST || ilist->tType == T_INDEXED || (ilist->tType == T_REGREF && ilist->aux == REG_HL);
+    return ilist->tType == T_CONST || ilist->tType == T_INDEXED ||
+           (ilist->tType == T_REGREF && ilist->aux == REG_HL);
 }
 
 /**************************************************************************
@@ -1577,7 +1584,8 @@ bool operandsSame(register operand_t const *po1, operand_t const *po2) {
  **************************************************************************/
 bool instructionsSame(register inst_t const *pi1, inst_t const *pi2) {
 
-    if (pi1->tType == T_INVALID || pi1->tType == T_SYMBOL || pi2->tType == T_INVALID || pi2->tType == T_SYMBOL)
+    if (pi1->tType == T_INVALID || pi1->tType == T_SYMBOL || pi2->tType == T_INVALID ||
+        pi2->tType == T_SYMBOL)
         return false;
 
     if (pi1->tType != pi2->tType || pi1->aux != pi2->aux)
@@ -1626,7 +1634,8 @@ void sub_15ad() {
                     if (gPi->iLhs->tType != T_REGREF && gPi->iLhs->oPSym->p.pInst && sub_1071(gPi))
                         continue;
                 }
-                if (gPi->iLhs->tType == T_CONST && (gPi->pNext->tType == T_CALL || gPi->pNext->tType == T_JP) &&
+                if (gPi->iLhs->tType == T_CONST &&
+                    (gPi->pNext->tType == T_CALL || gPi->pNext->tType == T_JP) &&
                     gPi->pNext->aux == 0 && gPi->iLhs->oPSym->p.pInst == gPi->pNext->pNext) {
                     gPi->pNext->aux = ccSwap[gPi->aux]; /* swap condition code */
                     removeInstruction(gPi);
@@ -1655,10 +1664,11 @@ bool sub_1795() {
     if (ilist->iRhs->oPOperand)
         pr_error("Funny stack adjustment");
     stackAdjust = ilist->iRhs->oVal;
-    ilist          = gPi->pNext;
+    ilist       = gPi->pNext;
     if (ilist->tType == T_SIMPLE && ilist->aux == I_EXX)
         ilist = ilist->pNext;
-    for (; ilist->tType != T_CALL && ilist->tType != T_JP && ilist->tType != T_STK && (ilist->tType != T_EX || ilist->iLhs->aux != REG_SP);
+    for (; ilist->tType != T_CALL && ilist->tType != T_JP && ilist->tType != T_STK &&
+           (ilist->tType != T_EX || ilist->iLhs->aux != REG_SP);
          ilist = ilist->pNext)
         ;
 
@@ -1686,29 +1696,30 @@ bool sub_1795() {
     logOptimise(O_STK_ADJUST); /* 6fc1 opt_msg[2] = "Stack adjustments" */
 
     stackAdjust = ilist->iRhs->oVal;
-    ilist          = ilist->pAlt;
+    ilist       = ilist->pAlt;
     removeInstruction(ilist->pNext->pNext);
     removeInstruction(ilist->pNext);
     removeInstruction(gPi);
     gPi = ilist;
 
     while (stackAdjust != 0) {
-        gPi             = allocInst(gPi);
-        gPi->iLhs       = allocOperand();
+        gPi              = allocInst(gPi);
+        gPi->iLhs        = allocOperand();
         gPi->iLhs->tType = T_REG;
         if (1 < stackAdjust) {
             gPi->iLhs->aux = REG_BC;
-            gPi->tType      = T_STK;
+            gPi->tType     = T_STK;
             stackAdjust -= 2;
             gPi->aux = I_POP; /* "pop" */
         } else {
             gPi->iLhs->aux = REG_SP;
-            gPi->tType      = T_INCDEC; /* Decrement, Increment */
+            gPi->tType     = T_INCDEC; /* Decrement, Increment */
             --stackAdjust;
             gPi->aux = SI_INC;
         }
     }
-    if (gPi->pNext->tType == T_SIMPLE && gPi->pNext->aux == I_EXX && ilist->tType == T_SIMPLE && ilist->aux == I_EXX) {
+    if (gPi->pNext->tType == T_SIMPLE && gPi->pNext->aux == I_EXX && ilist->tType == T_SIMPLE &&
+        ilist->aux == I_EXX) {
         removeInstruction(gPi->pNext);
         removeInstruction(ilist);
     }
@@ -1728,7 +1739,7 @@ bool sub_1aec() {
             if (gPs->p.pInst != ilist /*->i_7*/) {
                 gPi->iLhs->oPOperand = ilist->iLhs;
                 removeLabelRef(gPs);
-                ++ilist->aux;                     /* safe const change */
+                ++ilist->aux;                  /* safe const change */
                 return logOptimise(O_RED_LAB); /* 6fbd opt_msg[0] = "Redundant labels" */
             }
         }
@@ -1745,7 +1756,8 @@ bool sub_1b86() {
     if (gPi->tType == T_JP || gPi->tType == T_CALL) {
         if ((gPs = gPi->iLhs->oPSym) && (ilist = gPs->p.pInst)) {
             ilist = getNextRealInst(ilist);
-            if (ilist->tType == T_JP && (ilist->aux == 0 || ilist->aux == gPi->aux) && ilist->iLhs->oPSym != gPs) {
+            if (ilist->tType == T_JP && (ilist->aux == 0 || ilist->aux == gPi->aux) &&
+                ilist->iLhs->oPSym != gPs) {
                 removeLabelRef(gPs);
                 gPs              = ilist->iLhs->oPSym;
                 gPi->iLhs->oPSym = gPs;
@@ -1777,8 +1789,8 @@ bool sub_1c67() {
                     seq1              = syntheticLabel(seq1->pAlt);
                     seq2              = allocInst(seq2->pAlt);
                     seq2->iLhs        = allocOperand();
-                    seq2->tType        = T_JP;
-                    seq2->iLhs->tType  = T_CONST;
+                    seq2->tType       = T_JP;
+                    seq2->iLhs->tType = T_CONST;
                     seq2->iLhs->oPSym = seq1->iPSym;
                     ++seq1->aux;
                     removeInstruction(ilist);
@@ -1797,7 +1809,8 @@ bool sub_1d94() {
     register inst_t *ilist;
 
     if (gPi->aux != 0 && (ilist = gPi->iLhs->oPSym->p.pInst)) {
-        for (seq1 = gPi; sub_4625(ilist->pNext) && instructionsSame(seq1->pNext, ilist->pNext); ilist = ilist->pNext) {
+        for (seq1  = gPi; sub_4625(ilist->pNext) && instructionsSame(seq1->pNext, ilist->pNext);
+             ilist = ilist->pNext) {
             HEAP(ilist->pNext);
             HEAP(seq1->pNext);
             seq1 = seq1->pNext;
@@ -1809,9 +1822,9 @@ bool sub_1d94() {
                 ilist = syntheticLabel(ilist);
             seq1                  = allocInst(seq1);
             seq1->iLhs            = allocOperand();
-            seq1->iLhs->tType      = T_CONST;
+            seq1->iLhs->tType     = T_CONST;
             seq1->iLhs->oPOperand = ilist->iLhs;
-            seq1->tType            = gPi->tType;
+            seq1->tType           = gPi->tType;
             seq1->aux             = gPi->aux;
             ++ilist->aux;
             removeInstruction(gPi);
@@ -1836,7 +1849,7 @@ void sub_1ec1() {
                 if (gPi->iLhs->tType == T_REG && gPi->iLhs->aux == REG_A && sub_4682(gPi->iRhs) &&
                     !sub_47e0(REG_F, gPi->pNext, gPi)) {
                     gPi->iRhs   = NULL;
-                    gPi->tType   = T_3;
+                    gPi->tType  = T_3;
                     gPi->aux    = I_XOR; /* xor */
                     gPi->opCode = NULL;
                     logOptimise(O_XOR_A); /* 6fbf opt_msg[14] = "xor a's used" */
@@ -1879,16 +1892,18 @@ void sub_1ec1() {
             }
             break;
         case T_BIT:
-            if (gPi->aux != 0x40)
+            if (gPi->aux != 0x40) {
                 if (gPi->iRhs->tType == T_REG)
                     sub_4544(gPi->iRhs->aux);
                 else if ((l1 = sub_46b1(gPi->iRhs, 0)) != -1)
                     sub_4544(l1);
+            }
             break;
         caseCommon:
         case T_CARR:
             if (gPi->iLhs->tType == T_REG && !sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
-                if ((gPi->tType == T_INCDEC && gPi->iLhs->aux >= REG_BC) || !sub_47e0(REG_F, gPi->pNext, gPi)) {
+                if ((gPi->tType == T_INCDEC && gPi->iLhs->aux >= REG_BC) ||
+                    !sub_47e0(REG_F, gPi->pNext, gPi)) {
                     removeInstruction(gPi);
                     logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
                     continue;
@@ -1908,8 +1923,9 @@ void sub_1ec1() {
                 removeInstruction(gPi);
                 logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
                 continue;
-            } else if (gPi->iRhs->tType == T_CONST && abs(gPi->iRhs->oVal) == 1 && !gPi->iRhs->oPOperand) {
-                gPi->tType   = T_INCDEC;
+            } else if (gPi->iRhs->tType == T_CONST && abs(gPi->iRhs->oVal) == 1 &&
+                       !gPi->iRhs->oPOperand) {
+                gPi->tType  = T_INCDEC;
                 gPi->aux    = gPi->iRhs->oVal != 1 ? SI_DEC : SI_INC;
                 gPi->opCode = NULL;
                 freeOperand(gPi->iRhs);
@@ -1932,13 +1948,15 @@ void sub_1ec1() {
             break;
         case T_STK:
             if (gPi->aux == I_PUSH) { /* push */
-                if (gPi->iLhs->aux == REG_IY && (l1 = sub_46b1(&regValues[17], REG_IY)) != -1 && l1 != REG_IY) {
+                if (gPi->iLhs->aux == REG_IY && (l1 = sub_46b1(&regValues[17], REG_IY)) != -1 &&
+                    l1 != REG_IY) {
                     gPi->iLhs->aux = l1;
                     logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
                 }
                 /* check for pop */
                 /* OTIMISER: fails to optimise the gPi->pNext-aux below */
-                if (gPi->pNext->tType == T_STK && gPi->pNext->aux == I_POP && gPi->iLhs->aux == gPi->pNext->iLhs->aux) {
+                if (gPi->pNext->tType == T_STK && gPi->pNext->aux == I_POP &&
+                    gPi->iLhs->aux == gPi->pNext->iLhs->aux) {
                     removeInstruction(gPi->pNext);
                     removeInstruction(gPi);
                     logOptimise(O_RED_OPS); /* 6fd3 opt_msg[11] = "Redundant operations" */
@@ -1948,7 +1966,8 @@ void sub_1ec1() {
                 sub_4544(gPi->iLhs->aux); /* m39: */
                 if (gPi->pAlt->tType == T_STK && gPi->pAlt->aux == I_PUSH) {
                     regValues[gPi->iLhs->aux] = regValues[gPi->pAlt->iLhs->aux];
-                    if (gPi->iLhs->aux == REG_IY && gPi->pNext->tType == T_STK && gPi->pNext->iLhs->aux == REG_IY) {
+                    if (gPi->iLhs->aux == REG_IY && gPi->pNext->tType == T_STK &&
+                        gPi->pNext->iLhs->aux == REG_IY) {
                         gPi->pNext->iLhs->aux = gPi->pAlt->iLhs->aux;
                         logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
                     }
@@ -1971,8 +1990,9 @@ void sub_1ec1() {
 bool sub_23c1() {
     register inst_t *ilist;
 
-    if ((ilist = gPi->pNext)->tType == T_STK && ilist->aux == I_PUSH && ilist->iLhs->aux == gPi->iLhs->aux &&
-        !sub_47e0(gPi->iLhs->aux, ilist->pNext, gPi) && !sub_47e0(gPi->iRhs->aux, ilist, gPi)) {
+    if ((ilist = gPi->pNext)->tType == T_STK && ilist->aux == I_PUSH &&
+        ilist->iLhs->aux == gPi->iLhs->aux && !sub_47e0(gPi->iLhs->aux, ilist->pNext, gPi) &&
+        !sub_47e0(gPi->iRhs->aux, ilist, gPi)) {
         ilist->iLhs->aux = gPi->iRhs->aux;
         removeInstruction(gPi);
         gPi = ilist;
@@ -1995,17 +2015,19 @@ bool sub_24c0() {
     if (sub_3053())
         return true;
     if (gPi->iLhs->tType == T_REG &&
-        (gPi->iRhs->tType == T_INDEXED || gPi->iRhs->tType == T_ADDRREF || gPi->iRhs->tType == T_CONST)) {
+        (gPi->iRhs->tType == T_INDEXED || gPi->iRhs->tType == T_ADDRREF ||
+         gPi->iRhs->tType == T_CONST)) {
         if (sub_29c3())
             return true;
     } else if (gPi->iRhs->tType == T_CONST && gPi->iLhs->tType == T_INDEXED) {
         if ((reg = sub_46b1(gPi->iRhs, REG_A)) != -1) {
             gPi->iRhs->tType = T_REG; /* m6: */
-            gPi->iRhs->aux  = reg;
+            gPi->iRhs->aux   = reg;
             return logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
         }
         sub_44b2(gPi->iLhs);
-    } else if (gPi->iRhs->tType == T_REG && (gPi->iLhs->tType == T_INDEXED || gPi->iLhs->tType == T_ADDRREF)) {
+    } else if (gPi->iRhs->tType == T_REG &&
+               (gPi->iLhs->tType == T_INDEXED || gPi->iLhs->tType == T_ADDRREF)) {
         if (operandsSame(gPi->iLhs, &regValues[gPi->iRhs->aux])) {
         kill:
             removeInstruction(gPi);
@@ -2018,7 +2040,8 @@ bool sub_24c0() {
         }
 
     } else if (gPi->iLhs->tType == T_REG && gPi->iRhs->tType == T_REG) { /* 2824 */
-        if (gPi->iLhs->aux == gPi->iRhs->aux || operandsSame(&regValues[gPi->iLhs->aux], &regValues[gPi->iRhs->aux])) {
+        if (gPi->iLhs->aux == gPi->iRhs->aux ||
+            operandsSame(&regValues[gPi->iLhs->aux], &regValues[gPi->iRhs->aux])) {
             goto kill;
         }
 
@@ -2029,11 +2052,12 @@ bool sub_24c0() {
         }
         if (!sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi))
             goto kill;
-        if (gPi->iLhs->aux == REG_E && gPi->iRhs->aux == REG_L && (seq2 = gPi->pNext)->tType == T_LD &&
-            seq2->iLhs->tType == T_REG && seq2->iLhs->aux == REG_D && seq2->iRhs->tType == T_REG &&
-            seq2->iRhs->aux == REG_H && !sub_47e0(REG_HL, seq2->pNext, gPi)) {
+        if (gPi->iLhs->aux == REG_E && gPi->iRhs->aux == REG_L &&
+            (seq2 = gPi->pNext)->tType == T_LD && seq2->iLhs->tType == T_REG &&
+            seq2->iLhs->aux == REG_D && seq2->iRhs->tType == T_REG && seq2->iRhs->aux == REG_H &&
+            !sub_47e0(REG_HL, seq2->pNext, gPi)) {
             removeInstruction(gPi->pNext);
-            gPi->tType      = T_EX;
+            gPi->tType     = T_EX;
             gPi->opCode    = NULL;
             gPi->iLhs->aux = REG_DE;
             gPi->iRhs->aux = REG_HL;
@@ -2046,14 +2070,14 @@ bool sub_24c0() {
         sub_4544(gPi->iLhs->aux);
 
     if (gPi->iLhs->tType == T_REG && gPi->iRhs->tType == T_REG) {
-        if ((l1 = gPi->pAlt)->tType == T_LD && (l2 = l1->iLhs)->tType == T_REG && l2->aux == gPi->iRhs->aux &&
-            !sub_47e0(l2->aux, gPi->pNext, l1) && sub_1369(l1->iRhs)) {
+        if ((l1 = gPi->pAlt)->tType == T_LD && (l2 = l1->iLhs)->tType == T_REG &&
+            l2->aux == gPi->iRhs->aux && !sub_47e0(l2->aux, gPi->pNext, l1) && sub_1369(l1->iRhs)) {
             sub_4544(l2->aux);
             regValues[l2->aux = gPi->iLhs->aux] = *l1->iRhs;
             goto kill;
         }
-        if ((l1 = gPi->pNext)->tType == T_LD && (l2 = l1->iRhs)->tType == T_REG && l2->aux == gPi->iLhs->aux &&
-            !sub_47e0(l2->aux, l1->pNext, gPi) && sub_1369(l1->iLhs)) {
+        if ((l1 = gPi->pNext)->tType == T_LD && (l2 = l1->iRhs)->tType == T_REG &&
+            l2->aux == gPi->iLhs->aux && !sub_47e0(l2->aux, l1->pNext, gPi) && sub_1369(l1->iLhs)) {
             sub_4544(l2->aux);
             l2->aux = gPi->iRhs->aux;
             goto kill;
@@ -2071,7 +2095,8 @@ bool sub_29c3() {
     int l1;
     inst_t *pi1;
 
-    if (operandsSame(gPi->iRhs, &regValues[gPi->iLhs->aux]) || !sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
+    if (operandsSame(gPi->iRhs, &regValues[gPi->iLhs->aux]) ||
+        !sub_47e0(gPi->iLhs->aux, gPi->pNext, gPi)) {
         /* OPTIMISER: this block is located differently */
         removeInstruction(gPi);
         return logOptimise(O_RED_LD); /* 6fd5 opt_msg[12] = "Redundant loads/stores" */
@@ -2082,20 +2107,20 @@ bool sub_29c3() {
             /* code hikes gPi->iLhs->aux before test !!! */
             regValues[gPi->iLhs->aux] = *gPi->iRhs;
             gPi                       = gPi;
-            gPi->iRhs->tType           = T_REG;
+            gPi->iRhs->tType          = T_REG;
             gPi->iRhs->aux            = l1;
             if (gPi->iLhs->aux >= REG_BC) { /* goto m5; */
-                pi1             = allocInst(gPi);
-                pi1->iLhs       = allocOperand();
-                pi1->iRhs       = allocOperand();
+                pi1              = allocInst(gPi);
+                pi1->iLhs        = allocOperand();
+                pi1->iRhs        = allocOperand();
                 pi1->iLhs->tType = T_REG;
                 pi1->iRhs->tType = T_REG;
-                pi1->iLhs->aux  = regHiLoMap[gPi->iLhs->aux].hiReg;
-                pi1->iRhs->aux  = regHiLoMap[gPi->iRhs->aux].hiReg;
-                gPi->iLhs->aux  = regHiLoMap[gPi->iLhs->aux].loReg;
-                gPi->iRhs->aux  = regHiLoMap[gPi->iRhs->aux].loReg;
+                pi1->iLhs->aux   = regHiLoMap[gPi->iLhs->aux].hiReg;
+                pi1->iRhs->aux   = regHiLoMap[gPi->iRhs->aux].hiReg;
+                gPi->iLhs->aux   = regHiLoMap[gPi->iLhs->aux].loReg;
+                gPi->iRhs->aux   = regHiLoMap[gPi->iRhs->aux].loReg;
                 pi1->tType       = T_LD; /* OP_LD */
-                gPi             = pi1;
+                gPi              = pi1;
             }
             return logOptimise(O_SIMPLE_ADDR); /* 6fd7 opt_msg[13] = "Simplified addresses" */
         }
@@ -2110,28 +2135,32 @@ bool sub_29c3() {
 
 bool sub_2bdb() {
     register inst_t *ilist;
-    if (gPi->tType == T_STK && gPi->iLhs->aux == REG_BC && gPi->aux == I_POP && !sub_47e0(REG_BC, gPi->pNext, gPi)) {
+    if (gPi->tType == T_STK && gPi->iLhs->aux == REG_BC && gPi->aux == I_POP &&
+        !sub_47e0(REG_BC, gPi->pNext, gPi)) {
         for (ilist = gPi->pNext; ilist; ilist = ilist->pNext) {
             if (ilist->tType == T_JP || ilist->tType == T_CALL || ilist->tType == T_SYMBOL)
                 break;
-            if (ilist->tType == T_STK)
-                if (ilist->aux != I_PUSH || ilist->pNext->tType != T_STK || ilist->pNext->aux != I_POP)
+            if (ilist->tType == T_STK) {
+                if (ilist->aux != I_PUSH || ilist->pNext->tType != T_STK ||
+                    ilist->pNext->aux != I_POP)
                     break;
                 else
                     ilist = ilist->pNext;
+            }
             if (ilist->tType == T_EX || (ilist->tType == T_LD && ilist->iLhs->tType == T_REG))
                 if (ilist->iLhs->aux == REG_SP)
                     break;
         }
-        if (ilist->tType == T_STK && ilist->aux == I_PUSH && ilist->iLhs->aux == REG_HL && !sub_47e0(REG_HL, ilist->pNext, ilist)) {
+        if (ilist->tType == T_STK && ilist->aux == I_PUSH && ilist->iLhs->aux == REG_HL &&
+            !sub_47e0(REG_HL, ilist->pNext, ilist)) {
             removeInstruction(gPi);
-            ilist->opCode     = NULL;
+            ilist->opCode      = NULL;
             ilist->tType       = T_EX;
-            ilist->aux        = 0;
-            ilist->iRhs       = ilist->iLhs;
-            ilist->iLhs       = allocOperand();
+            ilist->aux         = 0;
+            ilist->iRhs        = ilist->iLhs;
+            ilist->iLhs        = allocOperand();
             ilist->iLhs->tType = T_REGREF;
-            ilist->iLhs->aux  = REG_SP;
+            ilist->iLhs->aux   = REG_SP;
             return logOptimise(O_EX_SPHL); /* 6fd1 opt_msg[10] = "Ex (sp),hl'pi used" */
         }
     }
@@ -2161,7 +2190,7 @@ bool sub_2d3b() {
         po = gPi->iLhs; /* case 0xB0 */
         if (sub_4682(po)) {
             po->tType = T_REG;
-            po->aux  = REG_A;
+            po->aux   = REG_A;
         }
         /* fall through */
     case I_SUB:
@@ -2182,9 +2211,9 @@ bool sub_2d3b() {
         if (sub_4682(po))
             break;
         if (po->tType == T_CONST && !po->oPOperand && (po->oVal & 0xff) == 255 /* -1 */) {
-            gPi->aux = I_OR;
+            gPi->aux  = I_OR;
             po->tType = T_REG;
-            po->aux  = REG_A;
+            po->aux   = REG_A;
         }
         goto caseP_SUB;
 
@@ -2198,9 +2227,9 @@ bool sub_2d3b() {
     }
     gPi->aux                   = I_XOR;
     gPi->opCode                = NULL;
-    gPi->iLhs->tType            = T_REG;
+    gPi->iLhs->tType           = T_REG;
     gPi->iLhs->aux             = REG_A;
-    regValues[REG_A].tType      = T_CONST;
+    regValues[REG_A].tType     = T_CONST;
     regValues[REG_A].oPOperand = NULL;
     regValues[REG_A].oVal      = 0;
     return false;
@@ -2213,7 +2242,8 @@ bool sub_2ef8() {
     operand_t tmp;
     int l2;
 
-    if (gPi->pNext->tType == T_INCDEC && operandsSame(gPi->iLhs, gPi->pNext->iLhs) && gPi->pNext->aux != gPi->aux)
+    if (gPi->pNext->tType == T_INCDEC && operandsSame(gPi->iLhs, gPi->pNext->iLhs) &&
+        gPi->pNext->aux != gPi->aux)
         removeInstruction(gPi->pNext);
 
     else if (sub_47e0(REG_HL, gPi->pNext, gPi)) {
@@ -2221,7 +2251,8 @@ bool sub_2ef8() {
         l2  = hlDelta;
         if (regValues[REG_HL].tType != T_INVALID ||
             (regValues[REG_L].tType == T_INDEXED && regValues[REG_H].tType == T_INDEXED &&
-             regValues[REG_L].aux == regValues[REG_H].aux && regValues[REG_L].oVal + 1 == regValues[REG_H].oVal)) {
+             regValues[REG_L].aux == regValues[REG_H].aux &&
+             regValues[REG_L].oVal + 1 == regValues[REG_H].oVal)) {
             if (regValues[REG_HL].tType != T_INVALID)
                 tmp = regValues[REG_HL];
             else
@@ -2256,8 +2287,8 @@ bool sub_3053() {
 
     l2 = hlDelta;
     if (gPi->iLhs->aux == REG_L) {
-        if ((seq2 = gPi->pNext)->tType != T_LD || seq2->iLhs->tType != T_REG || seq2->iLhs->aux != REG_H ||
-            seq2->iRhs->oVal != gPi->iRhs->oVal + 1)
+        if ((seq2 = gPi->pNext)->tType != T_LD || seq2->iLhs->tType != T_REG ||
+            seq2->iLhs->aux != REG_H || seq2->iRhs->oVal != gPi->iRhs->oVal + 1)
             return false;
 
         sub_4544(REG_HL);
@@ -2271,11 +2302,11 @@ bool sub_3053() {
     gPi = gPi->pAlt; /* m4: */
     removeInstruction(gPi->pNext);
     while (l2 != 0) {
-        gPi             = allocInst(gPi);
+        gPi              = allocInst(gPi);
         gPi->tType       = T_INCDEC;
-        gPi->iLhs       = allocOperand();
+        gPi->iLhs        = allocOperand();
         gPi->iLhs->tType = T_REG;
-        gPi->iLhs->aux  = REG_HL;
+        gPi->iLhs->aux   = REG_HL;
         if (l2 < 0) {
             ++l2;
             gPi->aux = SI_INC;
@@ -2293,17 +2324,17 @@ bool sub_3053() {
 void swapHLDE() {
     operand_t ilist;
 
-    ilist                          = regValues[REG_HL];
-    regValues[REG_HL]           = regValues[REG_DE];
-    regValues[REG_DE]           = ilist;
+    ilist                        = regValues[REG_HL];
+    regValues[REG_HL]            = regValues[REG_DE];
+    regValues[REG_DE]            = ilist;
 
-    ilist                          = regValues[REG_H];
-    regValues[REG_H]            = regValues[REG_D];
-    regValues[REG_D]            = ilist;
+    ilist                        = regValues[REG_H];
+    regValues[REG_H]             = regValues[REG_D];
+    regValues[REG_D]             = ilist;
 
-    ilist                          = regValues[REG_L];
-    regValues[REG_L]            = regValues[REG_E];
-    regValues[REG_E]            = ilist;
+    ilist                        = regValues[REG_L];
+    regValues[REG_L]             = regValues[REG_E];
+    regValues[REG_E]             = ilist;
     regValues[REG_TRACKER].tType = T_INVALID;
     ;
 };
@@ -2341,7 +2372,7 @@ int num_psect(char const *fmt) {
  **************************************************************************/
 typedef struct {
     int tType; /* 01	s->str */
-    int prec; /* 23	s->i_2 */
+    int prec;  /* 23	s->i_2 */
 } op_t;
 
 term_t *evalExpr() {
@@ -2352,11 +2383,11 @@ term_t *evalExpr() {
     op_t opStack[30];
     static term_t exprResult; /* so pointer to term can be returned */
 
-    pTerm     = &termStack[30];
-    pOp       = &opStack[29];
+    pTerm      = &termStack[30];
+    pOp        = &opStack[29];
     pOp->tType = T_MARKER;
-    pOp->prec = 0;
-    expectOp  = false;
+    pOp->prec  = 0;
+    expectOp   = false;
     do {                                 /* REDUCE loop */
         for (;; tokType = get_token()) { /* SHIFT loop */
             if (tokType == T_STRING) {   /* in expressions "A" is treated as ascii value of A */
@@ -2365,7 +2396,8 @@ term_t *evalExpr() {
                 yylval.i = *yylval.pChar;
                 tokType  = T_CONST;
             }
-            if (T_FWD <= tokType && tokType <= T_CONST) { /* get the term, note two terms together is an error */
+            if (T_FWD <= tokType &&
+                tokType <= T_CONST) { /* get the term, note two terms together is an error */
                 if (expectOp)
                     exp_err();
                 expectOp = true; /* flag as expect operator next */
@@ -2397,14 +2429,16 @@ term_t *evalExpr() {
                 }
                 if (tokType != T_CPAR) { /* not a closing ) */
                     --pOp;
-                    pOp->tType = tokType;   /* push its type */
+                    pOp->tType = tokType;  /* push its type */
                     if (tokType == T_OPAR) /* if it was a ( then set prec to 1 */
                         yylval.i = 1;
-                    else                                     /* OPTIMISER[2]: code moved to here */
-                        expectOp = false;                    /* now expecting a term */
-                    pOp->prec = yylval.i; /* set the prec */ /* OPTIMISER[3] code block moved / shared */
+                    else                  /* OPTIMISER[2]: code moved to here */
+                        expectOp = false; /* now expecting a term */
+                    pOp->prec = yylval.i;
+                        /* set the prec */ /* OPTIMISER[3] code block moved / shared */
                 } else if (pOp->tType ==
-                           T_MARKER) /* ) with nothing on stack */ /* OPTIMISER[4]: test code block moved */
+                           T_MARKER) /* ) with nothing on stack */ /* OPTIMISER[4]: test code block
+                                                                      moved */
                     break;
             } else
                 break;
@@ -2563,8 +2597,8 @@ operand_t *evalOperand() {
         /* fall through */
     case T_COND:
         oper->tType = tokType; /* save type, value and prep for next token */
-        oper->aux  = (uint8_t)yylval.i;
-        tokType    = get_token();
+        oper->aux   = (uint8_t)yylval.i;
+        tokType     = get_token();
         break;
 
     case T_OPAR:
@@ -2572,7 +2606,7 @@ operand_t *evalOperand() {
             if (yylval.i != REG_C && yylval.i < REG_BC) /* only (C) and (BC) onwards are valid */
                 oper_err();
             oper->tType = T_REGREF;
-            oper->aux  = (uint8_t)yylval.i;          /* save reg id */
+            oper->aux   = (uint8_t)yylval.i;         /* save reg id */
             if ((tokType = get_token()) == T_CPAR) { /* simple (reg) so prep for next token */
                 tokType = get_token();
                 break;
@@ -2599,11 +2633,11 @@ operand_t *evalOperand() {
     case T_FWD:
     case T_BWD:
         oper->tType = tokType;
-        oper->oVal = yylval.i; /* save the label reference number */
+        oper->oVal  = yylval.i; /* save the label reference number */
         break;
     default:
         oper->tType = T_CONST;
-        oper->term = *evalExpr(); /* allow for more complex expression */
+        oper->term  = *evalExpr(); /* allow for more complex expression */
     }
     return oper;
 }
@@ -2621,16 +2655,16 @@ void oper_err() {
  **************************************************************************/
 void getOperands(register inst_t *ilist) {
 
-    tokType    = get_token();
-    cntOperand = 0;
-    ilist->iLhs   = NULL;
-    ilist->iRhs   = NULL;
+    tokType     = get_token();
+    cntOperand  = 0;
+    ilist->iLhs = NULL;
+    ilist->iRhs = NULL;
     if (tokType == T_COMM)
         oper_err();         /* cannot start with a comma */
     if (tokType != T_EOL) { /* no operands */
         ilist->iLhs = evalOperand();
         if (tokType == T_COMM) { /* if comma then 2nd operand */
-            tokType  = get_token();
+            tokType     = get_token();
             ilist->iRhs = evalOperand();
             ++cntOperand;
         }
@@ -2644,10 +2678,10 @@ void getOperands(register inst_t *ilist) {
  **************************************************************************/
 
 void loadFunction() {
-    sym_t *ps;           /* ??? */
-    inst_t *l2;          /* ok */
-    inst_t *l3;          /* ok */
-    int fpBase;          /* ??? */
+    sym_t *ps;              /* ??? */
+    inst_t *l2;             /* ok */
+    inst_t *l3;             /* ok */
+    int fpBase;             /* ??? */
     register inst_t *ilist; /* ok */
 
     ilist = root = (inst_t *)alloc_mem(sizeof(inst_t));
@@ -2668,7 +2702,7 @@ void loadFunction() {
 
             if (ilist->tType != T_INVALID)
                 ilist = allocInst(ilist); /* m3: */
-            if (tokType == -1) {    /* m4: */
+            if (tokType == -1) {          /* m4: */
                 word_6ffc = ilist;
                 word_6fee = l2;
                 return;
@@ -2679,8 +2713,8 @@ void loadFunction() {
                     ilist->opCode = yytext;
                     getOperands(ilist);
                     l2->pNext       = ilist;
-                    ilist              = ilist->pAlt;
-                    ilist->pNext       = NULL;
+                    ilist           = ilist->pAlt;
+                    ilist->pNext    = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                     break;
@@ -2695,8 +2729,9 @@ void loadFunction() {
                     printf("%d:\n", yylval.i);
                 } else {
                     ilist->aux = yylval.i; /* m10: */
-                    l3      = ilist->pAlt;
-                    if (ilist->pAlt->tType == T_JP && l3->iLhs->tType == T_FWD && l3->iLhs->oVal == ilist->aux)
+                    l3         = ilist->pAlt;
+                    if (ilist->pAlt->tType == T_JP && l3->iLhs->tType == T_FWD &&
+                        l3->iLhs->oVal == ilist->aux)
                         removeInstruction(l3);
                 }
                 tokType = get_token(); /* m11: */
@@ -2705,55 +2740,59 @@ void loadFunction() {
                 break;
 
             case T_SYMBOL:
-                ps      = yylval.pSym;
+                ps         = yylval.pSym;
                 ilist->aux = 0;
-                tokType = get_token();
+                tokType    = get_token();
                 if (tokType == T_EQU) {
                     if (ps->label[0] != 'f') /* compiler generated equ names begin with f */
                         pr_error("Unknown EQU");
 
                     ilist->tType = T_INVALID;
-                    tokType  = get_token();
-                    ilist->iLhs = evalOperand();
+                    tokType      = get_token();
+                    ilist->iLhs  = evalOperand();
                     /* check is constant with no unresolved symbol ref */
                     if (ilist->iLhs->tType != T_CONST || ilist->iLhs->oPSym)
                         pr_error("Bad arg to EQU");
 
-                    fpBase    = ilist->iLhs->oVal; /* the frame pointer offset to lowest local (will be 0 or -ve) */
+                    fpBase = ilist->iLhs->oVal; /* the frame pointer offset to lowest local (will be
+                                                   0 or -ve) */
 
                     word_6ffc = ilist;
                     word_6fee = l2;
-                    ilist        = root;
+                    ilist     = root;
 
                     do { /* update any references to the frame size */
-                        if (ilist->iRhs && ilist->iRhs->tType == T_CONST && ilist->iRhs->oPSym == ps) {
+                        if (ilist->iRhs && ilist->iRhs->tType == T_CONST &&
+                            ilist->iRhs->oPSym == ps) {
                             ilist->iRhs->oVal += fpBase;
                             ilist->iRhs->oPSym = NULL;
                         }
-                        if (ilist->iLhs && ilist->iLhs->tType == T_CONST && ilist->iLhs->oPSym == ps) {
+                        if (ilist->iLhs && ilist->iLhs->tType == T_CONST &&
+                            ilist->iLhs->oPSym == ps) {
                             ilist->iLhs->oVal += fpBase;
                             ilist->iLhs->oPSym = NULL;
                         }
-                    } while (ilist = ilist->pNext);
+                    } while ((ilist = ilist->pNext));
                     return;
                 }
-                ilist->iPSym   = ps;
+                ilist->iPSym = ps;
 
-                ps->p.pInst = ilist;
+                ps->p.pInst  = ilist;
 
-                ilist->aux     = INT_MAX;
-                if (psect == DATA && ps->label[0] == 'S') { /* compiler generated switch tables start with S */
+                ilist->aux   = INT_MAX;
+                if (psect == DATA &&
+                    ps->label[0] == 'S') { /* compiler generated switch tables start with S */
                     psect           = SWDATA;
                     l2->pNext       = ilist;
-                    ilist              = ilist->pAlt;
-                    ilist->pNext       = NULL;
+                    ilist           = ilist->pAlt;
+                    ilist->pNext    = NULL;
                     l2->pNext->pAlt = l2;
                     l2              = l2->pNext;
                 }
                 if (psect == DATA || psect == BSS) {
-                    ilist->tType    = T_INVALID;
-                    ilist->iLhs    = NULL;
-                    ps->p.pInst = NULL;
+                    ilist->tType = T_INVALID;
+                    ilist->iLhs  = NULL;
+                    ps->p.pInst  = NULL;
                     pr_psect(psect);
                     printf("%s:\n", ps->label);
                 } else if (ps->label[0] == '_') /* external name */
@@ -2764,8 +2803,8 @@ void loadFunction() {
                 continue; /* inner loop */
 
             case 255: /* -1 */
-                ilist->tType  = T_INVALID;
-                word_6ffc = ilist;
+                ilist->tType = T_INVALID;
+                word_6ffc    = ilist;
                 return;
 
             case T_DEFW:
@@ -2785,13 +2824,13 @@ void loadFunction() {
                 break;
 
             case T_PSCT:
-                psect    = num_psect(ptr_token()); /* m30: */
+                psect        = num_psect(ptr_token()); /* m30: */
                 ilist->tType = T_INVALID;
                 break;
 
             case T_JR:
                 ilist->tType = T_JP; /* convert to jp so it is safe to move code */
-                yytext   = "jp";
+                yytext       = "jp";
                 /* fall through */
             default:
             case_default:
@@ -2803,24 +2842,27 @@ void loadFunction() {
                     expectCond = false;
                 getOperands(ilist);
                 if ((ilist->tType == T_JP) || (ilist->tType == T_CALL)) {
-                    if (ilist->iLhs->tType == T_COND) { /* if cond then hoist condition and remove lhs */
+                    if (ilist->iLhs->tType ==
+                        T_COND) { /* if cond then hoist condition and remove lhs */
                         ilist->aux  = ilist->iLhs->aux;
                         ilist->iLhs = ilist->iRhs;
                         ilist->iRhs = NULL;
                     }
                 }
                 if (ilist->tType == T_JP && ilist->aux == 0 && ilist->iLhs->tType != T_REGREF &&
-                    (l3 = ilist->pAlt)->tType == T_CONST && l3->pAlt->tType == T_JP && l3->pAlt->aux == 0) {
+                    (l3 = ilist->pAlt)->tType == T_CONST && l3->pAlt->tType == T_JP &&
+                    l3->pAlt->aux == 0) {
 
-                    while (l3 = l3->pAlt) {
-                        if (l3->tType == T_JP && l3->iLhs->tType == T_FWD && l3->iLhs->oVal == ilist->pAlt->aux)
+                    while ((l3 = l3->pAlt)) {
+                        if (l3->tType == T_JP && l3->iLhs->tType == T_FWD &&
+                            l3->iLhs->oVal == ilist->pAlt->aux)
                             *l3->iLhs = *ilist->iLhs;
                         else if (l3->tType == T_CONST && l3->aux == ilist->pAlt->aux)
                             break;
                     }
                     removeInstruction(ilist->pAlt);
                     freeOperand(ilist->iLhs);
-                    ilist->tType   = T_INVALID;
+                    ilist->tType  = T_INVALID;
                     ilist->iLhs   = NULL;
                     ilist->opCode = NULL;
                 }
@@ -2837,7 +2879,8 @@ void loadFunction() {
  **************************************************************************/
 bool sub_4000(register inst_t const *ilist) {
 
-    return ilist->tType == T_JP && ilist->iLhs->oPSym && strcmp(ilist->iLhs->oPSym->label, "cret") == 0;
+    return ilist->tType == T_JP && ilist->iLhs->oPSym &&
+           strcmp(ilist->iLhs->oPSym->label, "cret") == 0;
 }
 
 /**************************************************************************
@@ -2851,7 +2894,8 @@ void sub_404d() {
         pr_psect(TEXT);
         for (ilist = root->pNext; ilist; ilist = ilist->pNext) {
             /* 22-08-22 fix guard against calls to absolute locations */
-            if (ilist->tType == T_CALL && ilist->iLhs->oPSym && strcmp(ilist->iLhs->oPSym->label, "ncsv") == 0) {
+            if (ilist->tType == T_CALL && ilist->iLhs->oPSym &&
+                strcmp(ilist->iLhs->oPSym->label, "ncsv") == 0) {
                 ilist = ilist->pNext;
                 if (ilist->tType != T_DEFW) /* "defw" */
                     pr_error("Expecting defw after call ncsv");
@@ -2868,12 +2912,13 @@ void sub_404d() {
                         printf("call ncsv\ndefw %d\n", ilist->iLhs->oVal);
                 }
             } else if (!usesIXorIY && sub_4000(ilist)) {
-                ilist->tType   = T_RET;
+                ilist->tType  = T_RET;
                 ilist->opCode = NULL;
                 pr_instruction(ilist);
-            } else if (!usesIXorIY && ilist->tType == T_CALL && ilist->aux == 0 && ilist->pNext->aux == 0 &&
-                       sub_4000(ilist->pNext) && ilist->iLhs->oPSym->label[0] == '_') {
-                ilist->tType   = T_JP; /* "jp" */
+            } else if (!usesIXorIY && ilist->tType == T_CALL && ilist->aux == 0 &&
+                       ilist->pNext->aux == 0 && sub_4000(ilist->pNext) &&
+                       ilist->iLhs->oPSym->label[0] == '_') {
+                ilist->tType  = T_JP; /* "jp" */
                 ilist->opCode = NULL;
                 pr_instruction(ilist);
                 ilist = ilist->pNext;
@@ -2905,7 +2950,7 @@ void pr_instruction(register inst_t *ilist) {
         else
             printf("L%d:\n", ilist->iSymId);
     } else if (ilist->tType == T_CONST) { /* m4: */
-        printf("%d:\n", ilist->aux);     /* OPTIMISER[1]: shares printf call with above*/
+        printf("%d:\n", ilist->aux);      /* OPTIMISER[1]: shares printf call with above*/
     } else if (key_f && ilist->tType == T_CALL && strcmp(ilist->iLhs->oPSym->label, "csv") == 0) {
         printf("push\tiy\npush\tix\nld\tix,0\nadd\tix,sp\n");
     } else {
@@ -2931,7 +2976,9 @@ void pr_instruction(register inst_t *ilist) {
                 sub_436e(ilist->iRhs);
             }
         }
-        fputc('\n', stdout); /* OPTIMISER: minor movement in where this is located also optimises return */
+        fputc(
+            '\n',
+            stdout); /* OPTIMISER: minor movement in where this is located also optimises return */
     }
 }
 
@@ -3023,12 +3070,12 @@ void sub_4544(int reg) {
 
     regValues[reg].tType = T_INVALID;
     if (regTestMasks[REG_HL] & regTestMasks[reg]) {
-        hlDelta                     = 0;
+        hlDelta                      = 0;
         regValues[REG_TRACKER].tType = T_INVALID;
     }
-    if (ilist = regHiLoValMap[reg].pHiRegVal) {
+    if ((ilist = regHiLoValMap[reg].pHiRegVal)) {
         ilist->tType = T_INVALID;
-        if (ilist = regHiLoValMap[reg].pLoRegVal)
+        if ((ilist = regHiLoValMap[reg].pLoRegVal))
             ilist->tType = T_INVALID;
     }
     if (reg != 17)
@@ -3148,7 +3195,7 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
     }
     if (reg >= sizeof(regTestMasks) / sizeof(regTestMasks[0]))
         fprintf(stderr, "%d\n", reg);
-    /* #pragma warning(suppress : 6385) /* reg has limited values */
+    /* reg has limited values */
     msk = regTestMasks[reg]; /* m3: */
     n   = 40;
 
@@ -3172,13 +3219,14 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
         case T_JP: /* "jp" */
             if (pi1->aux != 0 || pi1->iLhs->tType == T_REGREF || !(ps = pi1->iLhs->oPSym))
                 return true;
-            if (!(l3 = ps->p.pInst))
+            if (!(l3 = ps->p.pInst)) {
                 if (strcmp(ps->label, "cret") != 0)
                     return true;
                 else if (msk & 0x3C) /* code reused */
                     return true;
                 else
                     return false;
+            }
             pi1 = l3;
             break;
 
@@ -3283,13 +3331,14 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
                 return true;
             break;
         case T_LD: /* load */
-            if (!operandsSame(pi1->iLhs, pi1->iRhs))
+            if (!operandsSame(pi1->iLhs, pi1->iRhs)) {
                 if (sub_475c(pi1->iRhs, msk))
                     return true;
                 else if (sub_47a2(pi1->iLhs, msk))
                     return false;
                 else if (sub_475c(pi1->iLhs, msk))
                     return true;
+            }
             break;
 
         case 0: /* OPTIMISER[2]: optimised to reuse code in T_JP */
@@ -3334,7 +3383,8 @@ sym_t *allocItem() {
 
 void freeSymbol(register sym_t *ps) {
 
-    if (strlen(ps->label) >= sizeof(sym_t)) { /* if string could be reused as a symbol at it to the free list*/
+    if (strlen(ps->label) >=
+        sizeof(sym_t)) { /* if string could be reused as a symbol at it to the free list*/
         ((list_t *)(ps->label))->pNext = freeItemList;
         freeItemList                   = (list_t *)(ps->label);
     }
@@ -3365,7 +3415,7 @@ sym_t *lookupSym(register char const *s) {
     while (*pps && strcmp((*pps)->label, s))
         if (++pps == &hashtab[HASHSIZE])
             pps = hashtab;
-    if (ps = *pps)
+    if ((ps = *pps))
         return ps;
     *pps = ps = allocItem();
     ps->label = alloc_mem((int)strlen(s) + 1);
