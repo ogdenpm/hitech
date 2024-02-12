@@ -3,7 +3,7 @@
  */
 
 #include "cgen.h"
-
+#include "showVersion.h"
 /* ===== start bss section ======= */
 
 int lineno;             /* getToken, sub_6AD0, prMsg*/
@@ -1153,7 +1153,15 @@ char *getToken() {
             lineno     = atoi(buffer + 1);
             expectName = ch != '\n';
         } else if (expectName) {
+// GCC moans about truncating the string, which is what we actually want
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
             strncpy(progname, buffer, sizeof(progname) - 1);
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
             expectName = false;
         } else if (buffer[0] == ';' && buffer[1] == ';') {
             do {
@@ -1398,7 +1406,7 @@ int sub_808(register member_t *sb, node_t *p2a) {
     member_t *l3b;
     member_t *l4b;
     int l5;
-    node_t *l6a FORCEINIT;
+    node_t *l6a FORCEINIT; // 
 
     l1 = 0;
     if (p2a->a_c0 == COLON_U) {
@@ -2554,7 +2562,7 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
 int sub_283E(register node_t *sa, int par) {
     char *s;
     struct codeFrag_t *l2z;
-    node_t *l3a FORCEINIT;
+    node_t *l3a;
     char *t;
     uint8_t ch;
     int l6;
@@ -2592,6 +2600,9 @@ int sub_283E(register node_t *sa, int par) {
                 l3a = sa->info.np[1];
                 l6  = l3a->a_c1 - 1;
                 break;
+            default:
+                fprintf(stderr, "%s: line %d - internal error\n", __FILE__, __LINE__);
+                exit(1);
             }
             if (ch == 'S') {
                 if (l3a->a_c0 == USEREG)
@@ -2754,19 +2765,19 @@ uint8_t sub_46F7(long);
  * 3) optimisation because p3 is passed recursively as a char
  *.......................................................*/
 void sub_2D09(register node_t *sa, char *p2, char p3) {
-    struct codeFrag_t *lz1 FORCEINIT;
-    node_t *la2 FORCEINIT;
-    char *li3 FORCEINIT;
+    struct codeFrag_t *lz1 FORCEINIT; // avoid uninitialised warning
+    node_t *la2 FORCEINIT; // avoid uninitialised warning
+    char *li3 FORCEINIT;   // avoid uninitialised warning
     uint8_t lc4;
-    char lc5;
+    char lc5 = 0;       // avoid uninitialised warning
     char lc6;
     char lc7;
     int ch;
     long ll9;
-    char lc10;
+    uint8_t lc10 = 0;   // avoid uninitialised warning
     char lc11;
     char *li12;
-    uint32_t ll13;
+    uint32_t ll13 = 0;  // avoid uninitalised warning
     bool lc14;
 
     li12 = p2;
@@ -3012,7 +3023,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
  * of sub_2D09 being declared as char
  *********************************************************/
 void sub_3564(register node_t *sa) {
-    char l1;
+    uint8_t l1;
     struct codeFrag_t *l2z;
 
     word_AFF8 = 0;
@@ -3398,7 +3409,7 @@ node_t *sub_3EAA(register node_t *sa) {
     node_t *l1a;
     int l2;
 
-    if (l2 = dopetab[sa->a_c0] & 0xC)
+    if ((l2 = dopetab[sa->a_c0] & 0xC))
         sa->info.np[0] = sub_3EAA(sa->info.np[0]);
     if (l2 == 8)
         sa->info.np[1] = sub_3EAA(sa->info.np[1]);
@@ -3728,7 +3739,7 @@ uint8_t sub_46F7(long p1) {
 void sub_475C(register node_t *sa) {
     int loc;
 
-    if (loc = dopetab[sa->a_c0] & 0xC) {
+    if ((loc = dopetab[sa->a_c0] & 0xC)) {
         sub_475C(sa->info.np[0]);
         if (loc == 8)
             sub_475C(sa->info.np[1]);
@@ -3852,12 +3863,13 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
             goto dotp;
         break;
     case DOT:
-        if (nodesize(sa->info.np[0]) == 4)
+        if (nodesize(sa->info.np[0]) == 4) {
         dotp:
             if (sub_14F3(sa) != 3)
                 return false;
             else
                 return sub_14F3(sa->info.np[0]) == 1 || sub_14F3(sa->info.np[0]) == 2;
+        }
         break;
     case LAND:
         return sub_14F3(sa) == 3;
@@ -4469,11 +4481,11 @@ node_t *sub_5F52(register node_t *sa) {
  *********************************************************/
 node_t *sub_600E(register node_t *sa) {
 
-    int l1; /* Not used */
+    // int l1; /* Not used */
 
     warningMsg = 0;
     sa         = sub_5DF6(sa);
-    l1         = 0; /* Not used */
+    // l1    = 0; /* Not used */
     do {
         byte_B013 = false;
         /*
@@ -4651,11 +4663,12 @@ uint8_t sub_6589(int p1, int p2) {
     uint8_t *l2;
 
     p2 &= ~0x40; /* Clear bit 6 */
-    if (p2 < 24)
+    if (p2 < 24) {
         if ((p1 & array_AAE8[p2]) == array_AAE8[p2])
             return p2;
         else
             return 0;
+    }
     p2 -= 24;
     l1 = 6;
     l2 = &array_AB54[p2 * 6];
@@ -4859,7 +4872,7 @@ void *allocMem(size_t size) {
     register char *ptr;
 
     do {
-        if (ptr = malloc(size))
+        if ((ptr = malloc(size)))
             goto done;
     } while (releaseNodeFreeList());
     fatalErr("No room");

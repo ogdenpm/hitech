@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "showVersion.h"
+
 
 #if defined(__STDC__) || defined(__STDC_VERSION__)
 #include <stdbool.h>
@@ -55,11 +55,9 @@
  * exceptions if the variable is used, rather than rely on
  * random data
  */
-#ifdef _MSC_VER
-#define FORCEINIT = NULL
-#else
-#define FORCEINIT
-#endif
+
+#define FORCEINIT   = NULL
+
 #else
 typedef unsigned short uint16_t;
 typedef short int16_t;
