@@ -10,7 +10,7 @@
 
 char *fname(char *name) {
     char *t;
-    while (t = strpbrk(name, DIRSEP))
+    while ((t = strpbrk(name, DIRSEP)))
         name = t + 1;
     return name;
 }

@@ -49,6 +49,8 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="_appinfo.h" />
+    <None Include="_appinfo.h">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

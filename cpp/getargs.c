@@ -84,7 +84,7 @@ char **_getargs(char *_str, char *_name) {
     quote = 0;
     name  = _name;
     str   = _str;
-    if (interactive = str == NULL)
+    if ((interactive = str == NULL))
         str = "\\";
     else {
         while (*str == ' ' || *str == '\t')

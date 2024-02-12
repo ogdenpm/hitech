@@ -2,9 +2,8 @@
 /* modified to use standard C headers and stripped out
    non prototype, gcos, scw2 and cpp usage for non CP/M target 6-Jul-2022 Mark Ogden */
 #include "cpp.h"
-#ifndef lint
-static UConst char sccsid[] = "@(#)cpp.c	1.54 21/05/30 2010-2021 J. Schilling";
-#endif
+
+//static UConst char sccsid[] = "@(#)cpp.c	1.54 21/05/30 2010-2021 J. Schilling";
 /*
  * C command
  * written by John F. Reiser
@@ -577,9 +576,17 @@ STATIC char *cotoken(register char *p) {
                     if (*p++ == '/')          /* A new style comment */
                         cppcom++;
                     if (defining || !passcom) {
+// GCC moans about indexing with -1, but perfectly valid here
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wchar-subscripts"
+#endif
                         for (inptr = p - 2; (toktyp + COFF)[inptr[-1]] == BLANK && inptr != outptr;
                              inptr--)
                             ;
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
                         dump();
                         ++flslvl;
                     }
@@ -2025,13 +2032,12 @@ int main(int argc, char *argv[]) {
          */
         char *s;
         char *subdir = "/include80";
-        if (s = getenv("INCDIR80"))
+        if ((s = getenv("INCDIR80")))
             subdir = "";
         else
             s = getenv("HITECH");
-        if (s && (dirs[nd] = malloc(strlen(s) + strlen(subdir) + 1))) {
-            strcpy(dirs[nd], s);
-            s = strchr(dirs[nd], '\0') - 1;
+        if (s && (dirs[nd] = malloc((int)(strlen(s) + strlen(subdir)) + 1))) {
+            s = strcpy(dirs[nd], s) + strlen(s) - 1;
             if (ISDIRSEP(*s))
                 *s = '\0';
             strcat(dirs[nd++], subdir);
