@@ -1,0 +1,51 @@
+#include <verrsrc.h>
+
+#include <_version.h>
+#include <appinfo.h>
+// in the unlikely case that APP_PRODUCT and APP_OWNER are not
+// defined given them sensible values
+#ifndef APP_PRODUCT
+#define APP_PRODUCT APP_NAME
+#endif
+#ifndef APP_OWNER
+#define APP_OWNER   "Mark Ogden"
+#endif
+
+
+
+VS_VERSION_INFO VERSIONINFO
+FILEFLAGSMASK 0x3fL
+
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#endif
+
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080904b0"
+        BEGIN
+#ifdef APP_DESCRIPTION
+            VALUE "FileDescription", APP_DESCRIPTION
+#endif
+        VALUE "LegalCopyright",
+    "(C) " APP_OWNER 
+#ifdef APP_MODS
+    " <" APP_MODS ">"
+#endif
+#ifdef GIT_VERSION
+            VALUE "ProductVersion", GIT_VERSION
+#endif
+            VALUE "OriginalFilename", APP_NAME ".exe"
+            VALUE "ProductName", APP_PRODUCT
+
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x809, 1200
+    END
+END

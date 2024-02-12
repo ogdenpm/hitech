@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IntDir>$(SolutionDir)Build\$(ProjectName)\$(PlatformTarget)-$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)Install\$(PlatformTarget)-$(Configuration)\</OutDir>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck> 
+    <VersionFlag Condition="'$(Configuration)' == 'Debug'">-w</VersionFlag>
+    <VersionFlag Condition="'$(Configuration)' != 'Debug'">-W</VersionFlag>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <WarningLevel>Level3</WarningLevel>
+      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS</PreprocessorDefinitions>
+    </ClCompile>
+    <PreBuildEvent />
+    <PreBuildEvent />
+    <PostBuildEvent>
+      <Command>if exist $(SolutionDir)install.cfg call $(SolutionDir)Scripts\install.cmd $(TargetPath) $(SolutionDir)</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Install</Message>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>call $(SolutionDir)\Scripts\getVersion.cmd $(VersionFlag)</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Get Version ($(Configuration))</Message>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
