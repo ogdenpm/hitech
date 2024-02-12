@@ -194,13 +194,13 @@ void allocModuleArrays(int cnt, char **pnames) {
     }
 }
 
-uint8_t lookupName(char *moduleName) {
+uint8_t lookupName(uint8_t *moduleName) {
     int i;
 
     if (num_ofiles == 0)
         return 1;
     for (i = 0; i < num_ofiles; i++) {
-        if (strcasecmp(moduleStdNames[i], moduleName) == 0) {
+        if (strcasecmp(moduleStdNames[i], (char *)moduleName) == 0) {
             moduleFlags[i] |= SEEN;
             return i + 1;
         }
@@ -216,14 +216,14 @@ void processUnmatched(pfuncptr action) {
     }
 }
 
-void copyUnchangedSymbols(char *name, time_t libTime) {
+void copyUnchangedSymbols(uint8_t *name, time_t libTime) {
     if (lookupName(name) == 0)
         copySymbolsToTemp();
     else if (verbose)
         printf("d %s\n", name);
 }
 
-void copyUnchangedModules(char *name, time_t libTime) {
+void copyUnchangedModules(uint8_t *name, time_t libTime) {
     
     if (lookupName(name) == 0)
         copyModuleToTemp();

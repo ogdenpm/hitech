@@ -75,8 +75,8 @@ typedef unsigned char uint8_t;
    clang-format on */
 
 /* Hitech C has problems with function pointer declarations so define explicit */
-typedef void (*mfuncptr)(char *, time_t);
-typedef void (*sfuncptr)(char *, int);
+typedef void (*mfuncptr)(uint8_t *, time_t);
+typedef void (*sfuncptr)(uint8_t *, int);
 typedef void (*pfuncptr)(int);
 
 
@@ -105,12 +105,12 @@ extern bool verbose;
 
 
 void allocModuleArrays(int name, char **buf);
-uint8_t lookupName(char *name);
+uint8_t lookupName(uint8_t *name);
 void processUnmatched(pfuncptr action);
-void copyUnchangedSymbols(char *name, time_t libTime);
-void copyUnchangedModules(char *name, time_t libTime);
+void copyUnchangedSymbols(uint8_t *name, time_t libTime);
+void copyUnchangedModules(uint8_t *name, time_t libTime);
 void deleteModule(void);
-void extractNamedModule(char *name, time_t libTime);
+void extractNamedModule(uint8_t *name, time_t libTime);
 void extractModules(void);
 void openTemp(void);
 size_t writeBlock(void *buf, size_t size, size_t count, FILE *fp);
@@ -159,8 +159,8 @@ uint16_t conv_btou16a(uint8_t *p);
 void getRecord(void);
 void skipRecord(void);
 void parseSymbolRec(void);
-void copyMatchedSymbols(char *name, time_t libTime);
-void copyMatchedModules(char *name, time_t libTime);
+void copyMatchedSymbols(uint8_t *name, time_t libTime);
+void copyMatchedModules(uint8_t *name, time_t libTime);
 void replaceModule(void);
 
 

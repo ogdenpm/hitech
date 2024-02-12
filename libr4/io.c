@@ -151,7 +151,7 @@ void visitModules(mfuncptr action) {
 
         symbolsRead = moduleRead = false;
 
-        action((char *)libBuf + 12, (time_t)libTime);
+        action(libBuf + 12, (time_t)libTime);
 
         if (!symbolsRead && fseek(libraryFp, symSize, SEEK_CUR) == -1)
             seek_err(libraryName);
@@ -169,7 +169,7 @@ void visitSymbols(sfuncptr action) {
         if ((tType = fgetc(libraryFp)) == EOF)
             unexp_eof();
         readName(moduleBuf);
-        action((char *)moduleBuf, tType);
+        action(moduleBuf, tType);
     }
     symbolsRead = true;
 }

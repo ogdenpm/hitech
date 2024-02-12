@@ -9,11 +9,11 @@ uint8_t listModuleType;
 bool listModuleFound;
 bool listUndefinedOpt;
 
-static void checkToList(char *testName, int tType) {
+static void checkToList(uint8_t *testName, int tType) {
 
     if (tType == 0 ? listDefinedOpt : listUndefinedOpt) {
-        if (strcmp(listModuleName, testName) == 0 ||
-            (*testName == '_' && strcmp(listModuleName, testName + 1) == 0)) {
+        if (strcmp(listModuleName, (char *)testName) == 0 ||
+            (*testName == '_' && strcmp(listModuleName, (char *)testName + 1) == 0)) {
 
             listModuleFound = 1;
             listModuleType  = tType;
@@ -21,7 +21,7 @@ static void checkToList(char *testName, int tType) {
     }
 }
 
-static void listOneModule(char *name, time_t libTime) {
+static void listOneModule(uint8_t *name, time_t libTime) {
     static time_t prevTime;
 
     if (lookupName(name) == 0)
@@ -32,7 +32,7 @@ static void listOneModule(char *name, time_t libTime) {
         if (!listModuleFound)
             return;
     }
-    printf("%-15.15s", name);
+    printf("%-15.15s", (char *)name);
     if (listModuleName)
         printf(" %c", listModuleType >= 7 ? '?' : symbolTypes[listModuleType]);
 
@@ -63,23 +63,23 @@ void listModules(char *key, char *name) {
     visitModules(listOneModule); /* Print name obj name from library with the key m */
 }
 
-static void printSymbol(char *name, int tType) {
+static void printSymbol(uint8_t *name, int tType) {
 
     if (curColumn >= columns) {
         printf("\t\t");
         curColumn = 0;
     }
-    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), name);
+    printf("%c %-12.12s", ((tType >= 7) ? '?' : symbolTypes[tType]), (char *)name);
     if (++curColumn >= columns)
         printf("\n");
     else
         printf("  ");
 }
 
-static void printObjAndSymbols(char *name, time_t libTime) {
+static void printObjAndSymbols(uint8_t *name, time_t libTime) {
     if (lookupName(name) == 0)
         return;
-    printf("%-16.15s", name); /* Print obj name from library with the key s */
+    printf("%-16.15s", (char *)name); /* Print obj name from library with the key s */
     curColumn = 0;
     visitSymbols(printSymbol); /* Print symbol name with the key s */
     if (curColumn != 0 && curColumn < columns)

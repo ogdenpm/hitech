@@ -84,7 +84,7 @@ char **_getargs(char *_str, char *_name) {
     quote = 0;
     name  = _name;
     str   = _str;
-    if (interactive = str == NULL)
+    if ((interactive = str == NULL))
         str = "\\";
     else {
         while (*str == ' ' || *str == '\t')
@@ -225,7 +225,7 @@ bool match(char *regexp, char *text) {
     if (*regexp == '*')
         return matchstar(regexp + 1, text);
 
-    if (*text != '\0' && mapcase(*regexp) == mapcase(*text) || *regexp == '?')
+    if ((*text != '\0' && mapcase(*regexp) == mapcase(*text)) || *regexp == '?')
         return match(regexp + 1, text + 1);
     return false;
 }
