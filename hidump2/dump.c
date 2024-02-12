@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "showVersion.h"
+
 /* clang-format on */
 #ifdef __GNUC__
 #include <limits.h>
@@ -246,7 +248,7 @@ void memChk(psect_t *mp, size_t addr) {
             fatal("Out of memory");
 
         memset(mp->mem + mp->memSize, 0, (newSize - mp->memSize) * sizeof(mem_t));
-        mp->memSize = newSize;
+        mp->memSize = (unsigned int)newSize;
     }
 }
 
@@ -575,12 +577,15 @@ int main(int argc, char **argv) {
     char **parg;
     FILE *fp;
 
+    CHK_SHOW_VERSION(argc, argv);
+
     if (argc == 1) {
         char *s = argv[0];
         char *t;
         while ((t = strpbrk(s, DIRSEP)))
             s = t + 1;
-        fprintf(stderr, "Usage: %s [-R] objfile+\n", s);
+        fprintf(stderr, "Usage: %s -v|-V | [-R] objfile+\n"
+            "Dumps image with relocation shown inline. -R dumps raw records\n", s);
         exit(0);
     }
 
