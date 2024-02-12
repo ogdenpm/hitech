@@ -297,6 +297,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dump.h" />
+    <ClInclude Include="_version.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
