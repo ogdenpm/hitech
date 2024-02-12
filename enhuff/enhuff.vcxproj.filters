@@ -29,5 +29,8 @@
     <ClInclude Include="HUFF.H">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="_appinfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
