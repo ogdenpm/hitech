@@ -185,7 +185,7 @@ void openLibrary();          /* 084a 21 */
 void libPass1();             /* 08cd 22 */
 void libPass2();             /* 0a65 25 */
 /*------------------------------------------------------------------- File main.c */
-/* int main(int argc, char **argv); /* 0c6b 31 */
+// int main(int argc, char **argv); /* 0c6b 31 */
 void doObjFile(); /* 1073 32 */
 #ifdef CPM
 _Noreturn void fatalErr(); /* 1187 36 */
@@ -193,7 +193,7 @@ void simpleErr();          /* 11bf 37 */
 void warning();            /* 11f2 38 */
 void badFormat();          /* 1232 39 */
 #else
-/*void errMessage(char const *fmt, ...);         /* 10fd 35 */
+// void errMessage(char const *fmt, ...);         /* 10fd 35 */
 _Noreturn void fatalErr(char const *fmt, ...); /* 1187 36*/
 void simpleErr(char const *fmt, ...);          /* 11bf 37 */
 void warning(char const *fmt, ...);            /* 11f2 38 */
@@ -209,7 +209,7 @@ void *xalloc(size_t); /* 1265 40 */
 /*---------------------------------------------------------------- File reloc.c */
 void relocRecPass1(); /* 12d2 42 */
 void relocRecPass2(); /* 1339 43 */
-/*void fixup(int, uint16_t, uint32_t); /* 1912 44 */
+// void fixup(int, uint16_t, uint32_t); /* 1912 44 */
 
 /*------------------------------------------------------------------ File sym.c */
 void allocSymTab();                 /* 1af4 45 */
