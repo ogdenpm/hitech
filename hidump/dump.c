@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
     if (argc == 1) {
         char *s = argv[0];
         char *t;
-        while (t = strpbrk(s, DIRSEP))
+        while ((t = strpbrk(s, DIRSEP)))
             s = t + 1;
         fprintf(stderr, "Usage: %s objfile+\n", s);
         exit(0);
@@ -222,7 +222,7 @@ void textHandler() {
     uint8_t *pdata;
     char *psname;
     int16_t dataLen;
-    int addr = 0;
+
     curBase  = get32(recBuf);
     psname   = (char *)(recBuf + 4);
     for (pdata = (uint8_t *)psname; *pdata; pdata++)

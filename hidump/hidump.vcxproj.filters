@@ -20,9 +20,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dump.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="_version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
