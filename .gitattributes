@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ###############################################################################
 # Set default behavior to automatically normalize line endings.
 ###############################################################################
@@ -66,3 +67,6 @@
 # special handling of certain scripts so that linux doesn't complain
 ###############################################################################
 *.pl    binary
+=======
+# Auto detect text files and perform LF normalization
+* text=auto
