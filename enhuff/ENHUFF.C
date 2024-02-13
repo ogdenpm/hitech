@@ -22,15 +22,34 @@ void prtree(register node *);
 void prchars(void);
 void putbch(h_char);
 extern void put_tree(void);
-#if !defined(unix) && !defined(_WIN32)
+#if CPM
 extern	char **	_getargs();
 extern	int	_argc_;
-#endif	/* unix */
+#endif	/* CPM */
+
 extern void align(void);
 extern void puthch(uchar);
 extern void put2(unsigned short);
 extern void put4(unsigned long);
-int main(int argc, char ** argv) {
+
+
+void usage() {
+    printf("Usage: enhuff -v|-V | [-a|-b] [-d] [-fn]  outfile file+\n");
+    printf("Where\n"
+           "  -v     displays basic version information\n"
+           "  -V     displays extended version information\n"
+           "  -a     assume files to be encoded are ascii\n"
+           "  -b     assume files to be encoded are binary. This is the default\n"
+           "  -d     displays debug information\n"
+           "  -fn    sets the encoding factor to n instead of 2\n"
+           "And\n"
+           "  outfile is the generated .HUF file\n"
+           "  file+ is the list of files to encode\n");
+    exit(1);
+}
+
+
+int main(int argc, char **argv) {
     long pc;
     char buf[10];
 
@@ -77,8 +96,8 @@ int main(int argc, char ** argv) {
     }
     if(factor == 0)
         factor = 2;
-    if(argc < 2)
-        error("USAGE: enhuff [options] outfile file1 file2 ...");
+    if (argc < 2)
+        usage();
     outfile = *argv++;
     if(freopen(outfile, "r", stdout)) {
         fprintf(stderr, "File %s exists; want to overwrite it? ", outfile);

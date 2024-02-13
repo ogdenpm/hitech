@@ -22,8 +22,11 @@
 #define	CLR(ar, bit)	(ar[(bit)/CHAR_BIT] &= ~(1<<((bit)%CHAR_BIT)))
 #define	TST(ar, bit)	((ar[(bit)/CHAR_BIT] & (1<<((bit)%CHAR_BIT)))!=0)
 
-#if	unix
-#define	casecmp	strcmp
+#if unix
+#include <string.h>
+#define casecmp strcmp
+#else
+int casecmp(register char *, char *);
 #endif
 
 typedef struct node {

@@ -15,21 +15,10 @@ unsigned short	get2(void);
 #if	! unix
 #include <ctype.h>
 
-int casecmp(register char *, char *);
-
-int casecmp(register char * s1, char * s2) {
-	char a, b;
-
-	while((a = *s1++)) {
-		b = *s2++;
-		if(isupper(a))
-			a = tolower(a);
-		if(isupper(b))
-			b = tolower(b);
-		if(a != b)
-			return 1;
-	}
-	return 0;
+int casecmp(char * s1, char * s2) {
+	while (*s1 && tolower(*s1) == tolower(*s2))
+		s1++, s2++;
+    return *s1 || *s2;
 }
 #endif	/* unix */
 
