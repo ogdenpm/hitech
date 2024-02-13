@@ -1,6 +1,6 @@
 SHELL=bash
 .PHONY: clean distclean install rebuild
-DIRS = cgen cpp cref dump enhuff hidump hidump2 libr \
+DIRS = cgen cpp cref dehuff dump enhuff hidump hidump2 libr \
        libr4 link mkpat objtohex optim p1 zas zas4 zc
 all:
 	@for f in $(DIRS); do $(MAKE) -C $$f || exit 1; done;
