@@ -39,6 +39,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cref", "cref\cref.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hishared", "hishared\hishared.vcxitems", "{632682D0-F3CC-4AC0-B73A-85D716F7F2FF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dehuff", "dehuff\dehuff.vcxproj", "{E0473450-0AC5-43B1-89F8-4573888E4C56}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -183,6 +185,14 @@ Global
 		{EE530851-14A7-4B83-8F2A-AA2B1D90F01F}.Release|x64.Build.0 = Release|x64
 		{EE530851-14A7-4B83-8F2A-AA2B1D90F01F}.Release|x86.ActiveCfg = Release|Win32
 		{EE530851-14A7-4B83-8F2A-AA2B1D90F01F}.Release|x86.Build.0 = Release|Win32
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Debug|x64.ActiveCfg = Debug|x64
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Debug|x64.Build.0 = Debug|x64
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Debug|x86.ActiveCfg = Debug|Win32
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Debug|x86.Build.0 = Debug|Win32
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Release|x64.ActiveCfg = Release|x64
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Release|x64.Build.0 = Release|x64
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Release|x86.ActiveCfg = Release|Win32
+		{E0473450-0AC5-43B1-89F8-4573888E4C56}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -208,6 +218,7 @@ Global
 		hishared\hishared.vcxitems*{ad0800d6-0a6e-499d-a132-b91f991ee9eb}*SharedItemsImports = 4
 		hishared\hishared.vcxitems*{b962fa3d-2c42-4765-9dd5-19e985aa3a8b}*SharedItemsImports = 4
 		hishared\hishared.vcxitems*{bca87708-6a75-4ed8-9066-1807307d6fec}*SharedItemsImports = 4
+		hishared\hishared.vcxitems*{e0473450-0ac5-43b1-89f8-4573888e4c56}*SharedItemsImports = 4
 		hishared\hishared.vcxitems*{ee530851-14a7-4b83-8f2a-aa2b1d90f01f}*SharedItemsImports = 4
 	EndGlobalSection
 EndGlobal
