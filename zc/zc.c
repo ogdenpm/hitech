@@ -208,14 +208,15 @@ int main(int argc, char **argv) {
     register char *cp;
 
     CHK_SHOW_VERSION(argc, argv);
-
-    if (strcmp(argv[1], "-q") == 0) {
+    if (argc > 1 && strcmp(argv[1], "-q") == 0) {
         argv++;
         argc--;
     } else {
         fprintf(stderr, "HI-TECH C COMPILER (Z80) V%s\n", VERS);
         fprintf(stderr, "Copyright (C) 1984-1989 HI-TECH SOFTWARE\n");
     }
+    if (argc == 1)
+        usage();
 #if EDUC
     fprintf(stderr, "Licensed for Educational purposes only\n");
 #endif // EDUC
