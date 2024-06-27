@@ -366,7 +366,7 @@ void doPass() {
             needOneOperand(G_INT);
             curPsect = absPsect;
             chkPositiveAbs(&lOp);
-            curPsect->pMaxLoc = (int16_t)lOp.oVal;
+            curPsect->pCurLoc = (int16_t)lOp.oVal;
             if (controls)
                 tagHex(0);
             finishRecords();
