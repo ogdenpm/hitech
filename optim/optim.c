@@ -3491,7 +3491,7 @@ void *alloc_mem(int size) {
     ilist = allocs;
     allocs += size;
 #ifdef CPM
-    for (p = pi; size-- != 0;)
+    for (p = ilist; size-- != 0;)
         *p++ = 0; /* Clearing allocated memory area */
 #else
     memset(ilist, 0, size);
