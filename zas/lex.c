@@ -623,7 +623,7 @@ static bool readSrc() {
     if (srcStack[srcSP].srcType != 0) { /* reading text expansion */
         s = inBuf;
 
-        for (s = inBuf; s < inBuf + sizeof(inBuf) && *srcStack[srcSP].srcText;)
+        for (s = inBuf; s < inBuf + sizeof(inBuf) - 1 && *srcStack[srcSP].srcText;)
             if ((*s++ = *srcStack[srcSP].srcText++) == '\n')
                 break;
         *s = 0;
