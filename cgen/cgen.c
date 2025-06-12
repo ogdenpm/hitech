@@ -1808,8 +1808,10 @@ void parseSwitch() {
  * sub_1420 OK++ PMO			 Used in: sub_E43
  *********************************************************/
 void sub_1420(int par) {
-
-    printf((uint16_t)par ? "cp\t%d\n" : "or\ta\n", par);
+    if (par)
+        printf("cp\t%d\n", par);
+    else
+        printf("or\ta\n"); /* if par == 0 then "or a" */
 }
 
 /*********************************************************
@@ -2388,6 +2390,8 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
     static char ch;
     static int m;
     static int n;
+    // initialise to avoid warnings
+    l2 = l3 = 0;
 
     if (p1a->a_c1 == 0)
         p1a->a_c2 = 0;
@@ -2527,6 +2531,7 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
 
         p1a->a_c3[p1a->a_c1++]    = (uint8_t)(sz - codeFrag);
         n                         = (uint8_t)sub_2B79(p1a);
+        assert(p1a->a_c1 > 0);
         p1a->a_reg[p1a->a_c1 - 1] = n;
         if (n == 0 && p1a->a_c0 == USEREG)
             p1a->a_reg[p1a->a_c1 - 1] = n = p1a->info.l;
@@ -2985,6 +2990,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             break;
         case 'G':
         case 'X':
+            assert(la2 != NULL); // Ensure la2 is not NULL
             lc4 = lc7 == 'G' ? la2->a_reg[lc10] : la2->a_uc9[lc10];
 
             if (li3 != 0)
