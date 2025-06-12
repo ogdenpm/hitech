@@ -10,6 +10,9 @@ VPATH = $(SRCDIR):$(ROOT)/hishared
 all:  $(TARGET) | $(INSTALLDIR)
 	cp -p $(TARGET) $(INSTALLDIR)
 
+$(INSTALLDIR):
+	mkdir -p $@
+
 publish: distclean mkversion
 	$(MAKE)
 
