@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 
     CHK_SHOW_VERSION(argc, argv);
 
-#if !defined(unix) && !defined(_WIN32)
+#if CPM
     if(argc == 1) {
         argv = _getargs(0, "enhuff");
         argc = _argc_;
