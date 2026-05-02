@@ -1892,7 +1892,7 @@ int main(int argc, char *argv[]) {
 #ifndef SMALL
     newsbf(); /* Must be called before copy() / ppsym() */
 #endif
-#if defined(unix) || defined(_WIN32)
+#ifndef CPM
     dirs[0] = dirnams[0] = ".";
 #endif
     for (i = 1; i < argc && argv[i][0] == '-'; i++) {
