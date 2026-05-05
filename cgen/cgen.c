@@ -9,8 +9,8 @@
 int lineno;             /* getToken, sub_6AD0, prMsg*/
 char progname[MAXNAME]; /* getToken, prWarning, prMsg */
 
-member_t *typeLong; /* "l" - long		   */ /* sub_1680, sub_415E, sub_43EF */
-int array_AE13[MAXFUN]; /*			   */     /* leaveBlock,  sub_17E0, sub_5CF5 */
+member_t *typeLong; /* "l" - long		   */ /* initializeTypesAndSymbols, makeConstNode, makeOpNode */
+int array_AE13[MAXFUN]; /*			   */     /* leaveBlock,  sub_17E0, allocateOrEmitVariable */
 member_t *typeUChar;                          /* "uc" - uint8_t	   */
 uint16_t nstdpth;                             /* Current nesting depth   */
 int array_AE57[MAXFUN];                       /*			   */
@@ -22,17 +22,17 @@ member_t *typeB;                              /* "b"			   */
 member_t *typeX;                              /* "x"			   */
 member_t *hashtab[101];                       /* hash table (array_AF1F) */
 member_t *typeVar;                            /* "v" - variable  	   */
-int lvlidx; /* Level nested function   */     /* leaveBlock, sub_1680 */
+int lvlidx; /* Level nested function   */     /* leaveBlock, initializeTypesAndSymbols */
 
-int word_AFF8;            /* sub_2D09, sub_3564 */
-char byte_AFFA;           /* sub_283E, sub_2B79 */
-int word_AFFB;            /* sub_2D09, sub_35E6 */
-node_t *array_AFFD[0x14]; /* sub_3CDF, sub_3DC9 */
+int word_AFF8;            /* emitCodeTemplate, emitNodeCodeFragments */
+char byte_AFFA;           /* computeUsedRegsForStep, chooseResultRegister */
+int word_AFFB;            /* emitCodeTemplate, emitTreeCode */
+node_t *array_AFFD[0x14]; /* rewriteExprForCodegen, compileExpression */
 void *nodeFreeList;       /* sub_36E0, allocNode, releaseNodeFreeList */
 bool byte_B013;           /* sub_36E0, allocNode, ... */
-uint8_t byte_B014;        /* sub_3CDF, sub_3DC9 */
+uint8_t byte_B014;        /* rewriteExprForCodegen, compileExpression */
 char *warningMsg;         /* Pointer for printf      */
-int word_B017;            /* leaveBlock, sub_6D1, sub_283E, sub_2BD0, sub_61AA */
+int word_B017;            /* leaveBlock, sub_6D1, computeUsedRegsForStep, generateCodeForExpr, assignVariableToRegister */
 bool wflag;               /* Warning messages	   */
 #if 0
 bool pflag;               /* Not used		   */
@@ -1002,11 +1002,11 @@ static int16_t array_9BD4[] = {
 };
 
 /*********************************************************
- * sub_13D	Ok++ PMO		Used in: sub_1F4B
+ * sub_13D	Ok++ PMO		Used in: selectCodePattern
  * This function wasn't optimised in original code hence
  * it is split out separately
  *********************************************************/
-int sub_13D(int a, int b) {
+int lookupPatternRule(int a, int b) {
     int i;
 
     for (i = array_987D[b]; array_990D[i] != 0 && array_990D[i] != a; i++)
@@ -1024,9 +1024,9 @@ int sub_13D(int a, int b) {
  *
  * Token search		(Binary search algorithm is used)
  *********************************************************/
-char sub_1B2(register char *target) {
+int lookupTokenId(register char *target) {
     uint8_t hi, lo, mid;
-    char cmp;
+    int cmp;
 
     /* clang-format off */
     static char *tnames[] = {
@@ -1058,7 +1058,7 @@ char sub_1B2(register char *target) {
 }
 
 /*********************************************************
- * gethashptr OK++ PMO		Used in: sub_265, sub_1754
+ * gethashptr OK++ PMO		Used in: getOrCreateSymbol, getOrCreateScopedSymbol
  *
  * Convert name to a hash table ptr (sub_21F)
  *
@@ -1097,12 +1097,12 @@ member_t **gethashptr(register char *str) {
 }
 
 /*********************************************************
- * sub_265 OK++ PMO	     Used in: sub_627,  sub_B19,  sub_E43,
- *			      sub_1680, sub_1754, sub_4192
+ * sub_265 OK++ PMO	     Used in: parseTypeWithIndirection,  sub_B19,  sub_E43,
+ *			      initializeTypesAndSymbols, getOrCreateScopedSymbol, sub_4192
  *
  * Return pointer to struct associated with pointer to token
  *********************************************************/
-member_t *sub_265(char *str) {
+member_t *getOrCreateSymbol(char *str) {
     member_t **l1b;
     register member_t *sb;
 
@@ -1176,7 +1176,7 @@ char *getToken() {
  * sub_406 v3 OK++ PMO			 Used in: sub_6D1
  *
  * Notes:
- *   Added 0 parameter to sub_5CF5 function call to
+ *   Added 0 parameter to allocateOrEmitVariable function call to
  *   match number and types actual and formal parameters
  *   this function.
  *   Modified code to get sb->b_next before freeing sb
@@ -1204,7 +1204,7 @@ void leaveBlock() {
                 if (sb->b_flag == 2)
                     word_B017 |= array_AAE8[sb->b_memb.i];
                 if (sb->b_flag == 4 || sb->b_flag == 3)
-                    sub_5CF5(sb, 0); /* Add parameter 0! */
+                    allocateOrEmitVariable(sb, 0); /* Add parameter 0! */
                 if (0 < nstdpth && sb->b_flag == 3) {
                     next       = sb->b_next;
                     sb->b_next = newlist;
@@ -1244,7 +1244,7 @@ void leaveBlock() {
         if (array_AE57[lvlidx] == nstdpth) {
             sb = array_AEDB[lvlidx];
             if (sb->b_type->b_class == STRUCT && (sb->b_refl & 4) == 0)
-                sub_BEE(sb->b_off, sb->b_size);
+                emitStructCopy(sb->b_off, sb->b_size);
             prFrameTail(sb->b_off, array_AE13[lvlidx]);
             lvlidx--;
             word_B017 = 0x17F;
@@ -1256,7 +1256,7 @@ void leaveBlock() {
  * sub_627 OK++ PMO     Used in: sub_17E0, sub_19C1, sub_4192
  *********************************************************/
 /* encode the accessor prefix */
-member_t *sub_627(register char *ch, uint16_t *par) {
+member_t *parseTypeWithIndirection(register char *ch, uint16_t *par) {
     uint16_t loc;
 
     loc = 0;
@@ -1278,7 +1278,7 @@ member_t *sub_627(register char *ch, uint16_t *par) {
         *par |= (loc & 3);
         loc >>= 2;
     }
-    return sub_265(ch);
+    return getOrCreateSymbol(ch);
 }
 
 /*********************************************************
@@ -1304,7 +1304,7 @@ void parseStmt() {
 
     word_B017 = 0x17F;
     while ((ch = getToken()) != (char *)~0) { /* get_token    */
-        tok = sub_1B2(ch);
+        tok = lookupTokenId(ch);
         switch (tok) { /* search_token */
         case LBRACE:   /* "{" opening block */
             nstdpth++; /* Increase the current nesting depth */
@@ -1314,7 +1314,7 @@ void parseStmt() {
             break;
         case EXPR: /* "[e" expression	*/
             prPsect(P_TEXT);
-            sub_3DC9(parseExpr());
+            compileExpression(parseExpr());
             expect(']');
             break;
         case VAR: /* "[v" variable	*/
@@ -1365,7 +1365,7 @@ void expect(char par) {
 
 /*********************************************************
  * sub_793 OK++ 			 Used in: sub_6D1
- * minor variance in code as sub_43EF the first parameter
+ * minor variance in code as makeOpNode the first parameter
  * is explicitly declared uint8_t, rather than the default int
  *********************************************************/
 void parseData() {
@@ -1374,7 +1374,7 @@ void parseData() {
     register char *ptr;
 
     prPsect(P_DATA);
-    sub_2BD0(sub_600E(sub_43EF(COLON_U, sub_43EF(COLON_S, parseExpr(), 0), 0)));
+    generateCodeForExpr(optimizeExpression(makeOpNode(COLON_U, makeOpNode(COLON_S, parseExpr(), 0), 0)));
     ptr = buf;
     for (;;) {
         if (*(loc1 = getToken()) == ']') /* parse non-terminating tokens */
@@ -1400,7 +1400,7 @@ void parseData() {
  *
  *********************************************************/
 
-int sub_808(register member_t *sb, node_t *p2a) {
+int emitInitializerData(register member_t *sb, node_t *p2a) {
     int16_t l1;
     int16_t l2;
     member_t *l3b;
@@ -1410,21 +1410,21 @@ int sub_808(register member_t *sb, node_t *p2a) {
 
     l1 = 0;
     if (p2a->a_c0 == COLON_U) {
-        sub_475C(p2a);
+        freeNodeTree(p2a);
         l5 = 0;
         if (sb->b_class == STRUCT) {
             l3b = sb;
             while ((p2a = parseExpr())->a_c0 != DOT_DOT) {
-                if ((l2 = sub_1CC4(l4b = l3b->b_memb.mlist->vals[l5++])) != 0 && l1 % ++l2 != 0) {
+                if ((l2 = getTypeAlignment(l4b = l3b->b_memb.mlist->vals[l5++])) != 0 && l1 % ++l2 != 0) {
                     l2 -= l1 % l2;
                     l1 += l2;
                     prDefb0s(l2); /* emit defb 0 to pad to item boundary */
                 }
                 if (l4b->b_sloc & 0x10) {
-                    p2a = sub_43EF(BAND, p2a, sub_415E((1L << (int8_t)(l4b->bWidth)) - 1L));
+                    p2a = makeOpNode(BAND, p2a, makeConstNode((1L << (int8_t)(l4b->bWidth)) - 1L));
                     if (l4b->bOffset != 0)
-                        /* PMO: bug fix, replaced 0L arg to sub_415E with bit offset l4b->bOffset*/
-                        l6a = sub_43EF(BOR, l6a, sub_43EF(LSHIFT, p2a, sub_415E(l4b->bOffset)));
+                        /* PMO: bug fix, replaced 0L arg to makeConstNode with bit offset l4b->bOffset*/
+                        l6a = makeOpNode(BOR, l6a, makeOpNode(LSHIFT, p2a, makeConstNode(l4b->bOffset)));
                     else
                         l6a = p2a;
 
@@ -1434,28 +1434,28 @@ int sub_808(register member_t *sb, node_t *p2a) {
                         continue;
                     p2a = l6a;
                 }
-                l1 += sub_808(l4b, p2a);
+                l1 += emitInitializerData(l4b, p2a);
             }
 
-            sub_475C(p2a);
+            freeNodeTree(p2a);
         } else {
             l3b = sb->b_type;
             for (;;) {
                 if ((p2a = parseExpr())->a_c0 == COLON_U)
-                    l1 += sub_808(l3b, p2a);
+                    l1 += emitInitializerData(l3b, p2a);
                 else if (p2a->a_c0 == DOT_DOT) {
-                    sub_475C(p2a);
+                    freeNodeTree(p2a);
                     break;
                 } else {
                     l1 += nodesize(p2a);
-                    sub_2BD0(sub_600E(sub_43EF(ATGIGN, p2a, 0)));
+                    generateCodeForExpr(optimizeExpression(makeOpNode(ATGIGN, p2a, 0)));
                 }
             }
         }
     } else {
-        p2a = sub_600E(sub_43EF(ATGIGN, p2a, 0));
+        p2a = optimizeExpression(makeOpNode(ATGIGN, p2a, 0));
         l1  = nodesize(p2a);
-        sub_2BD0(p2a);
+        generateCodeForExpr(p2a);
     }
     if (l1 < sb->b_size) {
         prDefb0s(sb->b_size - l1);
@@ -1474,20 +1474,20 @@ void parseInit() {
     int l1;
     int l2;
 
-    sb = sub_265(getToken());
+    sb = getOrCreateSymbol(getToken());
     prPsect(P_DATA);
-    sub_CAB(sb); /* Emit "symbolic_name:" (identifier label) */
-    l1 = sub_808(sb, parseExpr());
+    emitSymbolLabel(sb); /* Emit "symbolic_name:" (identifier label) */
+    l1 = emitInitializerData(sb, parseExpr());
     l2 = sb->b_refl ? 2 : sb->b_type->b_size;
     if (sb->b_nelem == 0) { /* make sure nelem is set */
         sb->b_nelem = l1 / l2;
-        sb->b_size  = varSize(sb);
+        sb->b_size  = computeVarSize(sb);
     }
     expect(']');
 }
 
 /*********************************************************
- * sub_B96 OK++ PMO				Used in: sub_2BD0
+ * sub_B96 OK++ PMO				Used in: generateCodeForExpr
  * emit_call_ncsv
  *********************************************************/
 void prFrameHead(int fId) {
@@ -1516,7 +1516,7 @@ void prFrameTail(int fId, int fSize) {
 /*********************************************************
  * sub_BEE OK++ PMO				 Used in: leaveBlock
  *********************************************************/
-void sub_BEE(int kId, int size) {
+void emitStructCopy(int kId, int size) {
 
     prPsect(P_TEXT);
     printf("ld\tde,k%d\n"
@@ -1529,7 +1529,7 @@ void sub_BEE(int kId, int size) {
 }
 
 /*********************************************************
- * sub_C36 OK++ PMO       Used in: sub_C57, sub_CAB, sub_4192
+ * sub_C36 OK++ PMO       Used in: emitBssDefinition, emitSymbolLabel, sub_4192
  *********************************************************/
 void prGlobalDef(register member_t *sb) {
 
@@ -1538,25 +1538,25 @@ void prGlobalDef(register member_t *sb) {
 }
 
 /*********************************************************
- * sub_C57 OK++ PMO				Used in: sub_5CF5
+ * sub_C57 OK++ PMO				Used in: allocateOrEmitVariable
  *********************************************************/
-void sub_C57(register member_t *sb) {
+void emitBssDefinition(register member_t *sb) {
 
     if ((sb->b_sloc & 1) == 0 && sb->b_nelem != 0 && (sb->b_refl & 2) == 0) {
         prPsect(P_BSS);
         if (sb->b_flag == 3 && (sb->b_sloc & 2) == 0)
             prGlobalDef(sb); /* Emit "global name" */
-        sub_CAB(sb);         /* Emit "symbolic_name:" (identifier label) */
+        emitSymbolLabel(sb);         /* Emit "symbolic_name:" (identifier label) */
         printf("\tdefs\t%u\n", sb->b_size);
     }
 }
 
 /*********************************************************
- * sub_CAB OK++ PMO			Used in: sub_B19, sub_C57
+ * sub_CAB OK++ PMO			Used in: sub_B19, emitBssDefinition
  *
  * Emit "symbolic_name:" (identifier label)
  *********************************************************/
-void sub_CAB(register member_t *sb) {
+void emitSymbolLabel(register member_t *sb) {
 
     if ((sb->b_sloc & 2) == 0 && sb->b_flag == 3)
         prGlobalDef(sb); /* Emit "global name" */
@@ -1565,7 +1565,7 @@ void sub_CAB(register member_t *sb) {
 }
 
 /*********************************************************
- * sub_CDF OK++ PMO				 Used in: sub_808
+ * sub_CDF OK++ PMO				 Used in: emitInitializerData
  * Emit "defb 0, ..." (num bytes)
  *********************************************************/
 void prDefb0s(int num) {
@@ -1589,8 +1589,8 @@ void prDefb0s(int num) {
 
 /*********************************************************
  * prPsect OK++ PMO     Used in: sub_6D1,  sub_793,  sub_B19,
- * 			      prFrameHead,  prFrameTail,  sub_BEE,
- * Select psect		      sub_C57,  sub_E43
+ * 			      prFrameHead,  prFrameTail,  emitStructCopy,
+ * Select psect		      emitBssDefinition,  sub_E43
  *********************************************************/
 void prPsect(int section) {
     static int curPsect;
@@ -1654,7 +1654,7 @@ void parseSwitch() {
     l1a     = parseExpr();
     caseCnt = 0;
     for (;;) {
-        sa        = sub_600E(parseExpr());
+        sa        = optimizeExpression(parseExpr());
         codeLabel = atoi(getToken());
         if (sa->a_c0 == DOT_DOT) { /* end of switch block */
             defaultCodeLabel = codeLabel;
@@ -1663,7 +1663,7 @@ void parseSwitch() {
             if (caseCnt != 0)
                 break;
             prWarning("No case\tlabels");
-            sub_475C(l1a);
+            freeNodeTree(l1a);
             printf("jp\tl%d\n", defaultCodeLabel);
             return;
         }
@@ -1672,7 +1672,7 @@ void parseSwitch() {
             codeLabels[caseCnt++] = codeLabel;
         } else
             prError("Non-constant case label");
-        sub_475C(sa);
+        freeNodeTree(sa);
     }
     sortCaseLabels(caseVals, codeLabels, caseCnt); /* m6:  */
     caseRange = caseVals[caseCnt - 1] - caseVals[0];
@@ -1686,16 +1686,16 @@ void parseSwitch() {
         sa->a_c0  = TYPE;
         sa->pm    = l1a->pm;
         sa->a_i15 = l1a->a_i15;
-        sa        = sub_43EF(CONV, sub_415E(caseVals[0]), sa);
-        sa        = sub_43EF(SUB, l1a, sa);
+        sa        = makeOpNode(CONV, makeConstNode(caseVals[0]), sa);
+        sa        = makeOpNode(SUB, l1a, sa);
         if (nodesize(sa) != 2) {
             l1a       = allocNode();
             l1a->a_c0 = TYPE;
-            l1a->pm   = sub_265("us");
-            sa        = sub_43EF(CONV, sa, l1a);
+            l1a->pm   = getOrCreateSymbol("us");
+            sa        = makeOpNode(CONV, sa, l1a);
         }
         prPsect(P_TEXT);
-        sub_3DC9(sub_43EF(RPAREN, sa, 0));
+        compileExpression(makeOpNode(RPAREN, sa, 0));
         swTableLabel = newLocal(); /* swTableCnt++ */
         /*
             with the switch value in hl, the code
@@ -1749,7 +1749,7 @@ void parseSwitch() {
     }
     if (nodesize(l1a) == 2) {
         prPsect(P_TEXT);
-        sub_3DC9(sub_43EF(RPAREN, l1a, 0));
+        compileExpression(makeOpNode(RPAREN, l1a, 0));
         l7 = -1;
         l8 = (int)(loTest = hiTest = false);
 
@@ -1765,7 +1765,7 @@ void parseSwitch() {
             if (l7 >> 8 == l8 >> 8) {
                 if (!hiTest) {
                     printf("ld\ta,h\n");
-                    sub_1420(l7 >> 8);
+                    emitCompareWithA(l7 >> 8);
                     printf("jp\tnz,1f\n"
                            "ld\ta,l\n");
                     hiTest = true;
@@ -1776,7 +1776,7 @@ void parseSwitch() {
                     if (hiTest)
                         printf("1:\n");
                     printf("ld\ta,l\n"); /* m17: */
-                    sub_1420(l7 & 0xFF);
+                    emitCompareWithA(l7 & 0xFF);
                     printf("jp\tnz,1f\n"
                            "ld\ta,h\n");
                     loTest = true;
@@ -1784,7 +1784,7 @@ void parseSwitch() {
                 caseVals[codeLabel] >>= 8;
                 caseVals[codeLabel] &= 0xFF;
             }
-            sub_1420(caseVals[codeLabel]); /* m19: */
+            emitCompareWithA(caseVals[codeLabel]); /* m19: */
             printf("jp\tz,l%d\n", codeLabels[codeLabel]);
         }
         if (hiTest | loTest)
@@ -1794,10 +1794,10 @@ void parseSwitch() {
     }
 
     prPsect(P_TEXT);
-    sub_3DC9(sub_43EF(INAREG, l1a, 0));
+    compileExpression(makeOpNode(INAREG, l1a, 0));
     for (codeLabel = 0; codeLabel < caseCnt; codeLabel++) {
         if (caseVals[codeLabel] < 256 && caseVals[codeLabel] >= -128) {
-            sub_1420(caseVals[codeLabel]);
+            emitCompareWithA(caseVals[codeLabel]);
             printf("jp\tz,l%d\n", codeLabels[codeLabel]);
         }
     }
@@ -1807,7 +1807,7 @@ void parseSwitch() {
 /*********************************************************
  * sub_1420 OK++ PMO			 Used in: sub_E43
  *********************************************************/
-void sub_1420(int par) {
+void emitCompareWithA(int par) {
     if (par)
         printf("cp\t%d\n", par);
     else
@@ -1815,7 +1815,7 @@ void sub_1420(int par) {
 }
 
 /*********************************************************
- * sub_143F OK++ PMO			Used in: sub_35E6
+ * sub_143F OK++ PMO			Used in: emitTreeCode
  *********************************************************/
 void prPush(uint8_t reg) {
 
@@ -1830,7 +1830,7 @@ void prPush(uint8_t reg) {
 }
 
 /*********************************************************
- * sub_1489 OK++ PMO			Used in: sub_35E6
+ * sub_1489 OK++ PMO			Used in: emitTreeCode
  *********************************************************/
 void prPop(uint8_t reg) {
 
@@ -1845,7 +1845,7 @@ void prPop(uint8_t reg) {
 }
 
 /*********************************************************
- * sub_14D3 OK++ PMO			Used in: sub_1EDF
+ * sub_14D3 OK++ PMO			Used in: emitRegisterVarLoads
  *
  * Assigning register "IY" value formal parameter with
  * type register
@@ -1860,12 +1860,12 @@ void prIXnPush(register member_t *sb) {
 }
 
 /*********************************************************
- * sub_14F3 OK++ PMO   Used in: sub_153A, sub_2D09, sub_39CA,
- *			    sub_3A79, sub_3EAA, sub_47B2,
- *			    sub_4FCE, sub_508A, sub_54B6,
- *			    sub_60A8, sub_6246, sub_628F
+ * sub_14F3 OK++ PMO   Used in: emitTypeSuffix, emitCodeTemplate, sub_39CA,
+ *			    convertNodeToType, foldConstantExpressions, isPatternApplicable,
+ *			    strengthReduceMulDivMod, simplifyConversion, optimizeExpressionTree,
+ *			    fitsInTargetType, isSameTypeAndSize, areBothSigned
  *********************************************************/
-uint8_t sub_14F3(register node_t *sa) {
+uint8_t getTypeClass(register node_t *sa) {
 
     if (sa->a_i15 & 2)
         return 0;
@@ -1877,13 +1877,13 @@ uint8_t sub_14F3(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_153A OK++ PMO			Used in: sub_2D09
+ * sub_153A OK++ PMO			Used in: emitCodeTemplate
  *********************************************************/
-void sub_153A(register node_t *sa) {
+void emitTypeSuffix(register node_t *sa) {
 
     static char array_A542[] = { 0, 'a', 'l', 'f' };
 
-    fputchar(array_A542[sub_14F3(sa)]);
+    fputchar(array_A542[getTypeClass(sa)]);
 }
 
 /*********************************************************
@@ -1928,7 +1928,7 @@ void prJump(int p) {
 /*********************************************************
  * sub_15FB OK++ PMO			Used in: sub_1B0C
  *********************************************************/
-void sub_15FB(register member_t *sb, int p2, int p3) {
+void setEnumStorageType(register member_t *sb, int p2, int p3) {
 
     if (p2 >= 0) {
         sb->b_flag = 2;
@@ -1946,7 +1946,7 @@ void sub_15FB(register member_t *sb, int p2, int p3) {
 }
 
 /*********************************************************
- * sub_1659 OK++ PMO			Used in: sub_1CEF
+ * sub_1659 OK++ PMO			Used in: finalizeStructOrUnionLayout
  * Find maximum between two numbers
  *********************************************************/
 int max(int num1, int num2) {
@@ -1967,7 +1967,7 @@ struct tType {
  *
  * first_init
  *********************************************************/
-void sub_1680() {
+void initializeTypesAndSymbols() {
     member_t *sb;
     int16_t cnt;
     register struct tType *tp;
@@ -1975,7 +1975,7 @@ void sub_1680() {
     /*
      *	Initializaion of type pointers
      */
-    static struct tType vars[NVARS] = { /* sub_1680 */
+    static struct tType vars[NVARS] = { /* initializeTypesAndSymbols */
                                         { "i", 2, 0, 1 },  { "s", 2, 0, 1 },  { "c", 1, 0, 1 },
                                         { "l", 4, 0, 1 },  { "ui", 2, 0, 2 }, { "us", 2, 0, 2 },
                                         { "uc", 1, 0, 2 }, { "ul", 4, 0, 2 }, { "f", 4, 0, 3 },
@@ -1992,7 +1992,7 @@ void sub_1680() {
     cnt = NVARS;
     tp  = vars;
     do {
-        sb          = sub_265(tp->t_str);
+        sb          = getOrCreateSymbol(tp->t_str);
         sb->b_class = TYPE;
         sb->b_off   = tp->t_alig;
         sb->b_size  = tp->t_size;
@@ -2002,19 +2002,19 @@ void sub_1680() {
 
     /* Additional patterns for types */
 
-    typeLong   = sub_265("l");  /* long	  	*/
-    typeDouble = sub_265("d");  /* double 	*/
-    typeB      = sub_265("b");  /* b   	  	*/
-    typeVar    = sub_265("v");  /* variable 	*/
-    typeChar   = sub_265("c");  /* char   	*/
-    typeUChar  = sub_265("uc"); /* uint8_t  	*/
-    typeX      = sub_265("x");  /* x      	*/
+    typeLong   = getOrCreateSymbol("l");  /* long	  	*/
+    typeDouble = getOrCreateSymbol("d");  /* double 	*/
+    typeB      = getOrCreateSymbol("b");  /* b   	  	*/
+    typeVar    = getOrCreateSymbol("v");  /* variable 	*/
+    typeChar   = getOrCreateSymbol("c");  /* char   	*/
+    typeUChar  = getOrCreateSymbol("uc"); /* uint8_t  	*/
+    typeX      = getOrCreateSymbol("x");  /* x      	*/
     lvlidx     = -1;
 }
 
 /*********************************************************
  * sub_174C OK++ PMO    Used in: sub_E43,  sub_17E0, sub_39CA,
- *			     sub_4192, sub_508A
+ *			     sub_4192, simplifyConversion
  *********************************************************/
 int newLocal() {
     static int localLabelCnt;
@@ -2024,11 +2024,11 @@ int newLocal() {
 /*********************************************************
  * sub_1754 OK++ PMO    Used in: sub_17E0, sub_19C1, sub_1B0C
  *********************************************************/
-member_t *sub_1754(char *token, uint8_t cls) {
+member_t *getOrCreateScopedSymbol(char *token, uint8_t cls) {
     member_t **l1b;
     register member_t *sb;
 
-    sb = sub_265(token);                          /* Set pointer to struct associated with   */
+    sb = getOrCreateSymbol(token);                          /* Set pointer to struct associated with   */
                                                   /* pointer to token.			   */
     if (sb->b_ndpth != nstdpth) {                 /* If nesting depth not correspond current,*/
         l1b        = gethashptr(token);           /* Get pointer to pointer to struct from   */
@@ -2063,13 +2063,13 @@ void parseVariable() {
     int l2;
     register member_t *sb;
 
-    sb         = sub_1754(getToken(), VAR);
-    sb->b_type = sub_627(getToken(), &sb->b_refl);
-    l1a        = sub_600E(parseExpr());
+    sb         = getOrCreateScopedSymbol(getToken(), VAR);
+    sb->b_type = parseTypeWithIndirection(getToken(), &sb->b_refl);
+    l1a        = optimizeExpression(parseExpr());
     if (l1a->a_c0 != CONST)
         fatalErr("Bad element count expr");
     sb->b_nelem = (uint16_t)l1a->info.l;
-    sub_475C(l1a);
+    freeNodeTree(l1a);
     l2 = *getToken();
     expect(']');
 
@@ -2109,13 +2109,13 @@ void parseVariable() {
     default:
         fatalErr("Bad storage class");
     }
-    sb->b_size = varSize(sb);
+    sb->b_size = computeVarSize(sb);
     if (sb->b_class != TYPE) {
         if (sb->b_refl == 0 && sb->b_size == 0 && sb->b_type->b_size == 0)
             prError("Bad dimensions");
 
         if (sb->b_flag == 5 || sb->b_flag == 1)
-            sub_5CF5(sb, l2);
+            allocateOrEmitVariable(sb, l2);
         else
             sb->b_off = newLocal(); /* swTableCnt++ */
 
@@ -2143,7 +2143,7 @@ typedef struct {
 
 /*********************************************************
  * sub_19C1 OK++ PMO	       Used in: sub_6D1, sub_4192
- * One minor optimisation as sub_1754 now declared as taking
+ * One minor optimisation as getOrCreateScopedSymbol now declared as taking
  * a uint8_t rather than int for last parameter
  *********************************************************/
 void parseMembers(int p1) {
@@ -2156,7 +2156,7 @@ void parseMembers(int p1) {
     memberb_t members;
     register member_t *sb;
 
-    l2b          = sub_1754(getToken(), p1);
+    l2b          = getOrCreateScopedSymbol(getToken(), p1);
     pMember      = &members;
     pMember->cnt = 0;
     for (;;) {
@@ -2170,13 +2170,13 @@ void parseMembers(int p1) {
             sb->b_sloc |= 0x10;
             l5 = getToken();
         }
-        sb->b_type = sub_627(l5, &sb->b_refl);
-        l4a        = sub_600E(parseExpr());
+        sb->b_type = parseTypeWithIndirection(l5, &sb->b_refl);
+        l4a        = optimizeExpression(parseExpr());
         if (l4a->a_c0 != CONST)
             fatalErr("Strucdecl - bad\tnelem");
         sb->b_nelem = (uint16_t)l4a->info.l;
-        sub_475C(l4a);
-        sb->b_size                    = varSize(sb);
+        freeNodeTree(l4a);
+        sb->b_size                    = computeVarSize(sb);
         pMember->vals[pMember->cnt++] = sb;
     }
     /* note in the size calculation below an extra member_t pointer is reserved
@@ -2187,14 +2187,14 @@ void parseMembers(int p1) {
     pMember = allocMem(size);
     bmove(&members, pMember, size);
     l2b->b_memb.mlist = (struct _memb *)pMember;
-    sub_1CEF(l2b);
+    finalizeStructOrUnionLayout(l2b);
 }
 
 /*********************************************************
  * sub_1B0C OK++ PMO		Used in: sub_6D1, sub_4192
  *
  * There are three minor differences of equivalent code
- * 1) optimisation of last parameter passed to sub_1754 as it
+ * 1) optimisation of last parameter passed to getOrCreateScopedSymbol as it
  *    is declared a uint8_t
  * 2) Slightly inferior code to calculate (pMember->cnt - 1)
  *    using explicity add -1 rather than dec hl
@@ -2214,22 +2214,22 @@ void parseEnum() {
 
     lobnd        = MININT; /* arithmetic overflow in constant expression */
     hibnd        = MAXINT;
-    sb           = sub_1754(getToken(), ENUM);
+    sb           = getOrCreateScopedSymbol(getToken(), ENUM);
     pMember      = &members;
     pMember->cnt = 0;
     for (;;) {
         l1a = parseExpr();
         if (l1a->a_c0 == DOT_DOT) {
-            sub_475C(l1a);
+            freeNodeTree(l1a);
             size    = (pMember->cnt - 1) * sizeof(uint16_t) + sizeof(struct _memi);
             pMember = allocMem(size);
             bmove(&members, pMember, size);
             sb->b_memb.ilist = (struct _memi *)pMember;
-            sub_15FB(sb, hibnd, lobnd);
+            setEnumStorageType(sb, hibnd, lobnd);
             expect(']');
             return;
         }
-        l1a                           = sub_600E(l1a);
+        l1a                           = optimizeExpression(l1a);
 
         pMember->vals[pMember->cnt++] = (uint16_t)l1a->info.l;
 
@@ -2237,14 +2237,14 @@ void parseEnum() {
             lobnd = l1a->info.l;
         if (l1a->info.l < hibnd)
             hibnd = l1a->info.l;
-        sub_475C(l1a);
+        freeNodeTree(l1a);
     }
 }
 
 /*********************************************************
- * sub_1C6D OK++ PMO			Used in: sub_1CEF
+ * sub_1C6D OK++ PMO			Used in: finalizeStructOrUnionLayout
  *********************************************************/
-int sub_1C6D(int p1, int p2) {
+int alignUpByMask(int p1, int p2) {
 
     return (p1 + p2) & ~p2;
 }
@@ -2252,7 +2252,7 @@ int sub_1C6D(int p1, int p2) {
 /*********************************************************
  * sub_1C8E OK++ PMO   Used in: sub_B19, sub_17E0, sub_19C1
  *********************************************************/
-int varSize(register member_t *sb) {
+int computeVarSize(register member_t *sb) {
 
     if (sb->b_refl & 1)
         return sb->b_nelem * 2;
@@ -2260,9 +2260,9 @@ int varSize(register member_t *sb) {
 }
 
 /*********************************************************
- * sub_1CC4 OK++ PMO	       Used in: sub_808, sub_1CEF
+ * sub_1CC4 OK++ PMO	       Used in: emitInitializerData, finalizeStructOrUnionLayout
  *********************************************************/
-int sub_1CC4(register member_t *sb) {
+int getTypeAlignment(register member_t *sb) {
 
     if (sb->b_refl != 0)
         return 0;
@@ -2272,7 +2272,7 @@ int sub_1CC4(register member_t *sb) {
 /*********************************************************
  * sub_1CEF OK++ PMO			Used in: sub_19C1
  *********************************************************/
-void sub_1CEF(register member_t *sb) {
+void finalizeStructOrUnionLayout(register member_t *sb) {
     int l1;
     int l2;
     int l3;
@@ -2286,7 +2286,7 @@ void sub_1CEF(register member_t *sb) {
             l1         = max(l1, l4b->b_size);
             l4b->b_off = 0;
         } else {
-            l1 = l4b->b_off = sub_1C6D(l1, sub_1CC4(l4b));
+            l1 = l4b->b_off = alignUpByMask(l1, getTypeAlignment(l4b));
             if (l4b->b_sloc & 0x10) {
                 if (16 < l3 + l4b->bWidth || l4b->bWidth == 0) {
                     if (l3 != 0)
@@ -2312,15 +2312,15 @@ void sub_1CEF(register member_t *sb) {
         l3 = 0;
         l1 += 2;
     }
-    sb->b_size  = sub_1C6D(l1, 0); /* m10: */
+    sb->b_size  = alignUpByMask(l1, 0); /* m10: */
     sb->b_off   = 0;
     sb->b_class = STRUCT;
 }
 
 /*********************************************************
- * sub_1EDF OK++ PMO			Used in: sub_2BD0
+ * sub_1EDF OK++ PMO			Used in: generateCodeForExpr
  *********************************************************/
-void sub_1EDF() {
+void emitRegisterVarLoads() {
     member_t **l1b;
     register member_t *sb;
 
@@ -2375,12 +2375,12 @@ static int array_A162[] = {
 };
 
 /*********************************************************
- * sub_1F4B OK++ PMO	Used in: sub_2BD0
+ * sub_1F4B OK++ PMO	Used in: generateCodeForExpr
  * one small block of code moved by optimiser otherwise code
  * identical
  * Note needs standalone ported optimiser to optimise
  *********************************************************/
-int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
+int selectCodePattern(node_t *p1a, int p2, int p3, int p4, int *p5) {
     int l1, l2, l3, l4, l5, l6;
     uint16_t l7, l8;
     register struct codeFrag_t *sz;
@@ -2395,11 +2395,11 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
 
     if (p1a->a_c1 == 0)
         p1a->a_c2 = 0;
-    if ((l1 = sub_13D(p2, p1a->a_c0)) == 0)
+    if ((l1 = lookupPatternRule(p2, p1a->a_c0)) == 0)
         return (-1);
 
-    if (p4 != 0 && TopBitSet(p4) == 0 && sub_6589(p3, p4) == 0 &&
-        (p1a->a_c0 != USEREG || sub_6589(array_AAE8[p1a->info.l], p4) == 0))
+    if (p4 != 0 && TopBitSet(p4) == 0 && findRegisterMatch(p3, p4) == 0 &&
+        (p1a->a_c0 != USEREG || findRegisterMatch(array_AAE8[p1a->info.l], p4) == 0))
         return (-1);
 
     do {
@@ -2413,14 +2413,14 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
 
         sz = &codeFrag[i];
 
-        if (sz->c_2 != 0 && sub_6589(p3, sz->c_2) == 0)
+        if (sz->c_2 != 0 && findRegisterMatch(p3, sz->c_2) == 0)
             continue;
 
         if ((uint8_t)sz->c_3 < 'H' && sz->c_4 != 0 &&
-            (sub_13D((uint8_t)sz->c_4, p1a->info.np[0]->a_c0) == 0 ||
-             (sz->c_5 != 0 && sub_13D(sz->c_5, p1a->info.np[1]->a_c0) == 0)))
+            (lookupPatternRule((uint8_t)sz->c_4, p1a->info.np[0]->a_c0) == 0 ||
+             (sz->c_5 != 0 && lookupPatternRule(sz->c_5, p1a->info.np[1]->a_c0) == 0)))
             continue;
-        if (sz->c_0 != 0 && sub_47B2(p1a, sz->c_0) == 0)
+        if (sz->c_0 != 0 && isPatternApplicable(p1a, sz->c_0) == 0)
             continue;
 
         l6 = sz->c_1;
@@ -2428,7 +2428,7 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
         if (p4 == 0 && sz->c_3 == 'E')
             p4 = sz->c_1;
 
-        if (p4 != 0 && (!TopBitSet(p4) || l6 == 0 || sub_6589(p4 & 0x7fff, l6) != 0)) {
+        if (p4 != 0 && (!TopBitSet(p4) || l6 == 0 || findRegisterMatch(p4 & 0x7fff, l6) != 0)) {
             if ((s = sz->p_8) != 0) {
                 if (s[0] == 'L' && s[1] == 0)
                     s = "GL";
@@ -2443,7 +2443,7 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
                             s++;
                         switch (*s) {
                         case 'L':
-                            if ((l6 = sub_66BC(l6, p4, p3, t)) == 0)
+                            if ((l6 = mergeRegisterConstraints(l6, p4, p3, t)) == 0)
                                 l6 = -1;
                             break;
                         case 'R':
@@ -2452,10 +2452,10 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
                         case 'N':
                             if (ch == 'S') {
                                 if (p1a->a_c0 == USEREG &&
-                                    sub_66BC(l6, p4, array_AAE8[p1a->info.l], t) == 0)
+                                    mergeRegisterConstraints(l6, p4, array_AAE8[p1a->info.l], t) == 0)
                                     l6 = -1;
-                            } else if (sub_63B8(p3, p4, sz->c_2) == 0 &&
-                                       (!TopBitSet(p4) || sub_66BC(sz->c_2, p4, p3, t) == 0))
+                            } else if (selectCompatibleRegister(p3, p4, sz->c_2) == 0 &&
+                                       (!TopBitSet(p4) || mergeRegisterConstraints(sz->c_2, p4, p3, t) == 0))
                                 l6 = -1;
                             break;
                         default:
@@ -2465,7 +2465,7 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
                     } else
                         s++;
                 }
-            } else if ((l6 = sub_66BC(l6, p4, p3, 0)) == 0)
+            } else if ((l6 = mergeRegisterConstraints(l6, p4, p3, 0)) == 0)
                 l6 = -1;
         }
 
@@ -2474,32 +2474,32 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
         l4 = 0;
         if ((uint8_t)sz->c_3 >= 'H') {
             p1a->a_c1 = 0;
-            if (sub_1F4B(p1a, (uint8_t)sz->c_3, p3, l6, &l2) < 0) {
+            if (selectCodePattern(p1a, (uint8_t)sz->c_3, p3, l6, &l2) < 0) {
                 p1a->a_c1 = 0;
                 continue;
             }
         } else if (sz->c_4 != 0) {
             p1a->info.np[0]->a_c1 = 0;
-            if (sub_1F4B(p1a->info.np[0], (uint8_t)sz->c_4, p3, l6, &l2) < 0)
+            if (selectCodePattern(p1a->info.np[0], (uint8_t)sz->c_4, p3, l6, &l2) < 0)
                 continue;
             if (sz->c_5 != 0) {
                 p1a->info.np[1]->a_c1 = 0;
-                l8                    = sub_2B2A(p1a->info.np[0]);
+                l8                    = computeUsedRegs(p1a->info.np[0]);
                 if (l7 == 0) {
                     if (sz->c_2 != 0)
-                        l7 = array_AAE8[(uint8_t)sub_63B8(p3, p4, sz->c_2)];
+                        l7 = array_AAE8[(uint8_t)selectCompatibleRegister(p3, p4, sz->c_2)];
                     else
                         l7 = 0;
                     l7 = (l8 | l7) ? (l8 | l7 | 0x8000) : 0;
                 }
-                if (sub_1F4B(p1a->info.np[1], sz->c_5, p3, l7, &l3) < 0)
+                if (selectCodePattern(p1a->info.np[1], sz->c_5, p3, l7, &l3) < 0)
                     continue;
-                l4 = sub_2B2A(p1a->info.np[1]);
+                l4 = computeUsedRegs(p1a->info.np[1]);
                 if (l4 & l8) {
                     p1a->info.np[1]->a_c1 = 0;
-                    if (sub_1F4B(p1a->info.np[1], sz->c_5, p3 & ~l8, l7, &l3) <= 0)
+                    if (selectCodePattern(p1a->info.np[1], sz->c_5, p3 & ~l8, l7, &l3) <= 0)
                         continue;
-                    l4 = sub_2B2A(p1a->info.np[1]);
+                    l4 = computeUsedRegs(p1a->info.np[1]);
                 }
                 if ((dopetab[p1a->a_c0] & 0x100) || (l4 & l2)) {
                     if (l8 & l3) {
@@ -2517,12 +2517,12 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
 
         if (sz->c_2 != 0) {
             m = p3;
-            if (!(sz->c_2 & 0x40) || (n = sub_63B8(sub_2B2A(p1a), p4, sz->c_2)) == 0) {
+            if (!(sz->c_2 & 0x40) || (n = selectCompatibleRegister(computeUsedRegs(p1a), p4, sz->c_2)) == 0) {
                 if ((sz->c_2 & 0x40) == 0)
-                    m &= ~sub_2B2A(p1a);
+                    m &= ~computeUsedRegs(p1a);
                 m &= ~l4;
-                n = sub_63B8(m, p4, sz->c_2);
-                if (n == 0 && (n = sub_6589(m, sz->c_2)) == 0)
+                n = selectCompatibleRegister(m, p4, sz->c_2);
+                if (n == 0 && (n = findRegisterMatch(m, sz->c_2)) == 0)
                     continue;
             }
             p1a->a_uc9[p1a->a_c1] = n;
@@ -2530,13 +2530,13 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
             p1a->a_uc9[p1a->a_c1] = 0;
 
         p1a->a_c3[p1a->a_c1++]    = (uint8_t)(sz - codeFrag);
-        n                         = (uint8_t)sub_2B79(p1a);
+        n                         = (uint8_t)chooseResultRegister(p1a);
         assert(p1a->a_c1 > 0);
         p1a->a_reg[p1a->a_c1 - 1] = n;
         if (n == 0 && p1a->a_c0 == USEREG)
             p1a->a_reg[p1a->a_c1 - 1] = n = p1a->info.l;
         /* clang-format off */
-        if ((p4 != 0 && !TopBitSet(p4) && (n == 0 || sub_6589(MapVal(p4), n) != n)) ||
+        if ((p4 != 0 && !TopBitSet(p4) && (n == 0 || findRegisterMatch(MapVal(p4), n) != n)) ||
             (TopBitSet(p4) && (MapVal(p4) & MapVal(n)) != MapVal(n))) {
                 p1a->a_c1--;
                 continue;
@@ -2559,12 +2559,12 @@ int sub_1F4B(node_t *p1a, int p2, int p3, int p4, int *p5) {
  */
 
 /*********************************************************
- * sub_283E OK++ PMO				 Used in: sub_2B2A
+ * sub_283E OK++ PMO				 Used in: computeUsedRegs
  *
  * apart from one minor optimisation difference to save
  * a pop bc, the code is identical
  *********************************************************/
-int sub_283E(register node_t *sa, int par) {
+int computeUsedRegsForStep(register node_t *sa, int par) {
     char *s;
     struct codeFrag_t *l2z;
     node_t *l3a;
@@ -2646,13 +2646,13 @@ int sub_283E(register node_t *sa, int par) {
             break;
         case 'L':
             if (par > 0)
-                l7 |= sub_283E(sa, par - 1);
+                l7 |= computeUsedRegsForStep(sa, par - 1);
             else
-                l7 |= sub_2B2A(sa->info.np[0]);
+                l7 |= computeUsedRegs(sa->info.np[0]);
 
             break;
         case 'R':
-            l7 |= sub_2B2A(sa->info.np[1]);
+            l7 |= computeUsedRegs(sa->info.np[1]);
             break;
         case 'D':
         case 'U':
@@ -2663,30 +2663,30 @@ int sub_283E(register node_t *sa, int par) {
 }
 
 /*********************************************************
- * sub_2B2A OK++ PMO   Used in: sub_1F4B, sub_283E, sub_2B79
+ * sub_2B2A OK++ PMO   Used in: selectCodePattern, computeUsedRegsForStep, chooseResultRegister
  * optimiser improves on code for sa->a_c1 - 1
  *********************************************************/
-int sub_2B2A(register node_t *sa) {
+int computeUsedRegs(register node_t *sa) {
 
     if (sa->a_c1 == 0) {
         if ((dopetab[sa->a_c0] & 0xC) == 0)
             return 0;
-        return sub_2B2A(sa->info.np[0]); /* LOGOP & QUEST */
+        return computeUsedRegs(sa->info.np[0]); /* LOGOP & QUEST */
     }
-    return sub_283E(sa, sa->a_c1 - 1);
+    return computeUsedRegsForStep(sa, sa->a_c1 - 1);
 }
 
 /*********************************************************
- * sub_2B79 OK++ PMO			 Used in: sub_1F4B
+ * sub_2B79 OK++ PMO			 Used in: selectCodePattern
  *********************************************************/
-uint8_t sub_2B79(register node_t *sa) {
+uint8_t chooseResultRegister(register node_t *sa) {
     uint8_t l1;
     int l2;
 
     l1        = sa->a_uc9[sa->a_c1 - 1];
     byte_AFFA = 0;
-    l2        = sub_2B2A(sa);
-    if (l1 != 0 && sub_6589(l2, l1) == l1)
+    l2        = computeUsedRegs(sa);
+    if (l1 != 0 && findRegisterMatch(l2, l1) == l1)
         return l1;
     return byte_AFFA;
 }
@@ -2696,34 +2696,34 @@ uint8_t sub_2B79(register node_t *sa) {
  */
 
 /*********************************************************
- * sub_2BD0 OK++ PMO      Used in: sub_793, sub_808, sub_3CDF
- *			       sub_3DC9
+ * sub_2BD0 OK++ PMO      Used in: sub_793, emitInitializerData, rewriteExprForCodegen
+ *			       compileExpression
  *********************************************************/
-void sub_2BD0(register node_t *sa) {
+void generateCodeForExpr(register node_t *sa) {
     int tmp;
 
     sa->a_c1 = 0;
 
-    if (sub_1F4B(sa, 0x48, word_B017, 0, &tmp) <= 0)
+    if (selectCodePattern(sa, 0x48, word_B017, 0, &tmp) <= 0)
         fatalErr("Expression too complicated");
 
-    sub_35E6(sa);
+    emitTreeCode(sa);
     if (sa->a_c0 == COLON_U) {
         if (sa->a_i15 & 2) {
             prFrameHead(array_AEDB[lvlidx]->b_off); /* emit_call_ncsv */
-            sub_1EDF();
+            emitRegisterVarLoads();
         }
         if (sa->info.np[0]->a_c0 == IDOP)
             sa->info.np[0]->info.mp[0]->b_sloc |= 1; /* may ba struct aaa a_c3[0] */
     }
-    sub_475C(sa);
+    freeNodeTree(sa);
 }
 
 /*********************************************************
- * sub_2C5E OK++ PMO   	      Used in: sub_2CE0, sub_47B2
+ * sub_2C5E OK++ PMO   	      Used in: emitSizedConstant, isPatternApplicable
  *
  *********************************************************/
-long sub_2C5E(node_t *sa, long p2) {
+long signExtendToNodeSize(node_t *sa, long p2) {
     char loc;
 
     if ((loc = nodesize(sa) * 8) >= 32)
@@ -2734,11 +2734,11 @@ long sub_2C5E(node_t *sa, long p2) {
 }
 
 /*********************************************************
- *  sub_2CE0 OK++ PMO			Used in: sub_2D09
+ *  sub_2CE0 OK++ PMO			Used in: emitCodeTemplate
  *********************************************************/
-void sub_2CE0(node_t *p1a, long p2) {
+void emitSizedConstant(node_t *p1a, long p2) {
 
-    printf("%ld", sub_2C5E(p1a, p2));
+    printf("%ld", signExtendToNodeSize(p1a, p2));
 }
 /* end of cgen1.c */
 
@@ -2756,20 +2756,20 @@ void sub_2CE0(node_t *p1a, long p2) {
 #include "cgen.h"
 
 int atoi(char *);
-uint8_t sub_14F3(node_t *);
-uint16_t sub_387A(node_t *);
+uint8_t getTypeClass(node_t *);
+uint16_t getPointeeSize(node_t *);
 uint16_t nodesize(node_t *);
-uint8_t sub_46F7(long);
+uint8_t log2IfPowerOfTwo(long);
 #endif
 /*.......................................................*
- *  sub_2D09_v2 OK++	Used in: sub_3564
+ *  sub_2D09_v2 OK++	Used in: emitNodeCodeFragments
  * minor differences
  * 1) block of 5 instructions has different order but same effect
  * 2) one optimisation missed on loading a from lc10, possibly
  *    related to note 1
  * 3) optimisation because p3 is passed recursively as a char
  *.......................................................*/
-void sub_2D09(register node_t *sa, char *p2, char p3) {
+void emitCodeTemplate(register node_t *sa, char *p2, char p3) {
     struct codeFrag_t *lz1 FORCEINIT; // avoid uninitialised warning
     node_t *la2 FORCEINIT; // avoid uninitialised warning
     char *li3 FORCEINIT;   // avoid uninitialised warning
@@ -2902,7 +2902,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             if (la2->a_c0 == USEREG)
                 printf("%s", regNames[la2->info.l]);
             else if (la2->a_c0 == CONST)
-                sub_2CE0(la2, la2->info.l);
+                emitSizedConstant(la2, la2->info.l);
             else if (la2->a_c0 == FCONST)
                 printf("%s", la2->info.sv.s);
             else
@@ -2925,7 +2925,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             ll9 = nodesize(la2);
             goto m46;
         case 'B':
-            ll9 = sub_387A(la2);
+            ll9 = getPointeeSize(la2);
         m46:
             if (ch == '-') {
                 if (lc11 == 0) {
@@ -2941,7 +2941,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             printf("%s", otherFrag[la2->a_c0]);
             break;
         case 'A':
-            sub_153A(la2);
+            emitTypeSuffix(la2);
             break;
         case 'V':
             if (ch == '-' || ch == '+') {
@@ -2952,7 +2952,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
                 }
             m54:
                 ll13 += ch == '-' ? -1L : 1L;
-                if (sub_14F3(la2) == 2 && nodesize(la2) < 4)
+                if (getTypeClass(la2) == 2 && nodesize(la2) < 4)
                     ll13 &= (1 << (int)(nodesize(la2) * 8)) - 1;
 
                 if (ll13 != 0) {
@@ -2964,7 +2964,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
             } else {
                 lc5 += word_AFF8;
                 word_AFF8 = 0;
-                sub_2CE0(la2, la2->info.l >> (lc5 * 8));
+                emitSizedConstant(la2, la2->info.l >> (lc5 * 8));
             }
             break;
 
@@ -2973,9 +2973,9 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
                 printf("%d", la2->info.mp[1]->bOffset);
             else {
                 ll9 = la2->info.l;
-                if (sub_46F7(ll9) == 0)
+                if (log2IfPowerOfTwo(ll9) == 0)
                     ll9 = ~ll9;
-                word_AFF8 += (sub_46F7(ll9) - 1) / 8;
+                word_AFF8 += (log2IfPowerOfTwo(ll9) - 1) / 8;
             }
             break;
         case 'T':
@@ -2983,9 +2983,9 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
                 printf("%d", la2->info.mp[1]->bWidth);
             else {
                 ll9 = la2->info.l;
-                if (sub_46F7(ll9) == 0)
+                if (log2IfPowerOfTwo(ll9) == 0)
                     ll9 = ~ll9;
-                printf("%d", sub_46F7(ll9) - 1);
+                printf("%d", log2IfPowerOfTwo(ll9) - 1);
             }
             break;
         case 'G':
@@ -3011,7 +3011,7 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
                 printf("%d", lc5);
             } else {
                 word_AFF8 += lc5;
-                sub_2D09(la2, lz1->p_8, lc10);
+                emitCodeTemplate(la2, lz1->p_8, lc10);
             }
             break;
         }
@@ -3024,28 +3024,28 @@ void sub_2D09(register node_t *sa, char *p2, char p3) {
  */
 
 /*********************************************************
- * sub_3564 OK++ PMO			Used in: sub_35E6
+ * sub_3564 OK++ PMO			Used in: emitTreeCode
  * minor optimisation difference due to last parameter
- * of sub_2D09 being declared as char
+ * of emitCodeTemplate being declared as char
  *********************************************************/
-void sub_3564(register node_t *sa) {
+void emitNodeCodeFragments(register node_t *sa) {
     uint8_t l1;
     struct codeFrag_t *l2z;
 
     word_AFF8 = 0;
     for (l1 = 0; l1 != sa->a_c1; l1++) {
         if ((l2z = &codeFrag[sa->a_c3[l1]])->p_6) {
-            sub_2D09(sa, l2z->p_6, l1);
+            emitCodeTemplate(sa, l2z->p_6, l1);
             fputchar('\n');
         }
     }
 }
 
 /*********************************************************
- * sub_35E6 OK++ PMO				Used in: sub_2BD0
+ * sub_35E6 OK++ PMO				Used in: generateCodeForExpr
  *
  *********************************************************/
-void sub_35E6(register node_t *sa) {
+void emitTreeCode(register node_t *sa) {
     int l1;
 
     if (dopetab[sa->a_c0] & 0x200)
@@ -3053,30 +3053,30 @@ void sub_35E6(register node_t *sa) {
     l1 = dopetab[sa->a_c0] & 0xC;
     if (8 == l1) {
         if (sa->a_c2 & 1) {
-            sub_35E6(sa->info.np[0]);
-            sub_35E6(sa->info.np[1]);
+            emitTreeCode(sa->info.np[0]);
+            emitTreeCode(sa->info.np[1]);
         } else {
-            sub_35E6(sa->info.np[1]);
+            emitTreeCode(sa->info.np[1]);
             if (sa->a_c2 & 2)
                 prPush(sa->info.np[1]->a_reg[sa->info.np[1]->a_c1 - 1]);
-            sub_35E6(sa->info.np[0]);
+            emitTreeCode(sa->info.np[0]);
         }
     }
     if (l1 == 4)
-        sub_35E6(sa->info.np[0]);
+        emitTreeCode(sa->info.np[0]);
     if (sa->a_c2 & 2)
         prPop(sa->info.np[1]->a_reg[sa->info.np[1]->a_c1 - 1]);
-    sub_3564(sa);
+    emitNodeCodeFragments(sa);
     if (dopetab[sa->a_c0] & 0x200)
         word_AFFB--;
 }
 
 /*********************************************************
- * sub_36E0 OK++ PMO   Used in: sub_E43,  sub_39CA, sub_3CDF,
- *			    sub_3DC9, sub_3EAA, sub_43EF,
- *			    sub_475C, sub_4C8B, sub_4FA8,
- *			    sub_508A, sub_53EE, sub_54B6,
- *			    sub_5DF6, sub_5F52
+ * sub_36E0 OK++ PMO   Used in: sub_E43,  sub_39CA, rewriteExprForCodegen,
+ *			    compileExpression, foldConstantExpressions, makeOpNode,
+ *			    freeNodeTree, simplifyLogicalNot, dropRightOperand,
+ *			    simplifyConversion, collapseAddressDereference, optimizeExpressionTree,
+ *			    normalizeUnaryMinusAndSub, normalizeAddSubForms
  *********************************************************/
 void freeNode(register node_t *sa) {
 
@@ -3088,9 +3088,9 @@ void freeNode(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_3712 OK++ PMO    Used in: sub_E43,  sub_377A, sub_415E,
- *			     sub_4192, sub_43EF, sub_4DA3,
- *			     sub_54B6
+ * sub_3712 OK++ PMO    Used in: sub_E43,  cloneNodeTree, makeConstNode,
+ *			     sub_4192, makeOpNode, resolveIdentifierNode,
+ *			     optimizeExpressionTree
  *********************************************************/
 node_t *allocNode(void) {
     register node_t *sa;
@@ -3123,28 +3123,28 @@ bool releaseNodeFreeList(void) {
 }
 
 /*********************************************************
- *  sub_377A OK++ PMO			Used in: sub_3CDF
+ *  sub_377A OK++ PMO			Used in: rewriteExprForCodegen
  *********************************************************/
-node_t *sub_377A(node_t *p1a) {
+node_t *cloneNodeTree(node_t *p1a) {
     register node_t *sa;
 
     sa  = allocNode();
     *sa = *p1a;
 
     if (dopetab[sa->a_c0] & 0xC)
-        sa->info.np[0] = sub_377A(sa->info.np[0]);
+        sa->info.np[0] = cloneNodeTree(sa->info.np[0]);
     if ((dopetab[sa->a_c0] & 0xC) == 8)
-        sa->info.np[1] = sub_377A(sa->info.np[1]);
+        sa->info.np[1] = cloneNodeTree(sa->info.np[1]);
     return sa;
 }
 
 /*********************************************************
- * sub_37ED v1 OK++ OK	      Used in: sub_387A, sub_43EF
+ * sub_37ED v1 OK++ OK	      Used in: getPointeeSize, makeOpNode
  *
  * missed optimisation on reloading l1b but otherwise
  * identical
  *********************************************************/
-void sub_37ED(register node_t *sa) {
+void dereferenceNodeType(register node_t *sa) {
     member_t *l1b;
 
     l1b = sa->pm;
@@ -3159,33 +3159,33 @@ void sub_37ED(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_385B OK++ PMO    Used in: sub_387A, sub_43EF, sub_4DA3,
- *			     sub_4E8D
+ * sub_385B OK++ PMO    Used in: getPointeeSize, makeOpNode, resolveIdentifierNode,
+ *			     rewriteMemberAccess
  *********************************************************/
-void sub_385B(register node_t *sa) {
+void markPointerType(register node_t *sa) {
     sa->a_i15 = (sa->a_i15 * 4) | 1;
 }
 
 /*********************************************************
- * sub_387A OK++ PMO			Used in: sub_2D09
+ * sub_387A OK++ PMO			Used in: emitCodeTemplate
  *********************************************************/
-uint16_t sub_387A(register node_t *sa) {
+uint16_t getPointeeSize(register node_t *sa) {
     uint8_t loc;
 
     if (sa->a_i15 == 0 && sa->pm->b_type == 0 && sa->pm->b_refl == 0)
         return 1;
 
-    sub_37ED(sa);
+    dereferenceNodeType(sa);
     loc = (uint8_t)nodesize(sa);
-    sub_385B(sa);
+    markPointerType(sa);
     return loc;
 }
 
 /*********************************************************
- * sub_38CA OK++ PMO	      Used in: sub_393C, sub_3952
+ * sub_38CA OK++ PMO	      Used in: hasPointerFlag, hasFunctionFlag
  * minor difference as function declared as bool
  *********************************************************/
-bool sub_38CA(node_t *p1a, int p2) {
+bool hasTypeFlag(node_t *p1a, int p2) {
     register member_t *sb;
 
     if (p1a->a_i15 & p2)
@@ -3205,30 +3205,30 @@ bool sub_38CA(node_t *p1a, int p2) {
 /*********************************************************
  * sub_393C OK++ PMO			Used in: Not used
  *********************************************************/
-bool sub_393C(node_t *sa) {
-    return sub_38CA(sa, 1);
+bool hasPointerFlag(node_t *sa) {
+    return hasTypeFlag(sa, 1);
 }
 
 /*********************************************************
  * sub_3952 OK++ PMO			Used in: Not used
  *********************************************************/
-bool sub_3952(node_t *sa) {
-    return sub_38CA(sa, 2);
+bool hasFunctionFlag(node_t *sa) {
+    return hasTypeFlag(sa, 2);
 }
 
 /*********************************************************
- * sub_3968 OK++ PMO			Used in: sub_47B2
+ * sub_3968 OK++ PMO			Used in: isPatternApplicable
  *********************************************************/
-bool sub_3968(register node_t *sa) {
+bool isStructValueNode(register node_t *sa) {
     return sa->pm->b_class == STRUCT && (sa->a_i15 & 1) == 0;
 }
 
 /*********************************************************
- * nodesize OK++ PMO    Used in: sub_808,  sub_E43,  sub_2C5E,
- *			     sub_2D09, sub_387A, sub_3A79,
- *			     sub_43EF, sub_47B2, sub_508A,
- *			     sub_54B6, sub_60A8, sub_6246,
- *			     sub_62BE
+ * nodesize OK++ PMO    Used in: emitInitializerData,  sub_E43,  signExtendToNodeSize,
+ *			     emitCodeTemplate, getPointeeSize, convertNodeToType,
+ *			     makeOpNode, isPatternApplicable, simplifyConversion,
+ *			     optimizeExpressionTree, fitsInTargetType, isSameTypeAndSize,
+ *			     constFitsComparisonRange
  *********************************************************/
 uint16_t nodesize(register node_t *sa) {
 
@@ -3241,13 +3241,13 @@ uint16_t nodesize(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_39CA OK++ PMO			Used in: sub_3EAA
+ * sub_39CA OK++ PMO			Used in: foldConstantExpressions
  *********************************************************/
-node_t *sub_39CA(register node_t *sa) {
+node_t *foldConstantConversion(register node_t *sa) {
     char buf[50];
 
     freeNode(sa->info.np[1]);
-    if (sub_14F3(sa) == 3) {
+    if (getTypeClass(sa) == 3) {
         sprintf(buf, "%ld.", sa->info.np[0]->info.l);
         freeNode(sa->info.np[0]);
         sa->info.sv.s = allocMem(strlen(buf) + 1); /* create string */
@@ -3256,25 +3256,25 @@ node_t *sub_39CA(register node_t *sa) {
         sa->a_c0      = FCONST;
         return sa;
     }
-    sub_3A79(sa, sa->info.np[0]);
+    convertNodeToType(sa, sa->info.np[0]);
     freeNode(sa);
     return sa->info.np[0];
 }
 
 /*********************************************************
- * sub_3A79 OK++ PMO	              Used in: sub_3EAA, sub_39CA
+ * sub_3A79 OK++ PMO	              Used in: foldConstantExpressions, sub_39CA
  *
  * Compiler generates code that performs expected action,
  * but differs from original image
  *********************************************************/
-void sub_3A79(register node_t *sa, node_t *p2a) {
+void convertNodeToType(register node_t *sa, node_t *p2a) {
     int l1;
 
     l1 = nodesize(sa);
     if (l1 != 0 && l1 < 4) {
         l1 <<= 3;
         p2a->info.l &= (1L << l1) - 1L;
-        if (sub_14F3(sa) == 1) {
+        if (getTypeClass(sa) == 1) {
             if (p2a->info.l & (long)(1 << (l1 - 1))) { /* sign extend */
                 p2a->info.l |= ~((1L << l1) - 1L);
             }
@@ -3285,9 +3285,9 @@ void sub_3A79(register node_t *sa, node_t *p2a) {
 }
 
 /*********************************************************
- * sub_3B65 OK++ PMO			Used in: sub_3EAA
+ * sub_3B65 OK++ PMO			Used in: foldConstantExpressions
  *********************************************************/
-void sub_3B65(register unsigned long *ptr, long p2, int operator) {
+void evalUnsignedOperation(register unsigned long *ptr, long p2, int operator) {
 
     switch (operator) {
     case DIV:
@@ -3304,10 +3304,10 @@ void sub_3B65(register unsigned long *ptr, long p2, int operator) {
 }
 
 /*********************************************************
- * sub_3BC6 v1 OK++ PMO			Used in: sub_3EAA
+ * sub_3BC6 v1 OK++ PMO			Used in: foldConstantExpressions
  *
  *********************************************************/
-void sub_3BC6(register long *ptr, long p2, int operator) {
+void evalBinaryOperation(register long *ptr, long p2, int operator) {
 
     switch (operator) {
     case ADD:
@@ -3344,29 +3344,29 @@ void sub_3BC6(register long *ptr, long p2, int operator) {
 }
 
 /*********************************************************
- * sub_3CDF OK++ PMO			Used in: sub_3DC9
+ * sub_3CDF OK++ PMO			Used in: compileExpression
  *********************************************************/
-node_t *sub_3CDF(register node_t *sa) {
+node_t *rewriteExprForCodegen(register node_t *sa) {
     int loc;
 
     if (sa->a_c0 == SCOLON) {
-        sub_2BD0(sa->info.np[0]);
+        generateCodeForExpr(sa->info.np[0]);
         freeNode(sa);
         sa = sa->info.np[1];
     }
     if (byte_B014 != 10) {
         if (dopetab[sa->a_c0] & 0x4000)
             return sa;
-        if ((sa->a_c0 == INCR || sa->a_c0 == DECR) && sub_4C6D(sa)) {
+        if ((sa->a_c0 == INCR || sa->a_c0 == DECR) && isRegisterIndirection(sa)) {
             array_AFFD[byte_B014++] = sa;
             sa->a_c0                = sa->a_c0 == INCR ? ASADD : ASSUB;
-            sa                      = sub_377A(sa->info.np[0]);
+            sa                      = cloneNodeTree(sa->info.np[0]);
         }
         loc = dopetab[sa->a_c0];
         if (loc & 0xC)
-            sa->info.np[0] = sub_3CDF(sa->info.np[0]);
+            sa->info.np[0] = rewriteExprForCodegen(sa->info.np[0]);
         if ((loc & 0xC) == 8)
-            sa->info.np[1] = sub_3CDF(sa->info.np[1]);
+            sa->info.np[1] = rewriteExprForCodegen(sa->info.np[1]);
     }
     return sa;
 }
@@ -3378,10 +3378,10 @@ node_t *sub_3CDF(register node_t *sa) {
 /*********************************************************
  * sub_3DC9 OK++ PMO		Used in: sub_6D1, sub_D66
  *********************************************************/
-void sub_3DC9(register node_t *sa) {
+void compileExpression(register node_t *sa) {
     uint16_t loc;
 
-    sa = sub_600E(sa);
+    sa = optimizeExpression(sa);
     if (sa->a_c0 == DOLLAR && sa->info.np[0]->a_c0 == CONST) {
         prWarning("constant conditional branch");
         if (sa->info.np[0]->info.l != 0) {
@@ -3389,7 +3389,7 @@ void sub_3DC9(register node_t *sa) {
             freeNode(sa->info.np[0]);
             sa->info.np[0] = sa->info.np[1];
         } else {
-            sub_475C(sa);
+            freeNodeTree(sa);
             return;
         }
     }
@@ -3399,27 +3399,27 @@ void sub_3DC9(register node_t *sa) {
     else if (sa->a_c0 == DECR)
         sa->a_c0 = ASSUB;
 
-    sa = sub_3CDF(sa);
+    sa = rewriteExprForCodegen(sa);
     if (byte_B014 != 0)
-        sa = sub_600E(sa);
-    sub_2BD0(sa);
+        sa = optimizeExpression(sa);
+    generateCodeForExpr(sa);
     for (loc = 0; loc < byte_B014; loc++)
-        sub_2BD0(array_AFFD[loc]);
+        generateCodeForExpr(array_AFFD[loc]);
 }
 
 /*********************************************************
- * sub_3EAA OK++ PMO				Used in: sub_600E
+ * sub_3EAA OK++ PMO				Used in: optimizeExpression
  *********************************************************/
 
-node_t *sub_3EAA(register node_t *sa) {
+node_t *foldConstantExpressions(register node_t *sa) {
     node_t *l1a;
     int l2;
 
     if ((l2 = dopetab[sa->a_c0] & 0xC))
-        sa->info.np[0] = sub_3EAA(sa->info.np[0]);
+        sa->info.np[0] = foldConstantExpressions(sa->info.np[0]);
     if (l2 == 8)
-        sa->info.np[1] = sub_3EAA(sa->info.np[1]);
-    if (sa->a_c0 == CONV && sa->info.np[0]->a_c0 == FCONST && sub_14F3(sa) == 3) {
+        sa->info.np[1] = foldConstantExpressions(sa->info.np[1]);
+    if (sa->a_c0 == CONV && sa->info.np[0]->a_c0 == FCONST && getTypeClass(sa) == 3) {
         l1a     = sa->info.np[0];
         l1a->pm = sa->pm;
         freeNode(sa->info.np[1]);
@@ -3430,12 +3430,12 @@ node_t *sub_3EAA(register node_t *sa) {
         return sa;
 
     if (sa->a_c0 == CONV)
-        return sub_39CA(sa);
+        return foldConstantConversion(sa);
 
     if (l2 == 8 && sa->info.np[1]->a_c0 != CONST)
         return sa;
 
-    if (sub_14F3(sa) == 2) {
+    if (getTypeClass(sa) == 2) {
         switch (sa->a_c0) {
         case LT:
         case LEQ:
@@ -3446,11 +3446,11 @@ node_t *sub_3EAA(register node_t *sa) {
         case MOD:
         case DIV:
         case RSHIFT:
-            sub_3B65(&sa->info.np[0]->info.ul, sa->info.np[1]->info.l, sa->a_c0);
+            evalUnsignedOperation(&sa->info.np[0]->info.ul, sa->info.np[1]->info.l, sa->a_c0);
         finish:
             if (l2 == 8)
-                sub_475C(sa->info.np[1]);
-            sub_3A79(sa, sa->info.np[0]);
+                freeNodeTree(sa->info.np[1]);
+            convertNodeToType(sa, sa->info.np[0]);
             freeNode(sa);
             return sa->info.np[0];
         }
@@ -3476,7 +3476,7 @@ node_t *sub_3EAA(register node_t *sa) {
     case MOD:
     case RSHIFT:
     case LSHIFT:
-        sub_3BC6(&sa->info.np[0]->info.l, sa->info.np[1]->info.l, sa->a_c0);
+        evalBinaryOperation(&sa->info.np[0]->info.l, sa->info.np[1]->info.l, sa->a_c0);
         goto finish;
     case MINUS_U:
         sa->info.np[0]->info.l = -sa->info.np[0]->info.l;
@@ -3493,10 +3493,10 @@ node_t *sub_3EAA(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_415E OK   Used in: sub_808,  sub_E43,  sub_4192,
- *			    sub_4DA3, sub_54B6
+ * sub_415E OK   Used in: emitInitializerData,  sub_E43,  sub_4192,
+ *			    resolveIdentifierNode, optimizeExpressionTree
  *********************************************************/
-node_t *sub_415E(long number) {
+node_t *makeConstNode(long number) {
     register node_t *sa;
     sa         = allocNode();
     sa->a_c0   = CONST;
@@ -3518,28 +3518,27 @@ node_t *sub_415E(long number) {
 #define MINI
 #include "cgen.h"
 
-char sub_1B2(char *);
-member_t *sub_265(char *);
-member_t *sub_627(char *, uint16_t *);
+char lookupTokenId(char *);
+member_t *getOrCreateSymbol(char *);
+member_t *parseTypeWithIndirection(char *, uint16_t *);
 void parseVariable();
-void parseCType(int);
 void parseEnum();
 node_t *parseExpr();
-node_t *sub_43EF(uint8_t, node_t *, node_t *);
+node_t *makeOpNode(uint8_t, node_t *, node_t *);
 long atol(char *str);
 void *allocMem(size_t);
 char *getToken();
 int newLocal();
-node_t *sub_415E(long);
+node_t *makeConstNode(long);
 node_t *allocNode();
 
 void prGlobalDef(member_t *);
 #endif
 /*********************************************************
- * sub_4192 OK++ PMO     Used in: sub_6D1,  sub_793,  sub_808,
+ * sub_4192 OK++ PMO     Used in: sub_6D1,  sub_793,  emitInitializerData,
  *			     sub_B19,  sub_E43,  sub_17E0,
  *			     sub_19C1, sub_1B0C
- * minor variation due to paramater 1 of sub_43EF being declared
+ * minor variation due to paramater 1 of makeOpNode being declared
  * uint8_t, otherwise identical
  *********************************************************/
 node_t *parseExpr() {
@@ -3558,7 +3557,7 @@ node_t *parseExpr() {
             } else
                 l4 = 0;
 
-            sa = sub_415E(atol(l2));
+            sa = makeConstNode(atol(l2));
             if (l4 != 0)
                 sa->info.l = -sa->info.l;
             return sa;
@@ -3566,7 +3565,7 @@ node_t *parseExpr() {
 
         if (*l2 == '_' || isalpha(*l2)) {
             (sa = allocNode())->a_c0 = IDOP; /* m8:  */
-            sa->info.mp[0]           = sub_265(l2);
+            sa->info.mp[0]           = getOrCreateSymbol(l2);
             sa->pm                   = sa->info.mp[0]->b_type;
             sa->a_i15                = sa->info.mp[0]->b_refl;
             if (sa->info.mp[0]->b_flag == 3 && (sa->info.mp[0]->b_sloc & 2) == 0) {
@@ -3576,7 +3575,7 @@ node_t *parseExpr() {
         }
         if (*l2 == '`') {
             sa       = allocNode();
-            sa->pm   = sub_627(l2, &sa->a_i15);
+            sa->pm   = parseTypeWithIndirection(l2, &sa->a_i15);
             sa->a_c0 = TYPE;
             return sa;
         }
@@ -3589,7 +3588,7 @@ node_t *parseExpr() {
             sa->a_c0      = FCONST;
             return sa;
         }
-        l4 = sub_1B2(l2); /* Token search */ /* m12: */
+        l4 = lookupTokenId(l2); /* Token search */ /* m12: */
         l3 = dopetab[l4] & 0xC;
         switch (l3) {
         case 0xc:
@@ -3610,12 +3609,12 @@ node_t *parseExpr() {
             }
             /* fall through */
         case 0:
-            return sub_43EF(l4, 0, 0);
+            return makeOpNode(l4, 0, 0);
         case 4:
-            return sub_43EF(l4, parseExpr(), 0);
+            return makeOpNode(l4, parseExpr(), 0);
         case 8:
             l1a = parseExpr();
-            return sub_43EF(l4, l1a, parseExpr());
+            return makeOpNode(l4, l1a, parseExpr());
         }
     }
 }
@@ -3626,13 +3625,13 @@ node_t *parseExpr() {
  */
 
 /*********************************************************
- * sub_43EF OK++ PMO      Used in: sub_793,  sub_808,  sub_E43,
- *                            sub_4192, sub_4C8B, sub_4DA3,
- *                            sub_4E8D, sub_508A, sub_54B6,
- *                            sub_5DF6
+ * sub_43EF OK++ PMO      Used in: sub_793,  emitInitializerData,  sub_E43,
+ *                            sub_4192, simplifyLogicalNot, resolveIdentifierNode,
+ *                            rewriteMemberAccess, simplifyConversion, optimizeExpressionTree,
+ *                            normalizeUnaryMinusAndSub
 
  *********************************************************/
-node_t *sub_43EF(uint8_t p1, node_t *p2a, node_t *p3a) {
+node_t *makeOpNode(uint8_t p1, node_t *p2a, node_t *p3a) {
     member_t *l1b;
     long l2;
     register node_t *sa;
@@ -3693,11 +3692,11 @@ node_t *sub_43EF(uint8_t p1, node_t *p2a, node_t *p3a) {
             sa->a_i15 = sa->pm->b_refl;
             sa->pm    = sa->pm->b_type;
         }
-        sub_385B(sa);
+        markPointerType(sa);
         break;
     case LPAREN:
     case MUL_U:
-        sub_37ED(sa);
+        dereferenceNodeType(sa);
         break;
     case COLON_S:
         sa->pm    = typeChar; /* char   */
@@ -3710,7 +3709,7 @@ node_t *sub_43EF(uint8_t p1, node_t *p2a, node_t *p3a) {
             l2 = (uint16_t)nodesize(sa->info.np[0]);
         if (l2 == 0)
             prWarning("Sizeof yields 0");
-        sub_475C(sa->info.np[0]);
+        freeNodeTree(sa->info.np[0]);
         sa->a_c0   = CONST;
         sa->pm     = typeLong; /* long	  */
         sa->a_i15  = 0;
@@ -3721,10 +3720,10 @@ node_t *sub_43EF(uint8_t p1, node_t *p2a, node_t *p3a) {
 }
 
 /*********************************************************
- * sub_46F7 OK++ PMO     Used in: sub_2D09, sub_47B2, sub_4FCE
- *			      sub_54B6
+ * sub_46F7 OK++ PMO     Used in: emitCodeTemplate, isPatternApplicable, strengthReduceMulDivMod
+ *			      optimizeExpressionTree
  *********************************************************/
-uint8_t sub_46F7(long p1) {
+uint8_t log2IfPowerOfTwo(long p1) {
     uint8_t l1;
 
     if ((p1 & (p1 - 1)) || p1 < 1)
@@ -3736,25 +3735,25 @@ uint8_t sub_46F7(long p1) {
 }
 
 /*********************************************************
- * sub_475C OK++ PMO    Used in: sub_808,  sub_E43,  sub_17E0,
- *			     sub_19C1, sub_1B0C, sub_2BD0,
- *			     sub_3DC9, sub_3EAA, sub_43EF,
- *			     sub_475C, sub_4DA3, sub_4FA8,
- *			     sub_508A, sub_54B6
+ * sub_475C OK++ PMO    Used in: emitInitializerData,  sub_E43,  sub_17E0,
+ *			     sub_19C1, sub_1B0C, generateCodeForExpr,
+ *			     compileExpression, foldConstantExpressions, makeOpNode,
+ *			     freeNodeTree, resolveIdentifierNode, dropRightOperand,
+ *			     simplifyConversion, optimizeExpressionTree
  *********************************************************/
-void sub_475C(register node_t *sa) {
+void freeNodeTree(register node_t *sa) {
     int loc;
 
     if ((loc = dopetab[sa->a_c0] & 0xC)) {
-        sub_475C(sa->info.np[0]);
+        freeNodeTree(sa->info.np[0]);
         if (loc == 8)
-            sub_475C(sa->info.np[1]);
+            freeNodeTree(sa->info.np[1]);
     }
     freeNode(sa);
 }
 
 /*********************************************************
- * sub_47B2 OK++ PMO				Used in: sub_1F4B
+ * sub_47B2 OK++ PMO				Used in: selectCodePattern
  * The code optimisers generate many differences in the code
  * however the vast majority relate to the choice of the code
  * fragments to share for returning true/false and generating
@@ -3773,7 +3772,7 @@ void sub_475C(register node_t *sa) {
  * match was poorer. Similarly using compound returns rather
  * than if / break, also produced a poorer match.
  *********************************************************/
-uint8_t sub_47B2(register node_t *sa, int p2) {
+uint8_t isPatternApplicable(register node_t *sa, int p2) {
     long l1;
 
     switch (p2) {
@@ -3784,40 +3783,40 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
     case RPAREN:
         sa = sa->info.np[0];
     case MOD:
-        if (nodesize(sa) == 2 && !sub_3968(sa))
+        if (nodesize(sa) == 2 && !isStructValueNode(sa))
             return true;
         break;
     case BAND:
-        if (sub_14F3(sa) == 3)
+        if (getTypeClass(sa) == 3)
             return false;
         goto m485f;
     case MUL:
         sa = sa->info.np[0];
     case DOLLAR_U:
     m485f:
-        if (nodesize(sa) == 4 && !sub_3968(sa))
+        if (nodesize(sa) == 4 && !isStructValueNode(sa))
             return true;
         break;
     case SCOLON:
         sa = sa->info.np[0];
     case DOLLAR:
-        return sub_3968(sa);
+        return isStructValueNode(sa);
     case ADD:
         return (uint8_t)sa->info.l == 8 || (uint8_t)sa->info.l == 9;
     case INCR:
-        l1 = sub_2C5E(sa, sa->info.l);
+        l1 = signExtendToNodeSize(sa, sa->info.l);
         return -128L <= l1 && l1 < 125L;
     case COLON_U:
         return 1L <= sa->info.l && sa->info.l < 5L;
     case COLON_S:
         l1 = sa->info.l;
-        if (sub_14F3(sa) == 2 && (l1 & (uint16_t)(1 << ((int16_t)nodesize(sa) << 3))))
+        if (getTypeClass(sa) == 2 && (l1 & (uint16_t)(1 << ((int16_t)nodesize(sa) << 3))))
             l1 |= (uint16_t) ~((1 << ((int16_t)nodesize(sa) << 3)) - 1);
         return l1 < 0 && l1 >= -4L;
     case LPAREN:
         sa = sa->info.np[1];
     case HASHSIGN:
-        return nodesize(sa) == 1 && !sub_3968(sa);
+        return nodesize(sa) == 1 && !isStructValueNode(sa);
     case MINUS_U:
         if (nodesize(sa) == 4)
             goto m49dc;
@@ -3825,15 +3824,15 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
     case COMMA:
         if (nodesize(sa) == 2)
         m49dc:
-            if (sub_14F3(sa) != 3 && sub_14F3(sa->info.np[0]) != 3)
-                return sub_14F3(sa) == 2 || sub_14F3(sa->info.np[0]) == 2;
+            if (getTypeClass(sa) != 3 && getTypeClass(sa->info.np[0]) != 3)
+                return getTypeClass(sa) == 2 || getTypeClass(sa->info.np[0]) == 2;
         break;
     case LT:
         return sa->info.l == 0;
     case CONV:
         if (nodesize(sa) == 4)
         m4a48:
-            return sub_14F3(sa) == 1 && sub_14F3(sa->info.np[0]) == 1;
+            return getTypeClass(sa) == 1 && getTypeClass(sa->info.np[0]) == 1;
         return false;
 
     case SUB:
@@ -3843,9 +3842,9 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
     case PLUS_U:
         return 1L == sa->info.l;
     case NOT:
-        return sub_46F7(sa->info.np[1]->info.l);
+        return log2IfPowerOfTwo(sa->info.np[1]->info.l);
     case NEQL:
-        return sub_46F7(~sa->info.np[1]->info.l);
+        return log2IfPowerOfTwo(~sa->info.np[1]->info.l);
     case COLON:
         if (nodesize(sa) == 4)
             goto m4b02;
@@ -3859,7 +3858,7 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
         if (nodesize(sa) != 1)
             return false;
     m4b02:
-        return (sub_14F3(sa) == 1 || sub_14F3(sa) == 2) && sub_14F3(sa->info.np[0]) == 3;
+        return (getTypeClass(sa) == 1 || getTypeClass(sa) == 2) && getTypeClass(sa->info.np[0]) == 3;
     case DIV:
         if (nodesize(sa->info.np[0]) == 1)
             goto dotp;
@@ -3871,63 +3870,63 @@ uint8_t sub_47B2(register node_t *sa, int p2) {
     case DOT:
         if (nodesize(sa->info.np[0]) == 4) {
         dotp:
-            if (sub_14F3(sa) != 3)
+            if (getTypeClass(sa) != 3)
                 return false;
             else
-                return sub_14F3(sa->info.np[0]) == 1 || sub_14F3(sa->info.np[0]) == 2;
+                return getTypeClass(sa->info.np[0]) == 1 || getTypeClass(sa->info.np[0]) == 2;
         }
         break;
     case LAND:
-        return sub_14F3(sa) == 3;
+        return getTypeClass(sa) == 3;
     }
     return 0;
 }
 
 /*********************************************************
- * sub_4B89 OK++ PMO		      Used in: sub_4C12, sub_54B6
+ * sub_4B89 OK++ PMO		      Used in: getExprComplexityRank, optimizeExpressionTree
 
  *********************************************************/
-bool sub_4B89(register node_t *sa) {
+bool isAddressLikeExpr(register node_t *sa) {
     /* Any operator except "#", "..", "CONST" */
     return (dopetab[sa->a_c0] & 0x10) || (sa->a_c0 == GADDR && sa->info.np[0]->a_c0 == IDOP) ||
-           (sa->a_c0 == ADD && sa->info.np[1]->a_c0 == CONST && sub_4B89(sa->info.np[0]) != 0);
+           (sa->a_c0 == ADD && sa->info.np[1]->a_c0 == CONST && isAddressLikeExpr(sa->info.np[0]) != 0);
 }
 
 /*********************************************************
- * sub_4BE5 OK++ PMO			Used in: sub_54B6
+ * sub_4BE5 OK++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-bool sub_4BE5(register node_t *sa) {
+bool isZeroConst(register node_t *sa) {
 
     return sa->a_c0 == CONST && sa->info.l == 0;
 }
 
 /*********************************************************
- * sub_4C12++ PMO			Used in: sub_54B6
+ * sub_4C12++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-int sub_4C12(register node_t *sa) {
+int getExprComplexityRank(register node_t *sa) {
     if (sa->a_c0 == GADDR && sa->info.np[0]->a_c0 == IDOP)
         return 1;
     if (dopetab[sa->a_c0] & 0x10)
         return 0; /* if "#", "..", "CONST"  */
-    if (sub_4B89(sa))
+    if (isAddressLikeExpr(sa))
         return 1;
     return dopetab[sa->a_c0] & 0xF;
 }
 
 /*********************************************************
- * sub_4C6D OK++ PMO				Used in: sub_3CDF
+ * sub_4C6D OK++ PMO				Used in: rewriteExprForCodegen
  * bool causes optimiser to use ld l, rather than ld hl
  *********************************************************/
-bool sub_4C6D(node_t *p1a) {
+bool isRegisterIndirection(node_t *p1a) {
     return p1a->info.np[0]->a_c0 == USEREG;
 }
 
 /*********************************************************
- * sub_4C8B OK++ PMO			Used in: sub_54B6
- * sub_43EF using bool as first parameter is optimised
+ * sub_4C8B OK++ PMO			Used in: optimizeExpressionTree
+ * makeOpNode using bool as first parameter is optimised
  * but misses ex (sp),hl rather than pop bc ! push hl
  *********************************************************/
-node_t *sub_4C8B(register node_t *sa) {
+node_t *simplifyLogicalNot(register node_t *sa) {
     node_t *l1;
 
     l1 = sa->info.np[0];
@@ -3943,8 +3942,8 @@ node_t *sub_4C8B(register node_t *sa) {
         return l1;
     }
     if (dopetab[l1->a_c0] & 0x20) {
-        l1->info.np[0] = sub_43EF(NOT, l1->info.np[0], (node_t *)0);
-        l1->info.np[1] = sub_43EF(NOT, l1->info.np[1], (node_t *)0);
+        l1->info.np[0] = makeOpNode(NOT, l1->info.np[0], (node_t *)0);
+        l1->info.np[1] = makeOpNode(NOT, l1->info.np[1], (node_t *)0);
         freeNode(sa);
         l1->a_c0 = l1->a_c0 == LAND ? LOR : LAND;
         return l1;
@@ -3953,25 +3952,25 @@ node_t *sub_4C8B(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_4DA3 OK++ PMO			Used in: sub_54B6
- * sub_43EF using bool as first parameter is optimised
+ * sub_4DA3 OK++ PMO			Used in: optimizeExpressionTree
+ * makeOpNode using bool as first parameter is optimised
  * but misses ex (sp),hl rather than pop bc ! push hl
  *********************************************************/
-node_t *sub_4DA3(register node_t *sa) {
+node_t *resolveIdentifierNode(register node_t *sa) {
     node_t *l1a;
 
     if (sa->info.mp[0]->b_flag == 1) {
-        l1a        = sub_415E(sa->info.mp[0]->b_off);
+        l1a        = makeConstNode(sa->info.mp[0]->b_off);
         l1a->pm    = sa->pm;
         l1a->a_i15 = sa->a_i15;
-        sub_475C(sa);
-        sub_385B(l1a);
+        freeNodeTree(sa);
+        markPointerType(l1a);
         sa         = allocNode();
         *sa        = *l1a;
         sa->a_c0   = USEREG;
         sa->info.l = 8L;
-        sa         = sub_43EF(ADD, sa, l1a);
-        return sub_43EF(MUL_U, sa, 0);
+        sa         = makeOpNode(ADD, sa, l1a);
+        return makeOpNode(MUL_U, sa, 0);
     }
     if (sa->info.mp[0]->b_flag == 2) {
         sa->a_c0   = USEREG;
@@ -3981,47 +3980,47 @@ node_t *sub_4DA3(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_4E8D OK++ PMO 			Used in: sub_54B6
- * sub_43EF using bool as first parameter is optimised
+ * sub_4E8D OK++ PMO 			Used in: optimizeExpressionTree
+ * makeOpNode using bool as first parameter is optimised
  * but misses ex (sp),hl rather than pop bc ! push hl
  *********************************************************/
-node_t *sub_4E8D(register node_t *sa) {
+node_t *rewriteMemberAccess(register node_t *sa) {
     node_t *l1a;
 
     if (dopetab[(l1a = sa->info.np[0])->a_c0] & 0x1000) {
         l1a->pm        = sa->pm;
         l1a->a_i15     = sa->a_i15;
-        sa->info.np[0] = l1a = sub_43EF(GADDR, l1a, 0);
+        sa->info.np[0] = l1a = makeOpNode(GADDR, l1a, 0);
     } else {
         l1a       = allocNode();
         *l1a      = *sa;
         l1a->a_c0 = TYPE;
-        sub_385B(l1a);
-        sa->info.np[0] = sub_43EF(CONV, sub_43EF(GADDR, sa->info.np[0], 0), l1a);
+        markPointerType(l1a);
+        sa->info.np[0] = makeOpNode(CONV, makeOpNode(GADDR, sa->info.np[0], 0), l1a);
     }
     sa->pm                = l1a->pm;
     sa->a_i15             = l1a->a_i15;
     sa->info.np[1]->a_i15 = sa->a_i15;
     sa->info.np[1]->pm    = sa->pm;
     sa->a_c0              = ADD;
-    return sub_43EF(MUL_U, sa, 0);
+    return makeOpNode(MUL_U, sa, 0);
 }
 
 /*********************************************************
- * sub_4FA8 OK++ PMO			Used in: sub_54B6
+ * sub_4FA8 OK++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-node_t *sub_4FA8(register node_t *sa) {
+node_t *dropRightOperand(register node_t *sa) {
 
-    sub_475C(sa->info.np[1]);
+    freeNodeTree(sa->info.np[1]);
     freeNode(sa);
     return sa->info.np[0];
 }
 
 /*********************************************************
- * sub_4FCE OK++ OK				Used in: sub_54B6
+ * sub_4FCE OK++ OK				Used in: optimizeExpressionTree
  *
  *********************************************************/
-node_t *sub_4FCE(register node_t *sa) {
+node_t *strengthReduceMulDivMod(register node_t *sa) {
 
     switch (sa->a_c0) {
     case MUL:
@@ -4031,12 +4030,12 @@ node_t *sub_4FCE(register node_t *sa) {
         sa->a_c0 = ASLSHIFT;
         break;
     case DIV:
-        if (sub_14F3(sa) != 2)
+        if (getTypeClass(sa) != 2)
             return sa;
         sa->a_c0 = RSHIFT;
         break;
     case ASDIV:
-        if (sub_14F3(sa) != 2)
+        if (getTypeClass(sa) != 2)
             return sa;
         sa->a_c0 = ASRSHIFT;
         break;
@@ -4050,21 +4049,21 @@ node_t *sub_4FCE(register node_t *sa) {
         return sa;
     }
     byte_B013              = true;
-    sa->info.np[1]->info.l = sub_46F7(sa->info.np[1]->info.l) - 1;
+    sa->info.np[1]->info.l = log2IfPowerOfTwo(sa->info.np[1]->info.l) - 1;
     return sa;
 }
 
 /*********************************************************
- * sub_508A OK++ PMO			Used in: sub_54B6
- * optimiser optimises code for parameter 1 of sub_43EF
+ * sub_508A OK++ PMO			Used in: optimizeExpressionTree
+ * optimiser optimises code for parameter 1 of makeOpNode
  *********************************************************/
-node_t *sub_508A(register node_t *sa) {
+node_t *simplifyConversion(register node_t *sa) {
     node_t *l1a;
     node_t *l2a;
     char buf[15];
     long l3;
 
-    if (sub_14F3(sa) == 3 && sa->info.np[0]->a_c0 == CONST) {
+    if (getTypeClass(sa) == 3 && sa->info.np[0]->a_c0 == CONST) {
         l3 = sa->info.np[0]->info.l;
         freeNode(sa->info.np[0]);
         freeNode(sa->info.np[1]);
@@ -4076,15 +4075,15 @@ node_t *sub_508A(register node_t *sa) {
         return sa;
     }
     if ((dopetab[(l1a = sa->info.np[0])->a_c0] & 0x1000) && nodesize(l1a) >= nodesize(sa) &&
-        sub_14F3(sa) != 3 && sub_14F3(l1a) != 3) {
+        getTypeClass(sa) != 3 && getTypeClass(l1a) != 3) {
         l1a->pm    = sa->pm;
         l1a->a_i15 = sa->a_i15;
         freeNode(sa->info.np[1]);
         freeNode(sa);
         return l1a;
     }
-    if (sub_6246(sa, l1a)) {
-        sub_475C(sa->info.np[1]);
+    if (isSameTypeAndSize(sa, l1a)) {
+        freeNodeTree(sa->info.np[1]);
         l1a->pm    = sa->pm;
         l1a->a_i15 = sa->a_i15;
         freeNode(sa);
@@ -4093,38 +4092,38 @@ node_t *sub_508A(register node_t *sa) {
     if (nodesize(l1a) < nodesize(sa))
         return sa;
     if (l1a->a_c0 == CONV && nodesize(l1a->info.np[0]) >= nodesize(sa)) {
-        if (sub_6246(sa, l1a->info.np[0]) ||
-            (sub_14F3(sa) == sub_14F3(l1a) && sub_14F3(sa) == sub_14F3(l1a->info.np[0]))) {
+        if (isSameTypeAndSize(sa, l1a->info.np[0]) ||
+            (getTypeClass(sa) == getTypeClass(l1a) && getTypeClass(sa) == getTypeClass(l1a->info.np[0]))) {
             sa->info.np[0] = l1a->info.np[0];
             freeNode(l1a->info.np[1]);
             freeNode(l1a);
             return sa;
         }
     }
-    if ((dopetab[l1a->a_c0] & 0xC00) == 0 || sub_14F3(l1a) == 3)
+    if ((dopetab[l1a->a_c0] & 0xC00) == 0 || getTypeClass(l1a) == 3)
         return sa;
 
     if ((dopetab[l1a->a_c0] & 0x400) &&
         (l1a->info.np[0]->a_c0 != CONV || nodesize(l1a->info.np[0]->info.np[0]) >= nodesize(l1a)))
         return sa;
 
-    l2a = sub_43EF(CONV, l1a->info.np[0], sa->info.np[1]);
+    l2a = makeOpNode(CONV, l1a->info.np[0], sa->info.np[1]);
     *sa = *sa->info.np[1];
     if (dopetab[l1a->a_c0] & 8) {
-        sa = sub_43EF(CONV, l1a->info.np[1], sa);
+        sa = makeOpNode(CONV, l1a->info.np[1], sa);
     } else {
         freeNode(sa);
         sa = 0;
     }
-    l2a = sub_43EF((uint8_t)l1a->a_c0, l2a, sa);
+    l2a = makeOpNode((uint8_t)l1a->a_c0, l2a, sa);
     freeNode(l1a);
     return l2a;
 }
 
 /*********************************************************
- * sub_53EE  OK++ PMO			Used in: sub_54B6
+ * sub_53EE  OK++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-node_t *sub_53EE(register node_t *sa) {
+node_t *collapseAddressDereference(register node_t *sa) {
     node_t *l1a;
 
     if (dopetab[(l1a = sa->info.np[0])->info.np[0]->a_c0] & 0x1000) {
@@ -4156,34 +4155,34 @@ node_t *sub_53EE(register node_t *sa) {
 
 node_t *allocNode(void);
 uint16_t nodesize(node_t *);
-uint8_t sub_14F3(node_t *);
-node_t *sub_415E(long);
-node_t *sub_43EF(uint8_t, node_t *, node_t *);
-uint8_t sub_46F7(long);
-bool sub_4B89(node_t *);
-bool sub_4BE5(node_t *);
-int sub_4C12(node_t *);
-node_t *sub_4C8B(node_t *);
-node_t *sub_4DA3(node_t *);
-node_t *sub_4E8D(node_t *);
-node_t *sub_4FA8(node_t *);
-node_t *sub_4FCE(node_t *);
-node_t *sub_508A(node_t *);
-node_t *sub_53EE(node_t *);
-bool sub_60A8(node_t *, node_t *);
-bool sub_6246(node_t *, node_t *);
-bool sub_62BE(node_t *, node_t *);
+uint8_t getTypeClass(node_t *);
+node_t *makeConstNode(long);
+node_t *makeOpNode(uint8_t, node_t *, node_t *);
+uint8_t log2IfPowerOfTwo(long);
+bool isAddressLikeExpr(node_t *);
+bool isZeroConst(node_t *);
+int getExprComplexityRank(node_t *);
+node_t *simplifyLogicalNot(node_t *);
+node_t *resolveIdentifierNode(node_t *);
+node_t *rewriteMemberAccess(node_t *);
+node_t *dropRightOperand(node_t *);
+node_t *strengthReduceMulDivMod(node_t *);
+node_t *simplifyConversion(node_t *);
+node_t *collapseAddressDereference(node_t *);
+bool fitsInTargetType(node_t *, node_t *);
+bool isSameTypeAndSize(node_t *, node_t *);
+bool constFitsComparisonRange(node_t *, node_t *);
 #endif
 
 /*********************************************************
- * sub_54B6 - OK++ PMO	Used in: sub_600E
+ * sub_54B6 - OK++ PMO	Used in: optimizeExpression
  * needs ported optimiser to build
  * Optimiser differences
  * 1) in the GT ? GEQ : LT the GEQ assignment is moved
  * 2) in MUL_U, the optimiser uses bc rather than hl, then
  *    does hl = bc
  *********************************************************/
-node_t *sub_54B6(register node_t *sa) {
+node_t *optimizeExpressionTree(register node_t *sa) {
     node_t *l1a;
     node_t *l2a;
     int l3;
@@ -4191,25 +4190,25 @@ node_t *sub_54B6(register node_t *sa) {
 
     l3 = dopetab[sa->a_c0] & 0xC;
     if (l3 != 0)
-        sa->info.np[0] = sub_54B6(sa->info.np[0]);
+        sa->info.np[0] = optimizeExpressionTree(sa->info.np[0]);
 
     if (l3 == 8)
-        sa->info.np[1] = sub_54B6(sa->info.np[1]);
+        sa->info.np[1] = optimizeExpressionTree(sa->info.np[1]);
 
     if (dopetab[sa->a_c0] & 0x40) {
-        if (sub_4C12(sa->info.np[0]) < sub_4C12(sa->info.np[1])) {
+        if (getExprComplexityRank(sa->info.np[0]) < getExprComplexityRank(sa->info.np[1])) {
             byte_B013      = true;
             l1a            = sa->info.np[0];
             sa->info.np[0] = sa->info.np[1];
             sa->info.np[1] = l1a;
         }
         if ((dopetab[sa->a_c0] & 0x2000) && sa->a_c0 == sa->info.np[0]->a_c0) {
-            if (sub_4B89(sa->info.np[1]) && sub_4B89((l1a = sa->info.np[0])->info.np[1])) {
+            if (isAddressLikeExpr(sa->info.np[1]) && isAddressLikeExpr((l1a = sa->info.np[0])->info.np[1])) {
                 byte_B013       = true;
                 sa->info.np[0]  = l1a->info.np[1];
                 l1a->info.np[1] = sa;
                 sa              = l1a;
-            } else if (sub_4C12(sa->info.np[0]->info.np[1]) < sub_4C12(sa->info.np[1])) {
+            } else if (getExprComplexityRank(sa->info.np[0]->info.np[1]) < getExprComplexityRank(sa->info.np[1])) {
                 byte_B013                  = true;
                 l1a                        = sa->info.np[1];
                 sa->info.np[1]             = sa->info.np[0]->info.np[1];
@@ -4220,7 +4219,7 @@ node_t *sub_54B6(register node_t *sa) {
 
     if ((dopetab[sa->a_c0] & 0xC00) == 0x800 && sa->info.np[0]->a_c0 == CONV &&
         nodesize(sa->info.np[0]->info.np[0]) < nodesize(sa) &&
-        sub_60A8(sa->info.np[1], sa->info.np[0]->info.np[0])) {
+        fitsInTargetType(sa->info.np[1], sa->info.np[0]->info.np[0])) {
 
         l2a                   = sa->info.np[0];
         sa->info.np[0]        = l2a->info.np[0];
@@ -4235,8 +4234,8 @@ node_t *sub_54B6(register node_t *sa) {
     if ((dopetab[sa->a_c0] & 0x420) == 0x420 && (l1a = sa->info.np[0])->a_c0 == CONV &&
         nodesize(l1a->info.np[0]) != 0 && nodesize(l1a->info.np[0]) < nodesize(l1a)) {
         if (sa->info.np[1]->a_c0 == CONST &&
-            (sub_14F3(l1a) == 1 || sub_14F3(l1a->info.np[0]) == 2)) {
-            if (sub_62BE(sa->info.np[0], sa->info.np[1])) {
+            (getTypeClass(l1a) == 1 || getTypeClass(l1a->info.np[0]) == 2)) {
+            if (constFitsComparisonRange(sa->info.np[0], sa->info.np[1])) {
                 freeNode(sa->info.np[0]);
                 freeNode(sa->info.np[0]->info.np[1]);
                 sa->info.np[0]        = sa->info.np[0]->info.np[0];
@@ -4245,7 +4244,7 @@ node_t *sub_54B6(register node_t *sa) {
             } else
                 warningMsg = "mismatched comparision"; /* m8: */
         } else if (sa->info.np[1]->a_c0 == CONV &&
-                   sub_6246(sa->info.np[0]->info.np[0], sa->info.np[1]->info.np[0])) {
+                   isSameTypeAndSize(sa->info.np[0]->info.np[0], sa->info.np[1]->info.np[0])) {
             l1a            = sa->info.np[0];
             sa->info.np[0] = l1a->info.np[0];
             freeNode(l1a->info.np[1]);
@@ -4259,22 +4258,22 @@ node_t *sub_54B6(register node_t *sa) {
 
     switch (sa->a_c0) {
     case IDOP:
-        return sub_4DA3(sa);
+        return resolveIdentifierNode(sa);
     case DOT:
-        return sub_4E8D(sa);
+        return rewriteMemberAccess(sa);
     case NOT:
-        return sub_4C8B(sa);
+        return simplifyLogicalNot(sa);
     case LT:
     case GEQ:
-        if (sub_14F3(sa->info.np[0]) == 2 && sub_4BE5(sa->info.np[1])) {
+        if (getTypeClass(sa->info.np[0]) == 2 && isZeroConst(sa->info.np[1])) {
             warningMsg = "degenerate unsigned comparision";
-            sub_475C(sa);
-            sa = sub_415E(sa->a_c0 == GEQ ? 1L : 0L);
+            freeNodeTree(sa);
+            sa = makeConstNode(sa->a_c0 == GEQ ? 1L : 0L);
         }
         break;
     case LEQ:
     case GT:
-        if (sub_14F3(sa->info.np[0]) == 2 && sub_4BE5(sa->info.np[1]))
+        if (getTypeClass(sa->info.np[0]) == 2 && isZeroConst(sa->info.np[1]))
             sa->a_c0 = sa->a_c0 == GT ? NEQL : EQL;
         else if (sa->info.np[1]->a_c0 == CONST) {
             sa->info.np[1]->info.l += 1;
@@ -4289,7 +4288,7 @@ node_t *sub_54B6(register node_t *sa) {
     case ASEOR:
     case BOR:
         if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == -1L) {
-            sub_475C(sa->info.np[0]);
+            freeNodeTree(sa->info.np[0]);
             freeNode(sa);
             return sa->info.np[1];
         }
@@ -4303,13 +4302,13 @@ node_t *sub_54B6(register node_t *sa) {
     case ASRSHIFT:
     case RSHIFT:
         if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == 0L)
-            return sub_4FA8(sa);
+            return dropRightOperand(sa);
 
         if ((dopetab[sa->a_c0] & 0x80) && nodesize(sa->info.np[1]) != 1) {
             l1a            = allocNode();
-            l1a->pm        = sub_14F3(sa->info.np[1]) == 2 ? typeUChar : typeChar;
+            l1a->pm        = getTypeClass(sa->info.np[1]) == 2 ? typeUChar : typeChar;
             l1a->a_c0      = TYPE;
-            sa->info.np[1] = sub_43EF(CONV, sa->info.np[1], l1a);
+            sa->info.np[1] = makeOpNode(CONV, sa->info.np[1], l1a);
         }
         break;
     case MUL:
@@ -4317,12 +4316,12 @@ node_t *sub_54B6(register node_t *sa) {
     case ASMUL:
     case ASDIV:
         if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == 1L)
-            return sub_4FA8(sa);
+            return dropRightOperand(sa);
         /* fall through */
     case MOD:
     case ASMOD:
-        if (sa->info.np[1]->a_c0 == CONST && sub_46F7(sa->info.np[1]->info.l) != 0)
-            return sub_4FCE(sa);
+        if (sa->info.np[1]->a_c0 == CONST && log2IfPowerOfTwo(sa->info.np[1]->info.l) != 0)
+            return strengthReduceMulDivMod(sa);
         /* fall through */
     case BAND:
     case ASAND:
@@ -4336,8 +4335,8 @@ node_t *sub_54B6(register node_t *sa) {
                 return sa;
             case BAND:
             case MUL:
-                sub_475C(sa->info.np[0]);
-                sub_475C(sa->info.np[1]);
+                freeNodeTree(sa->info.np[0]);
+                freeNodeTree(sa->info.np[1]);
                 sa->a_c0   = CONST;
                 sa->info.l = 0;
                 return sa;
@@ -4349,23 +4348,23 @@ node_t *sub_54B6(register node_t *sa) {
         l4 = nodesize(sa) >= 4 ? -1L : (1L << (nodesize(sa) * 8)) - 1;
         if ((sa->a_c0 == BAND || sa->a_c0 == ASAND) && sa->info.np[1]->a_c0 == CONST &&
             l4 == (sa->info.np[1]->info.l & l4))
-            return sub_4FA8(sa);
+            return dropRightOperand(sa);
         break;
     case CONV:
-        return sub_508A(sa);
+        return simplifyConversion(sa);
     case PLUS_U:
         freeNode(sa);
         sa = sa->info.np[0];
         break;
     case GADDR:
         if (sa->info.np[0]->a_c0 == MUL_U)
-            return sub_53EE(sa);
+            return collapseAddressDereference(sa);
         break;
     case MUL_U:
         if (sa->info.np[0]->a_c0 == GADDR) {
             l1a = sa->info.np[0]->info.np[0];
             if (l1a->a_c0 != LPAREN && l1a->a_c0 != ASSIGN && l1a->a_c0 != QUEST)
-                return sub_53EE(sa);
+                return collapseAddressDereference(sa);
         }
         break;
     }
@@ -4381,11 +4380,11 @@ node_t *sub_54B6(register node_t *sa) {
  * sub_5CF5 OK++ PMO			Used in: leaveBlock, sub_17E0
  *
  *********************************************************/
-void sub_5CF5(register member_t *sb, int p2) {
+void allocateOrEmitVariable(register member_t *sb, int p2) {
 
     switch (sb->b_flag) {
     case 1:
-        if (sub_61AA(sb, p2) == 0) {
+        if (assignVariableToRegister(sb, p2) == 0) {
             array_AE13[lvlidx] -= sb->b_size;
             if ((sb->b_off = array_AE13[lvlidx]) < -128 && sb->b_size <= 4)
                 prWarning("%s: large offset", sb->b_name);
@@ -4397,29 +4396,29 @@ void sub_5CF5(register member_t *sb, int p2) {
         if (sb->b_size == 1 && sb->b_type->b_class != STRUCT && sb->b_type->b_class != UNION)
             array_AE97[lvlidx]++;
 
-        if (!sub_61AA(sb, p2))
+        if (!assignVariableToRegister(sb, p2))
             sb->b_flag = 1;
         break;
     case 3:
     case 4:
-        sub_C57(sb);
+        emitBssDefinition(sb);
         break;
     }
 }
 
 /*********************************************************
- * sub_5DF6 OK++ PMO			Used in: sub_600E
- * parameter 1 of sub_43EF optimised
+ * sub_5DF6 OK++ PMO			Used in: optimizeExpression
+ * parameter 1 of makeOpNode optimised
  *********************************************************/
-node_t *sub_5DF6(register node_t *sa) {
+node_t *normalizeUnaryMinusAndSub(register node_t *sa) {
     char l1;
     char *l2;
 
     l1 = dopetab[sa->a_c0] & 0xC;
     if (l1 == 8)
-        sa->info.np[1] = sub_5DF6(sa->info.np[1]);
+        sa->info.np[1] = normalizeUnaryMinusAndSub(sa->info.np[1]);
     if (l1 != 0)
-        sa->info.np[0] = sub_5DF6(sa->info.np[0]);
+        sa->info.np[0] = normalizeUnaryMinusAndSub(sa->info.np[0]);
 
     switch (sa->a_c0) {
     case SUB:
@@ -4427,7 +4426,7 @@ node_t *sub_5DF6(register node_t *sa) {
         if (sa->info.np[1]->a_c0 == CONST)
             sa->info.np[1]->info.l = -sa->info.np[1]->info.l;
         else
-            sa->info.np[1] = sub_43EF(MINUS_U, sa->info.np[1], 0);
+            sa->info.np[1] = makeOpNode(MINUS_U, sa->info.np[1], 0);
         sa->a_c0 = sa->a_c0 == SUB ? ADD : ASADD;
         break;
     case MINUS_U:
@@ -4450,17 +4449,17 @@ node_t *sub_5DF6(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_5F52 OK++ PMO			Used in: sub_600E
+ * sub_5F52 OK++ PMO			Used in: optimizeExpression
  *********************************************************/
-node_t *sub_5F52(register node_t *sa) {
+node_t *normalizeAddSubForms(register node_t *sa) {
     char l1;
     node_t *l2;
 
     l1 = dopetab[sa->a_c0] & 0xC;
     if (l1 == 8)
-        sa->info.np[1] = sub_5F52(sa->info.np[1]);
+        sa->info.np[1] = normalizeAddSubForms(sa->info.np[1]);
     if (l1 != 0)
-        sa->info.np[0] = sub_5F52(sa->info.np[0]);
+        sa->info.np[0] = normalizeAddSubForms(sa->info.np[0]);
 
     switch (sa->a_c0) {
     case ADD:
@@ -4481,16 +4480,16 @@ node_t *sub_5F52(register node_t *sa) {
 }
 
 /*********************************************************
- * sub_600E OK++ PMO     Used in: sub_793,  sub_808,  sub_E43,
+ * sub_600E OK++ PMO     Used in: sub_793,  emitInitializerData,  sub_E43,
  *                            sub_17E0, sub_19C1, sub_1B0C,
- *			      sub_3DC9
+ *			      compileExpression
  *********************************************************/
-node_t *sub_600E(register node_t *sa) {
+node_t *optimizeExpression(register node_t *sa) {
 
     // int l1; /* Not used */
 
     warningMsg = 0;
-    sa         = sub_5DF6(sa);
+    sa         = normalizeUnaryMinusAndSub(sa);
     // l1    = 0; /* Not used */
     do {
         byte_B013 = false;
@@ -4498,17 +4497,17 @@ node_t *sub_600E(register node_t *sa) {
               Excluded part optimization code
               present in the DOS version (3.06)
         */
-        sa = sub_3EAA(sub_54B6(sa));
+        sa = foldConstantExpressions(optimizeExpressionTree(sa));
     } while (byte_B013);
 
     if (warningMsg)
         prWarning(warningMsg);
 
-    return sub_5F52(sa);
+    return normalizeAddSubForms(sa);
 }
 
 /*********************************************************
- * sub_605E OK++ PMO				Used in: sub_4C8B
+ * sub_605E OK++ PMO				Used in: simplifyLogicalNot
  *
  *********************************************************/
 
@@ -4536,19 +4535,19 @@ int invertTest(int op) {
 }
 
 /*********************************************************
- * sub_60A8 OK++ PMO				Used in: sub_54B6
+ * sub_60A8 OK++ PMO				Used in: optimizeExpressionTree
  *
  *********************************************************/
-bool sub_60A8(register node_t *sa, node_t *p2a) {
+bool fitsInTargetType(register node_t *sa, node_t *p2a) {
     long l1;
 
     if (sa->a_c0 != 'C')
         return 0;
     if (nodesize(p2a) >= 4)
-        return sa->info.l >= 0 || sub_14F3(p2a) == 1;
+        return sa->info.l >= 0 || getTypeClass(p2a) == 1;
 
     l1 = (uint16_t)(1 << (nodesize(p2a) * 8));
-    if (sub_14F3(p2a) == 2) {
+    if (getTypeClass(p2a) == 2) {
         if (sa->info.l < 0)
             return 0;
     } else {
@@ -4560,17 +4559,17 @@ bool sub_60A8(register node_t *sa, node_t *p2a) {
 }
 
 /*********************************************************
- * sub_61AA OK++ PMO			Used in: sub_5CF5
+ * sub_61AA OK++ PMO			Used in: allocateOrEmitVariable
  *********************************************************/
-bool sub_61AA(register member_t *sb, int p2) {
+bool assignVariableToRegister(register member_t *sb, int p2) {
 
     if (!rflag && isupper(p2) && sb->b_refl == 1 && sb->b_nelem <= 1) {
-        if (sub_6589(word_B017, 9) == 0)
+        if (findRegisterMatch(word_B017, 9) == 0)
             return false;
         if (sb->b_flag == 5)
             sb->b_sloc |= 4;
         sb->b_flag   = 2;
-        sb->b_memb.i = sub_6589(word_B017, 9);
+        sb->b_memb.i = findRegisterMatch(word_B017, 9);
         word_B017 &= ~array_AAE8[sb->b_memb.i];
         return true;
     }
@@ -4579,24 +4578,24 @@ bool sub_61AA(register member_t *sb, int p2) {
 }
 
 /*********************************************************
- * sub_6246 OK++ PMO	      Used in: sub_508A, sub_54B6
+ * sub_6246 OK++ PMO	      Used in: simplifyConversion, optimizeExpressionTree
  *********************************************************/
-bool sub_6246(node_t *p1a, node_t *p2a) {
+bool isSameTypeAndSize(node_t *p1a, node_t *p2a) {
 
-    return nodesize(p1a) == nodesize(p2a) && sub_14F3(p1a) == sub_14F3(p2a);
+    return nodesize(p1a) == nodesize(p2a) && getTypeClass(p1a) == getTypeClass(p2a);
 }
 
 /*********************************************************
  * sub_628F OK++ PMO
  *********************************************************/
-bool sub_628F(node_t *p1a, node_t *p2a) {
-    return sub_14F3(p1a) == 1 && sub_14F3(p2a) == 1;
+bool areBothSigned(node_t *p1a, node_t *p2a) {
+    return getTypeClass(p1a) == 1 && getTypeClass(p2a) == 1;
 }
 
 /*********************************************************
- * sub_62BE OK++ PMO			Used in: sub_54B6
+ * sub_62BE OK++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-bool sub_62BE(register node_t *sa, node_t *p2a) {
+bool constFitsComparisonRange(register node_t *sa, node_t *p2a) {
     long l1, l2;
     char l3;
 
@@ -4605,7 +4604,7 @@ bool sub_62BE(register node_t *sa, node_t *p2a) {
         return true;
     l1 = 1L << l3;
     l2 = 0;
-    if (sub_628F(sa, sa->info.np[0])) {
+    if (areBothSigned(sa, sa->info.np[0])) {
         l1 /= 2;
         l2 = -l1;
     }
@@ -4624,10 +4623,10 @@ bool sub_62BE(register node_t *sa, node_t *p2a) {
 #endif
 /* clang-format on */
 /*********************************************************
- * sub_63B8 OK++ PMO				Used in: sub_1F4B
+ * sub_63B8 OK++ PMO				Used in: selectCodePattern
  *
  *********************************************************/
-uint8_t sub_63B8(int p1, int p2, int p3) {
+uint8_t selectCompatibleRegister(int p1, int p2, int p3) {
     uint8_t l1;
     uint8_t l0;
     int l2;
@@ -4637,19 +4636,19 @@ uint8_t sub_63B8(int p1, int p2, int p3) {
     l1 = 0;
 
     if (p2 == 0)
-        l1 = sub_6589(p1, p3);
+        l1 = findRegisterMatch(p1, p3);
     else if (p2 & 0x8000)
-        l1 = sub_6589(MapVal(p2) & p1, p3);
+        l1 = findRegisterMatch(MapVal(p2) & p1, p3);
     else if (p3 < 24) {
-        if ((l1 = sub_6589(MapVal(p2) & p1, p3)) == 0 && (l2 = sub_6589(p1, p3)) != 0 &&
-            sub_6589(MapVal(l2), p2) != 0)
+        if ((l1 = findRegisterMatch(MapVal(p2) & p1, p3)) == 0 && (l2 = findRegisterMatch(p1, p3)) != 0 &&
+            findRegisterMatch(MapVal(l2), p2) != 0)
             l1 = l2;
     } else {
         l2 = 6;
         st = &array_AB54[(p3 - 24) * 6];
         while (*st && l2-- != 0)
-            if ((l0 = sub_6589(p1, *st++)) != 0 &&
-                (sub_6589(array_AAE8[l0], p2) != 0 || sub_6589(array_AAE8[p2], l0) != 0)) {
+            if ((l0 = findRegisterMatch(p1, *st++)) != 0 &&
+                (findRegisterMatch(array_AAE8[l0], p2) != 0 || findRegisterMatch(array_AAE8[p2], l0) != 0)) {
                 l1 = l0;
                 break;
             }
@@ -4658,13 +4657,13 @@ uint8_t sub_63B8(int p1, int p2, int p3) {
 }
 
 /*********************************************************
- * sub_6589 OK++ PMO    Used in: sub_1F4B, sub_2B79, sub_61AA,
- *			     sub_63B8, sub_66BC
+ * sub_6589 OK++ PMO    Used in: selectCodePattern, chooseResultRegister, assignVariableToRegister,
+ *			     selectCompatibleRegister, mergeRegisterConstraints
  * Optimiser improves on
  *      ld a,(ix-1) ! add a,255 ! ld (ix-1),a ! or a
  * with dec (ix-1)
  *********************************************************/
-uint8_t sub_6589(int p1, int p2) {
+uint8_t findRegisterMatch(int p1, int p2) {
     char l1;
     uint8_t *l2;
 
@@ -4686,9 +4685,9 @@ uint8_t sub_6589(int p1, int p2) {
 }
 
 /*********************************************************
- * sub_665B OK++ PMO			Used in: sub_66BC
+ * sub_665B OK++ PMO			Used in: mergeRegisterConstraints
  *********************************************************/
-uint16_t sub_665B(uint16_t p1, uint8_t p2) {
+uint16_t mapRegisterAlias(uint16_t p1, uint8_t p2) {
     uint16_t loc;
 
     if (p1 == 0)
@@ -4701,12 +4700,12 @@ uint16_t sub_665B(uint16_t p1, uint8_t p2) {
 }
 
 /*********************************************************
- * sub_66BC OK++ PMO			Used in: sub_1F4B
+ * sub_66BC OK++ PMO			Used in: selectCodePattern
  * Optimiser passes param 2 as uint8_t rather than promoting
  * to int
  *********************************************************/
 
-int sub_66BC(int p1, int p2, int p3, char *p4) {
+int mergeRegisterConstraints(int p1, int p2, int p3, char *p4) {
     int16_t l1, retval;
     char *l3;
 
@@ -4714,21 +4713,21 @@ int sub_66BC(int p1, int p2, int p3, char *p4) {
     if ((p2 & 0x8000) != 0) {
         if (p1 == 0)
             retval = p2;
-        else if ((l1 = sub_6589(((p2 & 0x8000) ? ~p2 : array_AAE8[p2]) & p3, p1)) != 0)
+        else if ((l1 = findRegisterMatch(((p2 & 0x8000) ? ~p2 : array_AAE8[p2]) & p3, p1)) != 0)
             retval = l1;
         else
-            retval = sub_6589(p3, p1);
+            retval = findRegisterMatch(p3, p1);
     } else if (p1 == 0) {
         if (p2 == 0 || p4 == 0)
             retval = p2;
         else {
             for (l3 = p4; isdigit(l3[1]); l3++)
                 ;
-            if (p2 >= 24 && (p2 = sub_6589(p3, p2)) == 0)
+            if (p2 >= 24 && (p2 = findRegisterMatch(p3, p2)) == 0)
                 retval = 0;
             else {
                 do {
-                    p2 = sub_665B(p2, (uint8_t)*l3);
+                    p2 = mapRegisterAlias(p2, (uint8_t)*l3);
                 } while (l3-- != p4);
                 retval = p2;
             }
@@ -4742,7 +4741,7 @@ int sub_66BC(int p1, int p2, int p3, char *p4) {
         else if (((p2 & 0x8000) ? ~p2 : array_AAE8[p2]) == l1)
             retval = p2;
         else
-            retval = sub_6589(l1, p1);
+            retval = findRegisterMatch(l1, p1);
     }
     return retval;
 }
@@ -4798,7 +4797,7 @@ int main(int argc, char **argv) {
         else if (argc > 0 && freopen(argv[1], "w", stdout) == NULL) /* Open output file */
             fatalErr("Can't create %s", argv[1]);
     }
-    sub_1680();                  /* First_init */
+    initializeTypesAndSymbols();                  /* First_init */
     parseStmt();                 /* Compiling intermediate code */
     if (fclose(stdout) == EOF) { /* Close output file */
         prError("Error closing output file");
@@ -4814,7 +4813,7 @@ int main(int argc, char **argv) {
 
 /*********************************************************
  * sub_6AA2 OK PMO     Used in: badIntCode,  sub_17E0, sub_19C1,
- *			      sub_2BD0, sub_4192, sub_6B1D,
+ *			      generateCodeForExpr, sub_4192, sub_6B1D,
  * fatalErr error  	      sub_6B9B,
  * Difference due to change to use stdarg
  *********************************************************/
@@ -4829,8 +4828,8 @@ _Noreturn void fatalErr(char *fmt, ...) {
 }
 
 /*********************************************************
- * sub_6AD0  OK PMO  Used in: sub_E43,  sub_3DC9, sub_43EF,
- * Warning message	      sub_54B6, sub_5CF5, sub_600E
+ * sub_6AD0  OK PMO  Used in: sub_E43,  compileExpression, makeOpNode,
+ * Warning message	      optimizeExpressionTree, allocateOrEmitVariable, optimizeExpression
  * Difference due to change to use stdarg
  *********************************************************/
 void prWarning(char *fmt, ...) {
@@ -4870,9 +4869,9 @@ void prMsg(char *fmt, va_list args) {
 }
 
 /*********************************************************
- * allocMem OK    Used in: sub_265,  sub_1754, sub_19C1,
+ * allocMem OK    Used in: getOrCreateSymbol,  getOrCreateScopedSymbol, sub_19C1,
  *			     sub_1B0C, allocNode, sub_39CA,
- * alloc_mem & return ptr    sub_4192, sub_508A, sub_5DF6
+ * alloc_mem & return ptr    sub_4192, simplifyConversion, normalizeUnaryMinusAndSub
  *********************************************************/
 void *allocMem(size_t size) {
     register char *ptr;
@@ -5005,7 +5004,7 @@ void *malloc(size_t size) {
 
 /*********************************************************
  * free v6 OK  Used in: leaveBlock,  sub_36E0, releaseNodeFreeList
- *			      sub_5DF6, sub_6D61, cmalloc
+ *			      normalizeUnaryMinusAndSub, sub_6D61, cmalloc
  * free the given block inserting on free chain in size order
  *
  *********************************************************/

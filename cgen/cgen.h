@@ -262,8 +262,8 @@ struct codeFrag_t {
  * ===== Start bss section ======= */
 extern int lineno;             /* getToken, sub_6AD0, prMsg*/
 extern char progname[MAXNAME]; /* getToken  */
-extern member_t *typeLong;     /* sub_1680, sub_415E, sub_43EF */
-extern int array_AE13[MAXFUN]; /* leaveBlock,  sub_17E0, sub_5CF5 */
+extern member_t *typeLong;     /* sub_1680, makeConstNode, makeOpNode */
+extern int array_AE13[MAXFUN]; /* leaveBlock,  sub_17E0, allocateOrEmitVariable */
 extern member_t *typeUChar;    /* "uc" - uint8_t	   */
 extern uint16_t nstdpth;       /* Current nesting depth   */
 extern int array_AE57[MAXFUN];
@@ -278,15 +278,15 @@ extern member_t *hashtab[HASHTABSIZE]; /* hash table (array_AF1F) */
 extern member_t *typeVar;              /* "v" - variable  	   */
 extern int lvlidx;                     /* Level nested function - leaveBlock, sub_1680 */
 
-extern int word_AFF8;            /* sub_2D09, sub_3564 */
-extern char byte_AFFA;           /* sub_283E, sub_2B79 */
-extern int word_AFFB;            /* sub_2D09, sub_35E6 */
-extern node_t *array_AFFD[0x14]; /* sub_3CDF, sub_3DC9 */
+extern int word_AFF8;            /* emitCodeTemplate, emitNodeCodeFragments */
+extern char byte_AFFA;           /* computeUsedRegsForStep, chooseResultRegister */
+extern int word_AFFB;            /* emitCodeTemplate, emitTreeCode */
+extern node_t *array_AFFD[0x14]; /* rewriteExprForCodegen, compileExpression */
 extern void *nodeFreeList;       /* sub_36E0, allocNode, releaseNodeFreeList */
 extern bool byte_B013;           /* sub_36E0, allocNode, ... */
-extern uint8_t byte_B014;        /* sub_3CDF, sub_3DC9 */
+extern uint8_t byte_B014;        /* rewriteExprForCodegen, compileExpression */
 extern char *warningMsg;         /* msgptr  Pointer str printf       */
-extern int word_B017;            /* leaveBlock, sub_6D1, sub_283E, sub_2BD0, sub_61AA */
+extern int word_B017;            /* leaveBlock, sub_6D1, computeUsedRegsForStep, generateCodeForExpr, assignVariableToRegister */
 extern bool wflag;               /* Warning messages */
 #if 0
 extern bool pflag;               /* Not used */
@@ -306,14 +306,14 @@ extern bool rflag;
 
 /* ===== Start data section ======= */
 
-extern char *otherFrag[];            /*+sub_2D09 */
-extern struct codeFrag_t codeFrag[]; /* sub_1F4B, sub_283E, sub_2D09, sub_3564 */
+extern char *otherFrag[];            /*+emitCodeTemplate */
+extern struct codeFrag_t codeFrag[]; /* selectCodePattern, computeUsedRegsForStep, emitCodeTemplate, emitNodeCodeFragments */
 
-extern uint16_t dopetab[72]; /*+sub_1F4B, sub_2B8A, sub_2D09, sub_35E6, sub_377A, ... */
-extern char array_A94A[];    /*+sub_1F4B */
-extern int array_AAE8[];     /*+leaveBlock,  sub_1F4B, sub_283E, sub_61AA, ... */
-extern uint8_t array_AB24[]; /*+sub_283E, sub_2D09, sub_665B */
-extern uint8_t array_AB54[]; /*+sub_63B8, sub_6589 */
+extern uint16_t dopetab[72]; /*+selectCodePattern, sub_2B8A, emitCodeTemplate, emitTreeCode, cloneNodeTree, ... */
+extern char array_A94A[];    /*+selectCodePattern */
+extern int array_AAE8[];     /*+leaveBlock,  selectCodePattern, computeUsedRegsForStep, assignVariableToRegister, ... */
+extern uint8_t array_AB24[]; /*+computeUsedRegsForStep, emitCodeTemplate, mapRegisterAlias */
+extern uint8_t array_AB54[]; /*+selectCompatibleRegister, findRegisterMatch */
 
 extern char *regNames[];
 
@@ -350,117 +350,117 @@ int fputchar(int);
  */
 #ifndef MINI
 /* lex.c -----------------------------------------------------*/
-int sub_13D(int, int);
-char sub_1B2(char *);
+int lookupPatternRule(int, int);
+int lookupTokenId(char *);
 member_t **gethashptr(char *);
-member_t *sub_265(char *);
+member_t *getOrCreateSymbol(char *);
 char *getToken();
 void leaveBlock();
-member_t *sub_627(char *, uint16_t *);
+member_t *parseTypeWithIndirection(char *, uint16_t *);
 void badIntCode();
 void parseStmt();
 void expect(char);
 void parseData();
 /* code.c ----------------------------------------------------*/
-int sub_808(member_t *, node_t *);
+int emitInitializerData(member_t *, node_t *);
 void parseInit();
 void prFrameHead(int);
 void prFrameTail(int, int);
-void sub_BEE(int, int);
+void emitStructCopy(int, int);
 void prGlobalDef(member_t *);
-void sub_C57(member_t *);
-void sub_CAB(member_t *);
+void emitBssDefinition(member_t *);
+void emitSymbolLabel(member_t *);
 void prDefb0s(int);
 void prPsect(int);
 void sortCaseLabels(int *pCase, int *pLabel, int nCase);
 void parseSwitch();
-void sub_1420(int);
+void emitCompareWithA(int);
 void prPush(uint8_t);
 void prPop(uint8_t);
 void prIXnPush(member_t *);
-uint8_t sub_14F3(node_t *);
-void sub_153A(node_t *);
+uint8_t getTypeClass(node_t *);
+void emitTypeSuffix(node_t *);
 void prDefb(char *, int);
 void prJmpLabel(int);
 void prJump(int);
-void sub_15FB(member_t *, int, int);
+void setEnumStorageType(member_t *, int, int);
 int max(int, int);
-void sub_1680();
+void initializeTypesAndSymbols();
 int newLocal();
-member_t *sub_1754(char *, uint8_t);
+member_t *getOrCreateScopedSymbol(char *, uint8_t);
 /* sym.c -----------------------------------------------------*/
 void parseVariable();
 void parseMembers(int);
 void parseEnum();
-int sub_1C6D(int, int);
-int varSize(member_t *);
-int sub_1CC4(member_t *);
-void sub_1CEF(member_t *);
-void sub_1EDF();
-int sub_1F4B(node_t *, int, int, int, int *);
-int sub_283E(node_t *, int);
-int sub_2B2A(node_t *);
-uint8_t sub_2B79(node_t *);
+int alignUpByMask(int, int);
+int computeVarSize(member_t *);
+int getTypeAlignment(member_t *);
+void finalizeStructOrUnionLayout(member_t *);
+void emitRegisterVarLoads();
+int selectCodePattern(node_t *, int, int, int, int *);
+int computeUsedRegsForStep(node_t *, int);
+int computeUsedRegs(node_t *);
+uint8_t chooseResultRegister(node_t *);
 /* cgen.c ----------------------------------------------------*/
-void sub_2BD0(node_t *);
-long sub_2C5E(node_t *, long);
-void sub_2CE0(node_t *, long);
-void sub_2D09(node_t *, char *, char);
-void sub_3564(node_t *);
-void sub_35E6(node_t *);
+void generateCodeForExpr(node_t *);
+long signExtendToNodeSize(node_t *, long);
+void emitSizedConstant(node_t *, long);
+void emitCodeTemplate(node_t *, char *, char);
+void emitNodeCodeFragments(node_t *);
+void emitTreeCode(node_t *);
 void freeNode(node_t *);
 node_t *allocNode(void);
 bool releaseNodeFreeList(void);
-node_t *sub_377A(node_t *);
-void sub_37ED(node_t *);
-void sub_385B(node_t *);
-uint16_t sub_387A(node_t *);
-bool sub_38CA(node_t *, int);
-bool sub_393C(node_t *);
-bool sub_3952(node_t *);
-bool sub_3968(node_t *);
+node_t *cloneNodeTree(node_t *);
+void dereferenceNodeType(node_t *);
+void markPointerType(node_t *);
+uint16_t getPointeeSize(node_t *);
+bool hasTypeFlag(node_t *, int);
+bool hasPointerFlag(node_t *);
+bool hasFunctionFlag(node_t *);
+bool isStructValueNode(node_t *);
 uint16_t nodesize(node_t *); /*sub_3993*/
-node_t *sub_39CA(node_t *);
-void sub_3A79(node_t *, node_t *);
-void sub_3B65(unsigned long *, long, int);
-void sub_3BC6(long *, long, int);
-node_t *sub_3CDF(node_t *);
+node_t *foldConstantConversion(node_t *);
+void convertNodeToType(node_t *, node_t *);
+void evalUnsignedOperation(unsigned long *, long, int);
+void evalBinaryOperation(long *, long, int);
+node_t *rewriteExprForCodegen(node_t *);
 /* tree.c ----------------------------------------------------*/
-void sub_3DC9(node_t *);
-node_t *sub_3EAA(node_t *);
-node_t *sub_415E(long);
+void compileExpression(node_t *);
+node_t *foldConstantExpressions(node_t *);
+node_t *makeConstNode(long);
 node_t *parseExpr(void);
-node_t *sub_43EF(uint8_t, node_t *, node_t *);
-uint8_t sub_46F7(long);
-void sub_475C(node_t *);
-uint8_t sub_47B2(node_t *, int);
-bool sub_4B89(node_t *);
-bool sub_4BE5(node_t *);
-int sub_4C12(node_t *);
-bool sub_4C6D(node_t *);
-node_t *sub_4C8B(node_t *);
-node_t *sub_4DA3(node_t *);
-node_t *sub_4E8D(node_t *);
-node_t *sub_4FA8(node_t *);
-node_t *sub_4FCE(node_t *);
-node_t *sub_508A(node_t *);
-node_t *sub_53EE(node_t *);
+node_t *makeOpNode(uint8_t, node_t *, node_t *);
+uint8_t log2IfPowerOfTwo(long);
+void freeNodeTree(node_t *);
+uint8_t isPatternApplicable(node_t *, int);
+bool isAddressLikeExpr(node_t *);
+bool isZeroConst(node_t *);
+int getExprComplexityRank(node_t *);
+bool isRegisterIndirection(node_t *);
+node_t *simplifyLogicalNot(node_t *);
+node_t *resolveIdentifierNode(node_t *);
+node_t *rewriteMemberAccess(node_t *);
+node_t *dropRightOperand(node_t *);
+node_t *strengthReduceMulDivMod(node_t *);
+node_t *simplifyConversion(node_t *);
+node_t *collapseAddressDereference(node_t *);
 /* local.c ---------------------------------------------------*/
-node_t *sub_54B6(node_t *);
-void sub_5CF5(member_t *, int);
-node_t *sub_5DF6(node_t *);
-node_t *sub_5F52(node_t *);
-node_t *sub_600E(node_t *);
+node_t *optimizeExpressionTree(node_t *);
+void allocateOrEmitVariable(member_t *, int);
+node_t *normalizeUnaryMinusAndSub(node_t *);
+node_t *normalizeAddSubForms(node_t *);
+node_t *optimizeExpression(node_t *);
 int invertTest(int);
-bool sub_60A8(node_t *, node_t *);
-bool sub_61AA(member_t *, int);
-bool sub_6246(node_t *, node_t *);
-bool sub_628F(node_t *, node_t *);
-bool sub_62BE(node_t *, node_t *);
-uint8_t sub_63B8(int, int, int);
-uint8_t sub_6589(int, int);
-uint16_t sub_665B(uint16_t, uint8_t);
-int sub_66BC(int, int, int, char *);
+bool fitsInTargetType(node_t *, node_t *);
+bool assignVariableToRegister(member_t *, int);
+bool isSameTypeAndSize(node_t *, node_t *);
+bool areBothSigned(node_t *, node_t *);
+bool constFitsComparisonRange(node_t *, node_t *);
+uint8_t selectCompatibleRegister(int, int, int);
+uint8_t findRegisterMatch(int, int);
+uint16_t mapRegisterAlias(uint16_t, uint8_t);
+int mergeRegisterConstraints(int, int, int, char *);
 /* main.c  ---------------------------------------------------*/
 /* int main(int, char **);	*/
 
