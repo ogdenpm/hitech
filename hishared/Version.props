@@ -2,17 +2,15 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup>
+  <PropertyGroup >
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck> 
     <VersionFlag Condition="'$(Configuration)' == 'Debug'">-w</VersionFlag>
-    <VersionFlag Condition="'$(Configuration)' != 'Debug'">-W</VersionFlag>
+    <VersionFlag Condition="'$(Configuration)' != 'Debug'">-f</VersionFlag>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
-      <Command>call $(SolutionDir)\Scripts\getVersion.cmd $(VersionFlag)</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
       <Message>Get Version ($(Configuration))</Message>
+      <Command>"$(SolutionDir)Tools\getversion.exe" $(VersionFlag)</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup />
