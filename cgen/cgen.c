@@ -1026,7 +1026,7 @@ int sub_13D(int a, int b) {
  *********************************************************/
 char sub_1B2(register char *target) {
     uint8_t hi, lo, mid;
-    char cmp;
+    int cmp;
 
     /* clang-format off */
     static char *tnames[] = {
