@@ -60,7 +60,7 @@ typedef unsigned char uint8_t;
 #endif
 #define const
 #endif
-#include "showversion.h"
+#include "showVersion.h"
 
 #ifndef INT_MAX
 #define INT_MAX 32767 /* max for int */
