@@ -18,7 +18,7 @@
 #endif
 
 #include "link.h"
-#include "showversion.h"
+#include "showVersion.h"
 
 #ifndef CPM
 static void errMessage(char const *fmt, ...);
