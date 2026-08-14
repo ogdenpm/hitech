@@ -14,22 +14,25 @@ extern "C" {
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef __unix__
+#include <unistd.h>
+#endif
+#ifdef _POSIX_VERSION
+#define stricmp strcasecmp
+#endif
 
 typedef char const verstr[];
-#ifdef _MSC_VER
-#ifndef strcasecmp
-#define strcasecmp  stricmp
-#endif
-#endif
+
 
 void showVersion(bool full);
 
 #define CHK_SHOW_VERSION(argc, argv)                  \
-    if (argc == 2 && strcasecmp(argv[1], "-v") == 0)  \
+    if (argc == 2 && stricmp(argv[1], "-v") == 0)  \
         do {                                          \
             showVersion(argv[1][1] == 'V');           \
             exit(0);                                  \
     } while (0)
+
 #endif
 
 #ifdef __cplusplus
@@ -37,3 +40,4 @@ void showVersion(bool full);
 #endif
 
 #endif
+
