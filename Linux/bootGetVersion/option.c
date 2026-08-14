@@ -63,7 +63,7 @@ void chkStdOptions(int argc, char * const *argv) {
 /// </returns>
 int getopt(int argc, char * const *argv, char const *opts) {
     static char *place = ""; // force new arg
-    char const *cp                 = NULL;
+    char *cp                 = NULL;
 
     if (!*place) {
         if (optind == 1)

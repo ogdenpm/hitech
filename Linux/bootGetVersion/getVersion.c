@@ -27,6 +27,7 @@ char const help[] = "Usage:  %s [options] [directory | file]*\n"
                     "  -f      force write new version file\n"
                     "  -c file set alternative configuration file instead of version.in\n"
                     "  -u      include untracked/ignored files and directories\n"
+                    "  -p      ignore changes to Visual Studio project files\n"
                     "If no directory or file is specified '.' is assumed\n"
                     "Note -w or -f are only relevant for directories\n";
 
@@ -54,6 +55,8 @@ char const *diffIndexCmd[] = { "git", "diff-index", "--quiet", "--ignore-cr-at-e
                                "--",  fileName,     NULL };
 char const *statusCmd[]    = { "git", "status", "-z", "--ignored", "-u", fileName, NULL };
 
+char const *projectExtensions[] = { ".vcxproj", ".csproj", ".vbproj", ".sln", ".vcxproj.filters" };
+
 string_t exeBuf;
 string_t statusBuf;
 
@@ -73,6 +76,7 @@ enum { DIRECTORY, SINGLEFILE, OTHER }; // path types
 
 bool writeFile = false;
 bool force     = false;
+bool ignoreProjectFiles = false;
 
 static bool isPrefix(char const *str, char const *prefix) {
     while (*prefix && *str++ == *prefix++)
@@ -208,6 +212,16 @@ static char *ctimeVersion(char *timeStr) {
     return verStr;
 }
 
+
+static bool isProjectFile(char const *ext) {
+    for (int i = 0; i < sizeof(projectExtensions) / sizeof(projectExtensions[0]); i++) {
+        if (stricmp(ext, projectExtensions[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void generateVersion(bool isApp) {
     int lResult;
     strcpy(version, "xxxx.xx.xx.x?");
@@ -251,11 +265,17 @@ static void generateVersion(bool isApp) {
         sprintf(version, "%s.%s", ctimeVersion(pCtime), rev);
 
         if (isApp) { // for app check ignore changes to the version file
-            if (execute(diffIndexNameCmd, &exeBuf, false) == 0 && exeBuf.str[0]) {
-                // if the first file isn't the version file
-                // or if there are multiple files then mark with a +
-                if (stricmp(basename(exeBuf.str), versionFile) != 0 || strchr(exeBuf.str, '\0')[1])
-                    strcat(version, "+");
+            if (execute(diffIndexNameCmd, &exeBuf, false) == 0) {
+                for (char *filePtr = exeBuf.str; filePtr < exeBuf.str + exeBuf.pos && *filePtr; filePtr += strlen(filePtr) + 1) {
+                    char const *file = basename(filePtr);
+                    if (stricmp(file, versionFile) != 0) {   // generated version files are ignored
+                        if (!ignoreProjectFiles || !isPrefix(file, appName) || !isProjectFile(file + strlen(appName))) { 
+                            // not project file or ignored
+                            strcat(version, "+");
+                            break;
+                        }
+                    }
+                }
             }
         } else if (execute(diffIndexCmd, NULL, false) == 1)
             strcat(version, "+");
@@ -301,7 +321,7 @@ static void getOneVersion(char *name) {
 }
 
 int main(int argc, char **argv) {
-    while (getopt(argc, argv, "fwuc:") != EOF) {
+    while (getopt(argc, argv, "fwuc:p") != EOF) {
         switch (optopt) {
         case 'f':
             force = true;
@@ -314,6 +334,9 @@ int main(int argc, char **argv) {
             break;
         case 'u':
             includeUntracked = true;
+            break;
+        case 'p':
+            ignoreProjectFiles = true;
             break;
         }
     }
