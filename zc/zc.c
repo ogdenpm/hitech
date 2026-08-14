@@ -395,7 +395,7 @@ void setPaths() {
     /* setup up the paths for executables */
     strcpy(tmp, hitechBin);
     s = strchr(tmp, '\0'); /* append point */
-    for (int i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+    for (unsigned i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
         strcpy(s, paths[i]);
         if (canExecute(tmp))
             paths[i] = xstrdup(tmp);
@@ -429,7 +429,7 @@ void setPaths() {
 }
 
 void setTarget() {
-    for (int i = usegetargs ? 0 : NWILD; i < sizeof(targets) / sizeof(targets[0]); i++)
+    for (unsigned i = usegetargs ? 0 : NWILD; i < sizeof(targets) / sizeof(targets[0]); i++)
         if ((targets[i].modifier == 0 || targets[i].modifier == processor) &&
             stricmp(target, targets[i].name) == 0) {
 

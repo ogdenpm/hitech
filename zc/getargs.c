@@ -63,7 +63,7 @@ static char *name, *str, *bp;
 static size_t bpSize;
 static char interactive;
 _Noreturn void error(char *, ...);
-static void *alloc();
+static void *alloc(size_t n);
 static char nxtch();
 static bool iswild(char c);
 static bool isseparator(char c);
