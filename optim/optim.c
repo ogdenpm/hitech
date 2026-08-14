@@ -719,7 +719,7 @@ int get_line();                      /*  5 sub_0758 ok+ */
 void clr_len_inbuf();                /*  6 sub_07aa ok++ */
 int main(int, char **);              /*  7 sub_07b1 ok+ */
 #if defined(__STDC__) || defined(__STDC_VERSION__)
-void _Noreturn pr_error(char const *fmt, ...);
+_Noreturn void pr_error(char const *fmt, ...);
 void pr_warning(char const *fmt, ...);
 void pr_message(char const *fmt, va_list args);
 #else
@@ -784,7 +784,7 @@ bool sub_4682(operand_t const *);                   /* 63 sub_4682 ok++ */
 int sub_46b1(operand_t const *, int);               /* 64 sub_46b1 ok++ */
 int sub_475c(operand_t const *, int);               /* 65 sub_475c ok++ */
 int sub_47a2(operand_t const *, int);               /* 66 sub_47a2 ok++ */
-bool sub_47e0(int, inst_t const *, inst_t const *); /* 67 sub_47e0 ok+ */
+bool sub_47e0(unsigned, inst_t const *, inst_t const *); /* 67 sub_47e0 ok+ */
 sym_t *allocItem();                                 /* 68 sub_4c33 ok+ */
 void freeSymbol(sym_t *);                           /* 69 sub_4c6b ok+ */
 int hash_index(char const *, int);                  /* 70 sub_4cab ok++ */
@@ -794,7 +794,7 @@ void resetHeap();                                   /* 73 sub_4dbf ok++ */
 void freeHashtab();                                 /* 74 sub_4e20 ok++ */
 void *alloc_mem(int);                               /* 75 sub_4e2d ok+ */
 
-void *sbrk(int);
+void *sbrk(intptr_t);
 int brk(void *);
 void heapchk(void const *p);
 #ifdef _DEBUG
@@ -973,6 +973,7 @@ int get_token() {
                 charsLeft = 0;
                 continue;
             }
+            // fallthrough
         default:
             *pc++ = c;                    /* m50: */
             if (ISALPHA(c)) {             /* goto m46; */
@@ -1044,7 +1045,7 @@ int get_line() {
 
     charsLeft = 0;
     while ((c = getchar()) != '\n' && c != EOF && c != CPMEOF)
-        if (charsLeft < sizeof(inp_buf) - 1 && c != '\r')
+        if (charsLeft < (int)sizeof(inp_buf) - 1 && c != '\r')
             inp_buf[charsLeft++] = c;
     if (c == CPMEOF)
         while ((c = getchar()) != EOF)
@@ -1332,7 +1333,7 @@ inst_t *syntheticLabel(register inst_t *ilist) {
 Apart from bug fix change, the code is the same
 **************************************************************************/
 void optimise() {
-    int l1;
+    unsigned l1;
     int l2;
     int iteration;
     char *l4;
@@ -1640,8 +1641,9 @@ void sub_15ad() {
                     gPi->pNext->aux = ccSwap[gPi->aux]; /* swap condition code */
                     removeInstruction(gPi);
                     logOptimise(O_SKIP_OVER_JMP); /* 6fcb opt_msg[7] = "Skips over jumps" */
-                } else if (sub_1c67() || !sub_1d94())
+                } else if (sub_1c67() || !sub_1d94()) {
                     ;
+                }
             }
         }
     }
@@ -2811,6 +2813,7 @@ void loadFunction() {
             case T_DEFB:
                 if (psect == TEXT)
                     goto case_default;
+                // fallthrough
             case T_DEFM:
             case T_DEFS:
             case T_DEFF:
@@ -2999,6 +3002,7 @@ void sub_436e(register operand_t const *ilist) {
                 printf("iy");
             fputc('+', stdout);
         }
+        // fallthrough
     case T_CONST:
         if (ilist->oPSym) {
             if (ilist->oPSym->label[0])
@@ -3015,6 +3019,7 @@ void sub_436e(register operand_t const *ilist) {
         break;
     case T_REGREF:
         fputc('(', stdout);
+        // fallthrough
     case T_REG:
         printf("%s", regs[ilist->aux]);
         if (ilist->tType == T_REGREF)
@@ -3179,7 +3184,7 @@ int sub_47a2(register operand_t const *po, int p2) {
  * 2) there are two instances where the test cases are reversed along with
  *    the associated jumps. Leaving the logic the same
  **************************************************************************/
-bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
+bool sub_47e0(unsigned reg, register inst_t const *pi1, inst_t const *pi2) {
     uint16_t msk;
     sym_t *ps;
     inst_t *l3;
@@ -3274,7 +3279,7 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
         case T_SHIFT:
             if ((pi1->aux & 0xFFE7) != 0x20 && (msk & 0x40))
                 return true;
-
+            // fallthrough
         case T_INCDEC: /* 0x4 "dec", "inc" */
             if ((msk & 0x40) && (pi1->iLhs->tType != T_REG || pi1->iLhs->aux < REG_BC))
                 return false;
@@ -3285,7 +3290,7 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
         case T_BIT: /* "set", "res", "bit" */
             if (pi1->aux == 0x40 && (msk & 0x40))
                 return false;
-
+            // fallthrough
         case T_0xF: /* 0xF */
             if (sub_475c(pi1->iRhs, msk) || sub_475c(pi1->iLhs, msk))
                 return true;
@@ -3323,7 +3328,7 @@ bool sub_47e0(int reg, register inst_t const *pi1, inst_t const *pi2) {
         case T_CADD: /* CADD */
             if (msk & 0x40)
                 return false;
-
+            // fallthrough
         case T_CARR: /* Add, sub with Carry */
             if ((regTestMasks[pi1->iLhs->aux] | 0x40) & msk)
                 return true;
@@ -3441,10 +3446,12 @@ void resetHeap() {
 #ifdef CPM
     int *p;
 #endif
+    int ignore;
     if (programBreak == 0)
         programBreak = sbrk(0); /* current base of heap */
     else
-        brk(programBreak); /* reset the heap */
+        ignore = brk(programBreak); /* reset the heap */
+    (void)ignore;
     alloct = allocs = programBreak;
 #ifdef CPM
     for (p = (int *)hashtab; p < (int *)&hashtab[HASHSIZE];)
@@ -3506,7 +3513,7 @@ void *alloc_mem(int size) {
 static char *heapBase;
 static char *heapTop;
 
-void *sbrk(int size) {
+void *sbrk(intptr_t size) {
     if (!heapBase && !(heapTop = heapBase = malloc(MAXHEAP)))
         fprintf(stderr, "can't allocate heap!!\n");
     if (heapTop + size >= heapBase + MAXHEAP)
