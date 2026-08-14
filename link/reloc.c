@@ -252,7 +252,7 @@ static void fixup(int offset, uint16_t relocType, uint32_t delta) {
         badFormat("illegal relocation size: %02x", relocType);
         return;
     }
-    if ((~nmask & nval) == 0 || (nval | nmask) == -1L) /* check overflow */
+    if ((~nmask & nval) == 0 || (nval | nmask) == ~0U) /* check overflow */
         return;
     simpleErr("Fixup overflow referencing %s %s", (relocType & RNAME) ? "symbol" : "psect",
               fixupName);

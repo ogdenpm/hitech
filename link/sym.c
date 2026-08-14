@@ -184,7 +184,7 @@ void symRecPass2() {
         case SF_NULL:
             if (flag & SF_GLOBAL)
                 break;
-
+            // fallthrough
         case SF_LINENO:
             if (psectSym != 0) {
                 if (!(psectSym->flags & SF_OVRLD))
@@ -193,7 +193,7 @@ void symRecPass2() {
                     val += psectSym->p.pinfo->linkPt;
             }
             u32tob(val, (uint8_t *)p);
-
+            // fallthrough
         case SF_STACK:
         case SF_REGNAM:
         case SF_FILNAM:
@@ -252,7 +252,7 @@ void symRecPass1() {
         case SF_NULL:
             if (!(flag & SF_GLOBAL)) /* skip local define names */
                 break;
-
+            // fallthrough
         case SF_COMM:
             defineSym(symName, psectSym, val, flag);
             break;

@@ -169,8 +169,8 @@ void writeRec(int type, uint16_t len, uint8_t *buf) {
  **************************************************************************/
 static void writeText() {
     uint8_t tmp[RECORD_HDR];
-    int textHdrLen;
-    int writeLen;
+    unsigned textHdrLen;
+    unsigned writeLen;
 
     if (curAddr < textRecPtr || endAddr <= curAddr)
         return;
@@ -218,9 +218,9 @@ void flushText() {
  8	wrRecord	ok++ (nau)
  **************************************************************************/
 void wrRecord() {
-    int len;
+    unsigned len;
 
-    len = (int)(nonTextRecPtr - nonTextRecBuf);
+    len = (unsigned)(nonTextRecPtr - nonTextRecBuf);
 
     if (nonTextRecBuf[RECORD_TYPE] == 0 || len == RECORD_HDR)
         return;

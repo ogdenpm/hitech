@@ -129,11 +129,11 @@ int main(int argc, char **argv) {
             case 'S':
             case 's': /* Strip symbol information from output file */
                 optS = 1;
-
+                // fallthrough
             case 'X':
             case 'x': /* Suppress local symbols in output file */
                 optX = 1;
-
+                // fallthrough
             case 'Z':
             case 'z':      /* Suppress trivial (compiler-generated) */
                 optZ = 1; /* symbols in the output file */
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
                     pOption    = "";
                 }
                 break;
-
+                // fallthrough
             case 'P':
             case 'p': /* Spec is a psectSym location specification */
                 if (psectLoc|| *pOption == '\0')
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
             case 'H':
             case 'h':
                 optH = 1;
-
+                // fallthrough
             case 'D':
             case 'd': /* Write a symbol file */
                 if (symFileName != 0)
