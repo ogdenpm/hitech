@@ -142,7 +142,7 @@ typedef unsigned long uint32_t;
 #define UNKNOWN  0x33 /* 51  "[a"	*/
 #define ENUM     0x34 /* 52  "[c"	*/
 #define EXPR     0x35 /* 53  "[e"	*/
-#define INIT     0x36 /* 54  "[i"	*/
+#define INIT     0x36 /* 54  "[regIdx"	*/
 #define STRUCT   0x37 /* 55  "[s"	*/
 #define UNION    0x38 /* 56  "[u"	*/
 #define VAR      0x39 /* 57  "[v"	*/
@@ -179,78 +179,103 @@ enum psect { P_BSS = 1, P_TEXT, P_DATA };
  */
 
 typedef struct node {
-    uint8_t a_c0;
-    uint8_t a_c1;
-    uint8_t a_c2; /* two bits used */
-    uint8_t a_c3[6];
-    uint8_t a_uc9[6];
-    uint8_t a_reg[6];
-    uint16_t a_i15;
-    struct member *pm; /* pointer to member */
+    uint8_t op; /* was a_c0: operator/token kind (CONST, IDOP, FCONST,
+                             USEREG, BFIELD, DOT, CONV, ADD, …)            */
+
+    uint8_t fragCount; /* was a_c1: number of codeFrag steps selected so far
+                                    by selectCodePattern (0..6)                    */
+
+    uint8_t evalOrder; /* was a_c2: 2-bit operand evaluation order flag
+                                    bit 0 = evaluate left before right
+                                    bit 1 = push right result, pop after left      */
+
+    uint8_t fragIdx[6]; /* was a_c3: per-step codeFrag[] index chosen by
+                                     selectCodePattern; read by emitNodeCodeFragments
+                                     and emitCodeTemplate                            */
+
+    uint8_t scratchReg[6]; /* was a_uc9: per-step scratch register index chosen by
+                                        selectCodePattern; read by computeUsedRegsForStep
+                                        and emitCodeTemplate                            */
+
+    uint8_t resultReg[6]; /* was a_reg: per-step result register index chosen by
+                                       selectCodePattern; used by emitTreeCode for
+                                       push/pop and by chooseResultRegister            */
+
+    uint16_t ptrFlags; /* was a_i15: pointer/indirection flags copied from
+                                    member indirFlags; 0 = not a pointer,
+                                    bit 0 = pointer level, bit 1 = function type   */
+
+    struct member *type; /* was pm:   type descriptor (member_t) for this node;
+                                      carries typeSize, StorageClass, indirFlags, typeDesc, …      */
+
     union {
-        long l;               /* long */
-        unsigned long ul;     /* unsigned long, to avoid cast*/
-        struct node *np[2];   /* node pair */
-        struct member *mp[2]; /* member pair */
-        struct {              /* string + int value */
-            char *s;
-            int v;
+        long l;               /* integer constant value                                */
+        unsigned long ul;     /* unsigned integer constant (avoids cast in comparisons)*/
+        struct node *np[2];   /* left [0] and right [1] child nodes                   */
+        struct member *mp[2]; /* symbol-table members (IDOP [0], BFIELD descriptor [1])*/
+        struct {
+            char *s; /* float constant string                                 */
+            int v;   /* associated local label number                         */
         } sv;
-    } info;
+    } val; /* was info */
 } node_t;
 
 typedef struct member {    /* Offset Member Description			*/
-    char *b_name;          /* +0   0 s_name Pointer to Name identifier 	*/
+    char *name;          /* +0   pointer to Name identifier 	*/
                            /* +1   1					*/
-    char b_class;          /* +2   2 s_class 0x16 - MEMBER 	*/
+    char symKind;          /* +2   2 s_class 0x16 - MEMBER 	*/
                            /*			      '4' -  ENUM	*/
                            /*			      '7' -  STRUCT 	*/
                            /*			      '8' -  UNION	*/
                            /*			      '9' - 		*/
                            /*			      'A' -  TYPE		*/
-    char b_sloc;           /* +3   3 s_strg Bits used: 0 0000001 -		*/
+    char storageFlags;           /* +3   3 s_strg Bits used: 0 0000001 -		*/
                            /*		            1 0000010 -	global?	*/
                            /*		            2 0000100 -		*/
                            /*		            3 0001000 -	register?*/
                            /*		            4 0010000 -		*/
-    uint8_t b_ndpth;       /* +4   4 s_ndpth Nesting depth of block	*/
-    uint8_t bWidth;          /* +5   5					*/
-    uint8_t bOffset;          /* +6   6					*/
-    struct member *b_next; /* +7   7					*/
+    uint8_t nestDepth;       /* +4   4 s_ndpth Nesting depth of block	*/
+    uint8_t bitWidth;          /* +5   5					*/
+    uint8_t bitOffset;          /* +6   6					*/
+    struct member *hashNext; /* +7   7					*/
                            /* +8   8					*/
-    uint16_t b_size;       /* +9   9 s_size Type size			*/
+    uint16_t typeSize;       /* +9   9 s_size Type size			*/
                            /* +A  10					*/
-    uint16_t b_nelem;      /* +B  11 s_nelem				*/
+    uint16_t elemCount;      /* +B  11 s_nelem				*/
                            /* +C  12					*/
-    uint16_t b_refl;       /* +D  13 s_refl				*/
+    uint16_t indirFlags;       /* +D  13 s_refl				*/
                            /* +E  14					*/
-    struct member *b_type; /* +F  15 s_type				*/
+    struct member *typeDesc; /* +F  15 s_type				*/
                            /* +10 16					*/
-    int b_off;             /* +11 17 s_alig Type alig  size stack frame	*/
+    int offset;             /* +11 17 s_alig Type alig  size stack frame	*/
                            /* +12 18					*/
     union {                /* +13 18  - +14 19 */
-        int16_t i;
+        int16_t regIdx;
         struct _memb {
             int16_t cnt;
             struct member *vals[1];
-        } * mlist;
+        } * memberList;
         struct _memi {
             int16_t cnt;
             int16_t vals[1];
-        } * ilist;
-    } b_memb;
-    char b_flag; /* +15 21	 type flag 0, 1, 2, 3, 4, 5,	*/
+        } * enumList;
+    } payload;
+    char StorageClass; /* +15 21	 type flag 0, 1, 2, 3, 4, 5,	*/
 } member_t;
 
 struct codeFrag_t {
-    char c_0;
-    char c_1;
-    char c_2;
-    char c_3;
-    uint8_t c_4;
-    uint8_t c_5;
-    char *p_6;
-    char *p_8;
+    char nodePredicateIdx;   /* was c_0: index into isPatternApplicable() predicate table   */
+    char resultRegClass;     /* was c_1: output/result register class constraint             */
+    char scratchRegClass;    /* was c_2: scratch register class mask (availability filter)  */
+    char emitClass;          /* was c_3: emit class: >= 'H' = recursive op code,
+                                         < 'H' = direct instruction type,
+                                         'E' = assign result reg from resultRegClass                   */
+    uint8_t leftTokenClass;  /* was c_4: left child token class for pattern matching        */
+    uint8_t rightTokenClass; /* was c_5: right child token class for pattern matching       */
+    char *emitTemplate;      /* was p_6: top-level assembly code template (emitNodeCodeFragments) */
+    char *regTemplate;       /* was p_8: register scan + child emit template
+                                         (selectCodePattern, computeUsedRegsForStep,
+                                          emitCodeTemplate)                                  */
 };
 
 /*
@@ -279,7 +304,7 @@ extern member_t *typeVar;              /* "v" - variable  	   */
 extern int lvlidx;                     /* Level nested function - leaveBlock, sub_1680 */
 
 extern int word_AFF8;            /* emitCodeTemplate, emitNodeCodeFragments */
-extern char byte_AFFA;           /* computeUsedRegsForStep, chooseResultRegister */
+extern char lastReferencedReg;           /* computeUsedRegsForStep, chooseResultRegister */
 extern int word_AFFB;            /* emitCodeTemplate, emitTreeCode */
 extern node_t *array_AFFD[0x14]; /* rewriteExprForCodegen, compileExpression */
 extern void *nodeFreeList;       /* sub_36E0, allocNode, releaseNodeFreeList */
@@ -311,8 +336,8 @@ extern struct codeFrag_t codeFrag[]; /* selectCodePattern, computeUsedRegsForSte
 
 extern uint16_t dopetab[72]; /*+selectCodePattern, sub_2B8A, emitCodeTemplate, emitTreeCode, cloneNodeTree, ... */
 extern char array_A94A[];    /*+selectCodePattern */
-extern int array_AAE8[];     /*+leaveBlock,  selectCodePattern, computeUsedRegsForStep, assignVariableToRegister, ... */
-extern uint8_t array_AB24[]; /*+computeUsedRegsForStep, emitCodeTemplate, mapRegisterAlias */
+extern int registerMaskById[];     /*+leaveBlock,  selectCodePattern, computeUsedRegsForStep, assignVariableToRegister, ... */
+extern uint8_t registerAliasBySuffix[]; /*+computeUsedRegsForStep, emitCodeTemplate, mapRegisterAlias */
 extern uint8_t array_AB54[]; /*+selectCompatibleRegister, findRegisterMatch */
 
 extern char *regNames[];
@@ -422,8 +447,6 @@ bool isStructValueNode(node_t *);
 uint16_t nodesize(node_t *); /*sub_3993*/
 node_t *foldConstantConversion(node_t *);
 void convertNodeToType(node_t *, node_t *);
-void evalUnsignedOperation(unsigned long *, long, int);
-void evalBinaryOperation(long *, long, int);
 node_t *rewriteExprForCodegen(node_t *);
 /* tree.c ----------------------------------------------------*/
 void compileExpression(node_t *);

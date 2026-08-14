@@ -25,7 +25,7 @@ member_t *typeVar;                            /* "v" - variable  	   */
 int lvlidx; /* Level nested function   */     /* leaveBlock, initializeTypesAndSymbols */
 
 int word_AFF8;            /* emitCodeTemplate, emitNodeCodeFragments */
-char byte_AFFA;           /* computeUsedRegsForStep, chooseResultRegister */
+char lastReferencedReg;           /* computeUsedRegsForStep, chooseResultRegister */
 int word_AFFB;            /* emitCodeTemplate, emitTreeCode */
 node_t *array_AFFD[0x14]; /* rewriteExprForCodegen, compileExpression */
 void *nodeFreeList;       /* sub_36E0, allocNode, releaseNodeFreeList */
@@ -832,17 +832,17 @@ char *regNames[] = {
 };
 
 /* clang-format off */
-int array_AAE8[]     = { 0,     1,    2,    4,    8,    0x10, 0x20, 0x40, 0x80, 0x100,    /* 0-9 */
+int registerMaskById[]     = { 0,     1,    2,    4,    8,    0x10, 0x20, 0x40, 0x80, 0x100,    /* 0-9 */
                          0x200, 1,    6,    0x18, 0x60, 0x78, 0x66, 0x7E, 0x7F, 0,        /* 10-19 */
                          0x79,  0x61, 0x19, 7,    0x7E, 0x1E, 0x3F, 0x3E, 0x7F, 0x1E };   /* 20-29 */
 
-uint8_t array_AB24[] = { 0,  0,  0,  0,  0,  0,  0,  0,  0, 0,
+uint8_t registerAliasBySuffix[] = { 0,  0,  0,  0,  0,  0,  0,  0,  0, 0,
                          0,  0,  0,  0,  0,  0,  0,  0,  0, 0,
                          0,  0,  1,  0,  2,  3,  4,  5,  6, 7,   
                          13, 14, 12, 14, 12, 15, 1,  17, 0, 0,
                          15, 1,  14, 1,  13, 1,  12, 1 };
 
-uint8_t array_AB54[] = { 14, 13, 12, 0, 0, 0,         /* groups of 6 bytes, each is index into array_AAE8 */
+uint8_t array_AB54[] = { 14, 13, 12, 0, 0, 0,         /* groups of 6 bytes, each is index into registerMaskById */
                          13, 12, 0,  0, 0, 0,
                          1,  4,  5,  2, 3, 6,
                          4,  5,  2,  3, 6, 0,
@@ -1007,11 +1007,11 @@ static int16_t array_9BD4[] = {
  * it is split out separately
  *********************************************************/
 int lookupPatternRule(int a, int b) {
-    int i;
+    int regIdx;
 
-    for (i = array_987D[b]; array_990D[i] != 0 && array_990D[i] != a; i++)
+    for (regIdx = array_987D[b]; array_990D[regIdx] != 0 && array_990D[regIdx] != a; regIdx++)
         ;
-    return array_9BD4[i];
+    return array_9BD4[regIdx];
 }
 
 /* end of file lex1u.c */
@@ -1109,15 +1109,15 @@ member_t *getOrCreateSymbol(char *str) {
     /* In hash table, we look for pointer to    */
     l1b = gethashptr(str); /* entry in symbol table associated with    */
     /* scan for the matching name on the hash list */
-    for (sb = *l1b; sb; sb = sb->b_next)
-        if (strcmp(sb->b_name, str) == 0)
+    for (sb = *l1b; sb; sb = sb->hashNext)
+        if (strcmp(sb->name, str) == 0)
             return sb;
     /* not found so create new record & insert at head of list */
     sb         = allocMem(sizeof(member_t)); /* 22 bytes */
-    sb->b_next = *l1b;
-    sb->b_name = allocMem(strlen(str) + 1); /* effectively strdup */
-    strcpy(sb->b_name, str);
-    sb->b_ndpth = (uint8_t)nstdpth;
+    sb->hashNext = *l1b;
+    sb->name = allocMem(strlen(str) + 1); /* effectively strdup */
+    strcpy(sb->name, str);
+    sb->nestDepth = (uint8_t)nstdpth;
     *l1b        = sb;
 
     return sb; /* position and return pointer to record.   */
@@ -1179,7 +1179,7 @@ char *getToken() {
  *   Added 0 parameter to allocateOrEmitVariable function call to
  *   match number and types actual and formal parameters
  *   this function.
- *   Modified code to get sb->b_next before freeing sb
+ *   Modified code to get sb->hashNext before freeing sb
  *   Other than code changes to handle the above, the code is identical
  *********************************************************/
 /* remove and free up items which have got out of scope */
@@ -1199,42 +1199,42 @@ void leaveBlock() {
         newlist = 0;
         /* note with the fixed handling of free, this could be converted to a for loop */
         sb = *pHashEntry;
-        while (sb && sb->b_ndpth == nstdpth) {
-            if (sb->b_class == VAR) {
-                if (sb->b_flag == 2)
-                    word_B017 |= array_AAE8[sb->b_memb.i];
-                if (sb->b_flag == 4 || sb->b_flag == 3)
+        while (sb && sb->nestDepth == nstdpth) {
+            if (sb->symKind == VAR) {
+                if (sb->StorageClass == 2)
+                    word_B017 |= registerMaskById[sb->payload.regIdx];
+                if (sb->StorageClass == 4 || sb->StorageClass == 3)
                     allocateOrEmitVariable(sb, 0); /* Add parameter 0! */
-                if (0 < nstdpth && sb->b_flag == 3) {
-                    next       = sb->b_next;
-                    sb->b_next = newlist;
+                if (0 < nstdpth && sb->StorageClass == 3) {
+                    next       = sb->hashNext;
+                    sb->hashNext = newlist;
                     newlist    = sb;
-                    sb->b_ndpth--;
+                    sb->nestDepth--;
                     sb = next;
                     continue;
                 }
             }
 
-            free(sb->b_name);
+            free(sb->name);
 
-            if (sb->b_class == UNION || sb->b_class == STRUCT) {
-                l6 = sb->b_memb.mlist->cnt;
-                l5 = sb->b_memb.mlist->vals;
+            if (sb->symKind == UNION || sb->symKind == STRUCT) {
+                l6 = sb->payload.memberList->cnt;
+                l5 = sb->payload.memberList->vals;
                 while (l6-- != 0)
                     free(*l5++);
-                free(sb->b_memb.mlist);
+                free(sb->payload.memberList);
             }
-            /*  code modified to get sb->b_next before freeing sb !!!*/
-            next = sb->b_next;
+            /*  code modified to get sb->hashNext before freeing sb !!!*/
+            next = sb->hashNext;
             free(sb);
-            /* sb = sb->b_next original code relied on b_next not being at start of block !!!*/
+            /* sb = sb->hashNext original code relied on hashNext not being at start of block !!!*/
             sb = next;
         }
         if (newlist) {                 /* if l3b list exists add to end */
             *(pHashEntry++) = newlist; /* set hash table to the l3b list */
-            while (newlist->b_next)
-                newlist = newlist->b_next; /* m14: */
-            newlist->b_next = sb;
+            while (newlist->hashNext)
+                newlist = newlist->hashNext; /* m14: */
+            newlist->hashNext = sb;
         } else
             *(pHashEntry++) = sb; /* else initialise hash table entry with new item  */
     } while (--l2 != 0);
@@ -1243,9 +1243,9 @@ void leaveBlock() {
     if (lvlidx >= 0) {
         if (array_AE57[lvlidx] == nstdpth) {
             sb = array_AEDB[lvlidx];
-            if (sb->b_type->b_class == STRUCT && (sb->b_refl & 4) == 0)
-                emitStructCopy(sb->b_off, sb->b_size);
-            prFrameTail(sb->b_off, array_AE13[lvlidx]);
+            if (sb->typeDesc->symKind == STRUCT && (sb->indirFlags & 4) == 0)
+                emitStructCopy(sb->offset, sb->typeSize);
+            prFrameTail(sb->offset, array_AE13[lvlidx]);
             lvlidx--;
             word_B017 = 0x17F;
         }
@@ -1392,7 +1392,7 @@ void parseData() {
 /*********************************************************
  * sub_808 OK++ PMO				 Used in: sub_B19
  * code identical except for where the original code had
- * l = l4b->bOffset immediately followed
+ * l = l4b->bitOffset immediately followed
  * by hl = 0. The useless l = l4b->b-b6 code is no longer there
  * Note there appears to be a problem with hitech code generation
  * around << of a long value
@@ -1409,28 +1409,28 @@ int emitInitializerData(register member_t *sb, node_t *p2a) {
     node_t *l6a FORCEINIT; // 
 
     l1 = 0;
-    if (p2a->a_c0 == COLON_U) {
+    if (p2a->op == COLON_U) {
         freeNodeTree(p2a);
         l5 = 0;
-        if (sb->b_class == STRUCT) {
+        if (sb->symKind == STRUCT) {
             l3b = sb;
-            while ((p2a = parseExpr())->a_c0 != DOT_DOT) {
-                if ((l2 = getTypeAlignment(l4b = l3b->b_memb.mlist->vals[l5++])) != 0 && l1 % ++l2 != 0) {
+            while ((p2a = parseExpr())->op != DOT_DOT) {
+                if ((l2 = getTypeAlignment(l4b = l3b->payload.memberList->vals[l5++])) != 0 && l1 % ++l2 != 0) {
                     l2 -= l1 % l2;
                     l1 += l2;
                     prDefb0s(l2); /* emit defb 0 to pad to item boundary */
                 }
-                if (l4b->b_sloc & 0x10) {
-                    p2a = makeOpNode(BAND, p2a, makeConstNode((1L << (int8_t)(l4b->bWidth)) - 1L));
-                    if (l4b->bOffset != 0)
-                        /* PMO: bug fix, replaced 0L arg to makeConstNode with bit offset l4b->bOffset*/
-                        l6a = makeOpNode(BOR, l6a, makeOpNode(LSHIFT, p2a, makeConstNode(l4b->bOffset)));
+                if (l4b->storageFlags & 0x10) {
+                    p2a = makeOpNode(BAND, p2a, makeConstNode((1L << (int8_t)(l4b->bitWidth)) - 1L));
+                    if (l4b->bitOffset != 0)
+                        /* PMO: bug fix, replaced 0L arg to makeConstNode with bit offset l4b->bitOffset*/
+                        l6a = makeOpNode(BOR, l6a, makeOpNode(LSHIFT, p2a, makeConstNode(l4b->bitOffset)));
                     else
                         l6a = p2a;
 
-                    if (l5 != l3b->b_memb.mlist->cnt &&
-                        (l3b->b_memb.mlist->vals[l5]->b_sloc & 0x10) &&
-                        l3b->b_memb.mlist->vals[l5]->b_off == l4b->b_off)
+                    if (l5 != l3b->payload.memberList->cnt &&
+                        (l3b->payload.memberList->vals[l5]->storageFlags & 0x10) &&
+                        l3b->payload.memberList->vals[l5]->offset == l4b->offset)
                         continue;
                     p2a = l6a;
                 }
@@ -1439,11 +1439,11 @@ int emitInitializerData(register member_t *sb, node_t *p2a) {
 
             freeNodeTree(p2a);
         } else {
-            l3b = sb->b_type;
+            l3b = sb->typeDesc;
             for (;;) {
-                if ((p2a = parseExpr())->a_c0 == COLON_U)
+                if ((p2a = parseExpr())->op == COLON_U)
                     l1 += emitInitializerData(l3b, p2a);
-                else if (p2a->a_c0 == DOT_DOT) {
+                else if (p2a->op == DOT_DOT) {
                     freeNodeTree(p2a);
                     break;
                 } else {
@@ -1457,10 +1457,10 @@ int emitInitializerData(register member_t *sb, node_t *p2a) {
         l1  = nodesize(p2a);
         generateCodeForExpr(p2a);
     }
-    if (l1 < sb->b_size) {
-        prDefb0s(sb->b_size - l1);
-        l1 = sb->b_size;
-    } else if (sb->b_size < l1 && sb->b_size != 0)
+    if (l1 < sb->typeSize) {
+        prDefb0s(sb->typeSize - l1);
+        l1 = sb->typeSize;
+    } else if (sb->typeSize < l1 && sb->typeSize != 0)
         prError("Too many initializers");
 
     return l1; /* m15: */
@@ -1478,10 +1478,10 @@ void parseInit() {
     prPsect(P_DATA);
     emitSymbolLabel(sb); /* Emit "symbolic_name:" (identifier label) */
     l1 = emitInitializerData(sb, parseExpr());
-    l2 = sb->b_refl ? 2 : sb->b_type->b_size;
-    if (sb->b_nelem == 0) { /* make sure nelem is set */
-        sb->b_nelem = l1 / l2;
-        sb->b_size  = computeVarSize(sb);
+    l2 = sb->indirFlags ? 2 : sb->typeDesc->typeSize;
+    if (sb->elemCount == 0) { /* make sure nelem is set */
+        sb->elemCount = l1 / l2;
+        sb->typeSize  = computeVarSize(sb);
     }
     expect(']');
 }
@@ -1533,8 +1533,8 @@ void emitStructCopy(int kId, int size) {
  *********************************************************/
 void prGlobalDef(register member_t *sb) {
 
-    printf("global\t%s\n", sb->b_name);
-    sb->b_sloc |= 2;
+    printf("global\t%s\n", sb->name);
+    sb->storageFlags |= 2;
 }
 
 /*********************************************************
@@ -1542,12 +1542,12 @@ void prGlobalDef(register member_t *sb) {
  *********************************************************/
 void emitBssDefinition(register member_t *sb) {
 
-    if ((sb->b_sloc & 1) == 0 && sb->b_nelem != 0 && (sb->b_refl & 2) == 0) {
+    if ((sb->storageFlags & 1) == 0 && sb->elemCount != 0 && (sb->indirFlags & 2) == 0) {
         prPsect(P_BSS);
-        if (sb->b_flag == 3 && (sb->b_sloc & 2) == 0)
+        if (sb->StorageClass == 3 && (sb->storageFlags & 2) == 0)
             prGlobalDef(sb); /* Emit "global name" */
         emitSymbolLabel(sb);         /* Emit "symbolic_name:" (identifier label) */
-        printf("\tdefs\t%u\n", sb->b_size);
+        printf("\tdefs\t%u\n", sb->typeSize);
     }
 }
 
@@ -1558,10 +1558,10 @@ void emitBssDefinition(register member_t *sb) {
  *********************************************************/
 void emitSymbolLabel(register member_t *sb) {
 
-    if ((sb->b_sloc & 2) == 0 && sb->b_flag == 3)
+    if ((sb->storageFlags & 2) == 0 && sb->StorageClass == 3)
         prGlobalDef(sb); /* Emit "global name" */
-    sb->b_sloc |= 1;
-    printf("%s:\n", sb->b_name);
+    sb->storageFlags |= 1;
+    printf("%s:\n", sb->name);
 }
 
 /*********************************************************
@@ -1656,7 +1656,7 @@ void parseSwitch() {
     for (;;) {
         sa        = optimizeExpression(parseExpr());
         codeLabel = atoi(getToken());
-        if (sa->a_c0 == DOT_DOT) { /* end of switch block */
+        if (sa->op == DOT_DOT) { /* end of switch block */
             defaultCodeLabel = codeLabel;
             freeNode(sa);
             expect(']');
@@ -1667,8 +1667,8 @@ void parseSwitch() {
             printf("jp\tl%d\n", defaultCodeLabel);
             return;
         }
-        if (sa->a_c0 == CONST) { /* only constants allowed */
-            caseVals[caseCnt]     = sa->info.l;
+        if (sa->op == CONST) { /* only constants allowed */
+            caseVals[caseCnt]     = sa->val.l;
             codeLabels[caseCnt++] = codeLabel;
         } else
             prError("Non-constant case label");
@@ -1683,15 +1683,15 @@ void parseSwitch() {
            even if it is shorter
         */
         sa        = allocNode();
-        sa->a_c0  = TYPE;
-        sa->pm    = l1a->pm;
-        sa->a_i15 = l1a->a_i15;
+        sa->op  = TYPE;
+        sa->type    = l1a->type;
+        sa->ptrFlags = l1a->ptrFlags;
         sa        = makeOpNode(CONV, makeConstNode(caseVals[0]), sa);
         sa        = makeOpNode(SUB, l1a, sa);
         if (nodesize(sa) != 2) {
             l1a       = allocNode();
-            l1a->a_c0 = TYPE;
-            l1a->pm   = getOrCreateSymbol("us");
+            l1a->op = TYPE;
+            l1a->type   = getOrCreateSymbol("us");
             sa        = makeOpNode(CONV, sa, l1a);
         }
         prPsect(P_TEXT);
@@ -1811,7 +1811,7 @@ void emitCompareWithA(int par) {
     if (par)
         printf("cp\t%d\n", par);
     else
-        printf("or\ta\n"); /* if par == 0 then "or a" */
+        printf("or\ta\n"); /* if stepIndex == 0 then "or a" */
 }
 
 /*********************************************************
@@ -1856,7 +1856,7 @@ void prIXnPush(register member_t *sb) {
            "ld\th,(ix+%d)\n"
            "push\thl\n"
            "pop\tiy\n",
-           sb->b_off, sb->b_off + 1);
+           sb->offset, sb->offset + 1);
 }
 
 /*********************************************************
@@ -1867,13 +1867,13 @@ void prIXnPush(register member_t *sb) {
  *********************************************************/
 uint8_t getTypeClass(register node_t *sa) {
 
-    if (sa->a_i15 & 2)
+    if (sa->ptrFlags & 2)
         return 0;
-    if (sa->a_i15 != 0)
+    if (sa->ptrFlags != 0)
         return 2;
-    if (sa->pm->b_nelem > 1)
+    if (sa->type->elemCount > 1)
         return 0;
-    return sa->pm->b_flag;
+    return sa->type->StorageClass;
 }
 
 /*********************************************************
@@ -1931,17 +1931,17 @@ void prJump(int p) {
 void setEnumStorageType(register member_t *sb, int p2, int p3) {
 
     if (p2 >= 0) {
-        sb->b_flag = 2;
+        sb->StorageClass = 2;
         if (p3 <= 255)
-            sb->b_size = 1;
+            sb->typeSize = 1;
         else
-            sb->b_size = 2;
+            sb->typeSize = 2;
     } else {
-        sb->b_flag = 1;
+        sb->StorageClass = 1;
         if (p3 <= 127 && p2 >= -128)
-            sb->b_size = 1;
+            sb->typeSize = 1;
         else
-            sb->b_size = 2;
+            sb->typeSize = 2;
     }
 }
 
@@ -1993,10 +1993,10 @@ void initializeTypesAndSymbols() {
     tp  = vars;
     do {
         sb          = getOrCreateSymbol(tp->t_str);
-        sb->b_class = TYPE;
-        sb->b_off   = tp->t_alig;
-        sb->b_size  = tp->t_size;
-        sb->b_flag  = tp->t_flag;
+        sb->symKind = TYPE;
+        sb->offset   = tp->t_alig;
+        sb->typeSize  = tp->t_size;
+        sb->StorageClass  = tp->t_flag;
         tp++;
     } while (--cnt != 0);
 
@@ -2030,22 +2030,22 @@ member_t *getOrCreateScopedSymbol(char *token, uint8_t cls) {
 
     sb = getOrCreateSymbol(token);                          /* Set pointer to struct associated with   */
                                                   /* pointer to token.			   */
-    if (sb->b_ndpth != nstdpth) {                 /* If nesting depth not correspond current,*/
+    if (sb->nestDepth != nstdpth) {                 /* If nesting depth not correspond current,*/
         l1b        = gethashptr(token);           /* Get pointer to pointer to struct from   */
         sb         = allocMem(sizeof(member_t));  /* hash table. Create new struct and save  */
-        sb->b_next = *l1b;                        /* pointer to struct from hash table in    */
+        sb->hashNext = *l1b;                        /* pointer to struct from hash table in    */
                                                   /* struct as associated with it. 	   */
         *l1b = sb;                                /* Save pointer to this struct in current  */
                                                   /* position hash table.			   */
-        sb->b_name = allocMem(strlen(token) + 1); /* Get memory address allocated for token  */
+        sb->name = allocMem(strlen(token) + 1); /* Get memory address allocated for token  */
                                                   /* and assign it to corresponding member.  */
-        strcpy(sb->b_name, token);                /* Copy specified token to this address.   */
-        sb->b_ndpth = (uint8_t)nstdpth;           /* Save current nesting depth in struct    */
+        strcpy(sb->name, token);                /* Copy specified token to this address.   */
+        sb->nestDepth = (uint8_t)nstdpth;           /* Save current nesting depth in struct    */
                                                   /*
                                                         if(++symcnt > dynmem)   dynmem = symcnt;
                                                   */
     }
-    sb->b_class = cls;
+    sb->symKind = cls;
     return sb;
 }
 /* end of code.c */
@@ -2056,7 +2056,7 @@ member_t *getOrCreateScopedSymbol(char *token, uint8_t cls) {
  * sub_17E0 OK++ PMO			Used in: sub_6D1, sub_4192
  *
  * Two related Basic Blocks moved and one optimisation
- * loading a from l rather then sb->b_size
+ * loading a from l rather then sb->typeSize
  *********************************************************/
 void parseVariable() {
     node_t *l1a;
@@ -2064,11 +2064,11 @@ void parseVariable() {
     register member_t *sb;
 
     sb         = getOrCreateScopedSymbol(getToken(), VAR);
-    sb->b_type = parseTypeWithIndirection(getToken(), &sb->b_refl);
+    sb->typeDesc = parseTypeWithIndirection(getToken(), &sb->indirFlags);
     l1a        = optimizeExpression(parseExpr());
-    if (l1a->a_c0 != CONST)
+    if (l1a->op != CONST)
         fatalErr("Bad element count expr");
-    sb->b_nelem = (uint16_t)l1a->info.l;
+    sb->elemCount = (uint16_t)l1a->val.l;
     freeNodeTree(l1a);
     l2 = *getToken();
     expect(']');
@@ -2076,50 +2076,51 @@ void parseVariable() {
     switch (l2) {
     case 'A': /* auto		*/
     case 'a':
-        sb->b_flag = 1;
+        sb->StorageClass = 1;
         break;
     case 'R': /* register	*/
     case 'r':
-        sb->b_sloc |= 8;
+        sb->storageFlags |= 8;
+        // fall through
     case 'P': /* pointer	*/
     case 'p':
-        sb->b_flag = 5;
+        sb->StorageClass = 5;
         break;
     case 'S': /* static 	*/
     case 's':
-        sb->b_flag = 4;
+        sb->StorageClass = 4;
         break;
     case 'E': /* extern	*/
     case 'e':
-        sb->b_flag = 3;
+        sb->StorageClass = 3;
         break;
     case 'T': /* typedef	*/
     case 't':
-        sb->b_class = TYPE;
-        if (sb->b_refl != 0) {
-            sb->b_off  = 0;
-            sb->b_flag = 2;
+        sb->symKind = TYPE;
+        if (sb->indirFlags != 0) {
+            sb->offset  = 0;
+            sb->StorageClass = 2;
         } else {
-            sb->b_off  = sb->b_type->b_off;
-            sb->b_flag = sb->b_type->b_flag;
+            sb->offset  = sb->typeDesc->offset;
+            sb->StorageClass = sb->typeDesc->StorageClass;
         }
-        if (sb->b_nelem != 1)
-            sb->b_flag = 0;
+        if (sb->elemCount != 1)
+            sb->StorageClass = 0;
         break;
     default:
         fatalErr("Bad storage class");
     }
-    sb->b_size = computeVarSize(sb);
-    if (sb->b_class != TYPE) {
-        if (sb->b_refl == 0 && sb->b_size == 0 && sb->b_type->b_size == 0)
+    sb->typeSize = computeVarSize(sb);
+    if (sb->symKind != TYPE) {
+        if (sb->indirFlags == 0 && sb->typeSize == 0 && sb->typeDesc->typeSize == 0)
             prError("Bad dimensions");
 
-        if (sb->b_flag == 5 || sb->b_flag == 1)
+        if (sb->StorageClass == 5 || sb->StorageClass == 1)
             allocateOrEmitVariable(sb, l2);
         else
-            sb->b_off = newLocal(); /* swTableCnt++ */
+            sb->offset = newLocal(); /* swTableCnt++ */
 
-        if ((sb->b_refl & 0x2) && sb->b_nelem != 0) {
+        if ((sb->indirFlags & 0x2) && sb->elemCount != 0) {
             if (++lvlidx == MAXFUN)
                 fatalErr("Functions nested too deep");
 
@@ -2146,49 +2147,54 @@ typedef struct {
  * One minor optimisation as getOrCreateScopedSymbol now declared as taking
  * a uint8_t rather than int for last parameter
  *********************************************************/
-void parseMembers(int p1) {
+void parseMembers(int typeKind) {
+    size_t memberListSize;
+    member_t *aggregateType;
+    memberb_t *memberList;
+    node_t *elemCountExpr;
+    char *tokenText;
+    memberb_t memberListBuffer;
+    register member_t *member;
 
-    size_t size;
-    member_t *l2b;
-    memberb_t *pMember;
-    node_t *l4a;
-    char *l5;
-    memberb_t members;
-    register member_t *sb;
+    aggregateType   = getOrCreateScopedSymbol(getToken(), typeKind);
+    memberList      = &memberListBuffer;
+    memberList->cnt = 0;
 
-    l2b          = getOrCreateScopedSymbol(getToken(), p1);
-    pMember      = &members;
-    pMember->cnt = 0;
     for (;;) {
-        l5 = getToken();
-        if (*l5 == ']')
+        tokenText = getToken();
+        if (*tokenText == ']')
             break;
-        sb          = (member_t *)allocMem(sizeof(member_t)); /* Create member_t */
-        sb->b_class = MEMBER;
-        if (*l5 == ':') {
-            sb->bWidth = atoi(l5 + 1);
-            sb->b_sloc |= 0x10;
-            l5 = getToken();
+
+        member          = (member_t *)allocMem(sizeof(member_t));
+        member->symKind = MEMBER;
+
+        if (*tokenText == ':') {
+            member->bitWidth = atoi(tokenText + 1);
+            member->storageFlags |= 0x10;
+            tokenText = getToken();
         }
-        sb->b_type = parseTypeWithIndirection(l5, &sb->b_refl);
-        l4a        = optimizeExpression(parseExpr());
-        if (l4a->a_c0 != CONST)
+
+        member->typeDesc = parseTypeWithIndirection(tokenText, &member->indirFlags);
+        elemCountExpr    = optimizeExpression(parseExpr());
+        if (elemCountExpr->op != CONST)
             fatalErr("Strucdecl - bad\tnelem");
-        sb->b_nelem = (uint16_t)l4a->info.l;
-        freeNodeTree(l4a);
-        sb->b_size                    = computeVarSize(sb);
-        pMember->vals[pMember->cnt++] = sb;
+
+        member->elemCount = (uint16_t)elemCountExpr->val.l;
+        freeNodeTree(elemCountExpr);
+        member->typeSize                    = computeVarSize(member);
+        memberList->vals[memberList->cnt++] = member;
     }
     /* note in the size calculation below an extra member_t pointer is reserved
      * in the decompilation I have assumed struct _memb (defined in struct bbb)
      * used a dummy array size of [1] for the vals, this gives the extra pointer
      */
-    size    = (pMember->cnt - 1) * sizeof(member_t *) + sizeof(struct _memb);
-    pMember = allocMem(size);
-    bmove(&members, pMember, size);
-    l2b->b_memb.mlist = (struct _memb *)pMember;
-    finalizeStructOrUnionLayout(l2b);
+    memberListSize = (memberList->cnt - 1) * sizeof(member_t *) + sizeof(struct _memb);
+    memberList     = allocMem(memberListSize);
+    bmove(&memberListBuffer, memberList, memberListSize);
+    aggregateType->payload.memberList = (struct _memb *)memberList;
+    finalizeStructOrUnionLayout(aggregateType);
 }
+
 
 /*********************************************************
  * sub_1B0C OK++ PMO		Used in: sub_6D1, sub_4192
@@ -2219,24 +2225,24 @@ void parseEnum() {
     pMember->cnt = 0;
     for (;;) {
         l1a = parseExpr();
-        if (l1a->a_c0 == DOT_DOT) {
+        if (l1a->op == DOT_DOT) {
             freeNodeTree(l1a);
             size    = (pMember->cnt - 1) * sizeof(uint16_t) + sizeof(struct _memi);
             pMember = allocMem(size);
             bmove(&members, pMember, size);
-            sb->b_memb.ilist = (struct _memi *)pMember;
+            sb->payload.enumList = (struct _memi *)pMember;
             setEnumStorageType(sb, hibnd, lobnd);
             expect(']');
             return;
         }
         l1a                           = optimizeExpression(l1a);
 
-        pMember->vals[pMember->cnt++] = (uint16_t)l1a->info.l;
+        pMember->vals[pMember->cnt++] = (uint16_t)l1a->val.l;
 
-        if (lobnd < l1a->info.l)
-            lobnd = l1a->info.l;
-        if (l1a->info.l < hibnd)
-            hibnd = l1a->info.l;
+        if (lobnd < l1a->val.l)
+            lobnd = l1a->val.l;
+        if (l1a->val.l < hibnd)
+            hibnd = l1a->val.l;
         freeNodeTree(l1a);
     }
 }
@@ -2254,9 +2260,9 @@ int alignUpByMask(int p1, int p2) {
  *********************************************************/
 int computeVarSize(register member_t *sb) {
 
-    if (sb->b_refl & 1)
-        return sb->b_nelem * 2;
-    return sb->b_type->b_size * sb->b_nelem;
+    if (sb->indirFlags & 1)
+        return sb->elemCount * 2;
+    return sb->typeDesc->typeSize * sb->elemCount;
 }
 
 /*********************************************************
@@ -2264,57 +2270,61 @@ int computeVarSize(register member_t *sb) {
  *********************************************************/
 int getTypeAlignment(register member_t *sb) {
 
-    if (sb->b_refl != 0)
+    if (sb->indirFlags != 0)
         return 0;
-    return sb->b_type->b_off;
+    return sb->typeDesc->offset;
 }
 
 /*********************************************************
  * sub_1CEF OK++ PMO			Used in: sub_19C1
  *********************************************************/
-void finalizeStructOrUnionLayout(register member_t *sb) {
-    int l1;
-    int l2;
-    int l3;
-    member_t *l4b;
-    l1 = 0;
+void finalizeStructOrUnionLayout(register member_t *aggregateType) {
+    int layoutSize;
+    int memberIndex;
+    int bitOffsetInWord;
+    member_t *member;
 
-    for (l2 = l3 = 0; l2 != sb->b_memb.mlist->cnt; l2++) {
+    layoutSize = 0;
 
-        l4b = sb->b_memb.mlist->vals[l2];
-        if (sb->b_class == UNION) {
-            l1         = max(l1, l4b->b_size);
-            l4b->b_off = 0;
+    for (memberIndex = bitOffsetInWord = 0; memberIndex != aggregateType->payload.memberList->cnt;
+         memberIndex++) {
+
+        member = aggregateType->payload.memberList->vals[memberIndex];
+        if (aggregateType->symKind == UNION) {
+            layoutSize     = max(layoutSize, member->typeSize);
+            member->offset = 0;
         } else {
-            l1 = l4b->b_off = alignUpByMask(l1, getTypeAlignment(l4b));
-            if (l4b->b_sloc & 0x10) {
-                if (16 < l3 + l4b->bWidth || l4b->bWidth == 0) {
-                    if (l3 != 0)
-                        l4b->b_off = (l1 += 2);
-                    l3 = 0;
+            layoutSize = member->offset = alignUpByMask(layoutSize, getTypeAlignment(member));
+            if (member->storageFlags & 0x10) {
+                if (16 < bitOffsetInWord + member->bitWidth || member->bitWidth == 0) {
+                    if (bitOffsetInWord != 0)
+                        member->offset = (layoutSize += 2);
+                    bitOffsetInWord = 0;
                 }
-                l4b->bOffset = l3;
-                l3 += l4b->bWidth;
-                if (l3 == 32) {
-                    l3 = 0;
-                    l1 += 2;
+                member->bitOffset = bitOffsetInWord;
+                bitOffsetInWord += member->bitWidth;
+                if (bitOffsetInWord == 32) {
+                    bitOffsetInWord = 0;
+                    layoutSize += 2;
                 }
             } else {
-                if (l3 != 0) {
-                    l3         = 0;
-                    l4b->b_off = (l1 += 2);
+                if (bitOffsetInWord != 0) {
+                    bitOffsetInWord = 0;
+                    member->offset  = (layoutSize += 2);
                 }
-                l1 += l4b->b_size;
+                layoutSize += member->typeSize;
             }
         }
     }
-    if (l3 != 0) {
-        l3 = 0;
-        l1 += 2;
+
+    if (bitOffsetInWord != 0) {
+        bitOffsetInWord = 0;
+        layoutSize += 2;
     }
-    sb->b_size  = alignUpByMask(l1, 0); /* m10: */
-    sb->b_off   = 0;
-    sb->b_class = STRUCT;
+
+    aggregateType->typeSize = alignUpByMask(layoutSize, 0);
+    aggregateType->offset   = 0;
+    aggregateType->symKind  = STRUCT;
 }
 
 /*********************************************************
@@ -2326,8 +2336,8 @@ void emitRegisterVarLoads() {
 
     l1b = hashtab;
     do {
-        for (sb = *l1b; sb != 0 && sb->b_ndpth == nstdpth; sb = sb->b_next)
-            if (sb->b_class == VAR && sb->b_flag == 2 && (sb->b_sloc & 4))
+        for (sb = *l1b; sb != 0 && sb->nestDepth == nstdpth; sb = sb->hashNext)
+            if (sb->symKind == VAR && sb->StorageClass == 2 && (sb->storageFlags & 4))
                 prIXnPush(sb);
     } while (++l1b != &hashtab[HASHTABSIZE]);
 }
@@ -2345,8 +2355,8 @@ void emitRegisterVarLoads() {
 */
 #ifndef TOPBIT
 #define TOPBIT 0x8000
-#define TopBitSet(n) ((n)&TOPBIT)
-#define MapVal(n) (TopBitSet(n)?~(n):array_AAE8[n])
+#define TopBitSet(selectedReg) ((selectedReg)&TOPBIT)
+#define MapVal(selectedReg) (TopBitSet(selectedReg)?~(selectedReg):registerMaskById[selectedReg])
 #endif
 /* clang-format on */
 static int array_A162[] = {
@@ -2380,176 +2390,176 @@ static int array_A162[] = {
  * identical
  * Note needs standalone ported optimiser to optimise
  *********************************************************/
-int selectCodePattern(node_t *p1a, int p2, int p3, int p4, int *p5) {
-    int l1, l2, l3, l4, l5, l6;
-    uint16_t l7, l8;
-    register struct codeFrag_t *sz;
-    static int i; /* afed */
-    static char *s;
-    static char *t;
-    static char ch;
-    static int m;
-    static int n;
+int selectCodePattern(node_t *node, int patternClass, int availableRegs, int requiredResult, int *usedRegsOut) {
+    int ruleIndex, leftUsedRegs, rightUsedRegs, rightLiveRegs, currentRuleIndex, resultConstraint;
+    uint16_t righRequiredResult, leftUsedMask;
+    register struct codeFrag_t *frag;
+    static int regIdx; /* afed */
+    static char *regTemplate;
+    static char *aliasSuffixes;
+    static char templateCode;
+    static int scratchCandidates;
+    static int selectedReg;
     // initialise to avoid warnings
-    l2 = l3 = 0;
+    leftUsedRegs = rightUsedRegs = 0;
 
-    if (p1a->a_c1 == 0)
-        p1a->a_c2 = 0;
-    if ((l1 = lookupPatternRule(p2, p1a->a_c0)) == 0)
+    if (node->fragCount == 0)
+        node->evalOrder = 0;
+    if ((ruleIndex = lookupPatternRule(patternClass, node->op)) == 0)
         return (-1);
 
-    if (p4 != 0 && TopBitSet(p4) == 0 && findRegisterMatch(p3, p4) == 0 &&
-        (p1a->a_c0 != USEREG || findRegisterMatch(array_AAE8[p1a->info.l], p4) == 0))
+    if (requiredResult != 0 && TopBitSet(requiredResult) == 0 && findRegisterMatch(availableRegs, requiredResult) == 0 &&
+        (node->op != USEREG || findRegisterMatch(registerMaskById[node->val.l], requiredResult) == 0))
         return (-1);
 
     do {
-        if (l1 > 0)
-            i = l5 = array_A162[l1++];
+        if (ruleIndex > 0)
+            regIdx = currentRuleIndex = array_A162[ruleIndex++];
         else
-            i = l5 = l1;
+            regIdx = currentRuleIndex = ruleIndex;
 
-        if (i < 0)
-            i = -i;
+        if (regIdx < 0)
+            regIdx = -regIdx;
 
-        sz = &codeFrag[i];
+        frag = &codeFrag[regIdx];
 
-        if (sz->c_2 != 0 && findRegisterMatch(p3, sz->c_2) == 0)
+        if (frag->scratchRegClass != 0 && findRegisterMatch(availableRegs, frag->scratchRegClass) == 0)
             continue;
 
-        if ((uint8_t)sz->c_3 < 'H' && sz->c_4 != 0 &&
-            (lookupPatternRule((uint8_t)sz->c_4, p1a->info.np[0]->a_c0) == 0 ||
-             (sz->c_5 != 0 && lookupPatternRule(sz->c_5, p1a->info.np[1]->a_c0) == 0)))
+        if ((uint8_t)frag->emitClass < 'H' && frag->leftTokenClass != 0 &&
+            (lookupPatternRule((uint8_t)frag->leftTokenClass, node->val.np[0]->op) == 0 ||
+             (frag->rightTokenClass != 0 && lookupPatternRule(frag->rightTokenClass, node->val.np[1]->op) == 0)))
             continue;
-        if (sz->c_0 != 0 && isPatternApplicable(p1a, sz->c_0) == 0)
+        if (frag->nodePredicateIdx != 0 && isPatternApplicable(node, frag->nodePredicateIdx) == 0)
             continue;
 
-        l6 = sz->c_1;
-        l7 = 0;
-        if (p4 == 0 && sz->c_3 == 'E')
-            p4 = sz->c_1;
+        resultConstraint = frag->resultRegClass;
+        righRequiredResult = 0;
+        if (requiredResult == 0 && frag->emitClass == 'E')
+            requiredResult = frag->resultRegClass;
 
-        if (p4 != 0 && (!TopBitSet(p4) || l6 == 0 || findRegisterMatch(p4 & 0x7fff, l6) != 0)) {
-            if ((s = sz->p_8) != 0) {
-                if (s[0] == 'L' && s[1] == 0)
-                    s = "GL";
-                while (*s) {
-                    ch = *s;
-                    if (ch == 'X' || ch == 'G' || (ch == 'S' && p1a->a_c0 == USEREG)) {
-                        if (isdigit(*++s))
-                            t = s;
+        if (requiredResult != 0 && (!TopBitSet(requiredResult) || resultConstraint == 0 || findRegisterMatch(requiredResult & 0x7fff, resultConstraint) != 0)) {
+            if ((regTemplate = frag->regTemplate) != 0) {
+                if (regTemplate[0] == 'L' && regTemplate[1] == 0)
+                    regTemplate = "GL";
+                while (*regTemplate) {
+                    templateCode = *regTemplate;
+                    if (templateCode == 'X' || templateCode == 'G' || (templateCode == 'S' && node->op == USEREG)) {
+                        if (isdigit(*++regTemplate))
+                            aliasSuffixes = regTemplate;
                         else
-                            t = 0;
-                        while (*s < 'A')
-                            s++;
-                        switch (*s) {
+                            aliasSuffixes = 0;
+                        while (*regTemplate < 'A')
+                            regTemplate++;
+                        switch (*regTemplate) {
                         case 'L':
-                            if ((l6 = mergeRegisterConstraints(l6, p4, p3, t)) == 0)
-                                l6 = -1;
+                            if ((resultConstraint = mergeRegisterConstraints(resultConstraint, requiredResult, availableRegs, aliasSuffixes)) == 0)
+                                resultConstraint = -1;
                             break;
                         case 'R':
-                            l7 = p4;
+                            righRequiredResult = requiredResult;
                             break;
                         case 'N':
-                            if (ch == 'S') {
-                                if (p1a->a_c0 == USEREG &&
-                                    mergeRegisterConstraints(l6, p4, array_AAE8[p1a->info.l], t) == 0)
-                                    l6 = -1;
-                            } else if (selectCompatibleRegister(p3, p4, sz->c_2) == 0 &&
-                                       (!TopBitSet(p4) || mergeRegisterConstraints(sz->c_2, p4, p3, t) == 0))
-                                l6 = -1;
+                            if (templateCode == 'S') {
+                                if (node->op == USEREG &&
+                                    mergeRegisterConstraints(resultConstraint, requiredResult, registerMaskById[node->val.l], aliasSuffixes) == 0)
+                                    resultConstraint = -1;
+                            } else if (selectCompatibleRegister(availableRegs, requiredResult, frag->scratchRegClass) == 0 &&
+                                       (!TopBitSet(requiredResult) || mergeRegisterConstraints(frag->scratchRegClass, requiredResult, availableRegs, aliasSuffixes) == 0))
+                                resultConstraint = -1;
                             break;
                         default:
                             continue;
                         }
                         break;
                     } else
-                        s++;
+                        regTemplate++;
                 }
-            } else if ((l6 = mergeRegisterConstraints(l6, p4, p3, 0)) == 0)
-                l6 = -1;
+            } else if ((resultConstraint = mergeRegisterConstraints(resultConstraint, requiredResult, availableRegs, 0)) == 0)
+                resultConstraint = -1;
         }
 
-        if (l6 == -1)
+        if (resultConstraint == -1)
             continue;
-        l4 = 0;
-        if ((uint8_t)sz->c_3 >= 'H') {
-            p1a->a_c1 = 0;
-            if (selectCodePattern(p1a, (uint8_t)sz->c_3, p3, l6, &l2) < 0) {
-                p1a->a_c1 = 0;
+        rightLiveRegs = 0;
+        if ((uint8_t)frag->emitClass >= 'H') {
+            node->fragCount = 0;
+            if (selectCodePattern(node, (uint8_t)frag->emitClass, availableRegs, resultConstraint, &leftUsedRegs) < 0) {
+                node->fragCount = 0;
                 continue;
             }
-        } else if (sz->c_4 != 0) {
-            p1a->info.np[0]->a_c1 = 0;
-            if (selectCodePattern(p1a->info.np[0], (uint8_t)sz->c_4, p3, l6, &l2) < 0)
+        } else if (frag->leftTokenClass != 0) {
+            node->val.np[0]->fragCount = 0;
+            if (selectCodePattern(node->val.np[0], (uint8_t)frag->leftTokenClass, availableRegs, resultConstraint, &leftUsedRegs) < 0)
                 continue;
-            if (sz->c_5 != 0) {
-                p1a->info.np[1]->a_c1 = 0;
-                l8                    = computeUsedRegs(p1a->info.np[0]);
-                if (l7 == 0) {
-                    if (sz->c_2 != 0)
-                        l7 = array_AAE8[(uint8_t)selectCompatibleRegister(p3, p4, sz->c_2)];
+            if (frag->rightTokenClass != 0) {
+                node->val.np[1]->fragCount = 0;
+                leftUsedMask                    = computeUsedRegs(node->val.np[0]);
+                if (righRequiredResult == 0) {
+                    if (frag->scratchRegClass != 0)
+                        righRequiredResult = registerMaskById[(uint8_t)selectCompatibleRegister(availableRegs, requiredResult, frag->scratchRegClass)];
                     else
-                        l7 = 0;
-                    l7 = (l8 | l7) ? (l8 | l7 | 0x8000) : 0;
+                        righRequiredResult = 0;
+                    righRequiredResult = (leftUsedMask | righRequiredResult) ? (leftUsedMask | righRequiredResult | 0x8000) : 0;
                 }
-                if (selectCodePattern(p1a->info.np[1], sz->c_5, p3, l7, &l3) < 0)
+                if (selectCodePattern(node->val.np[1], frag->rightTokenClass, availableRegs, righRequiredResult, &rightUsedRegs) < 0)
                     continue;
-                l4 = computeUsedRegs(p1a->info.np[1]);
-                if (l4 & l8) {
-                    p1a->info.np[1]->a_c1 = 0;
-                    if (selectCodePattern(p1a->info.np[1], sz->c_5, p3 & ~l8, l7, &l3) <= 0)
+                rightLiveRegs = computeUsedRegs(node->val.np[1]);
+                if (rightLiveRegs & leftUsedMask) {
+                    node->val.np[1]->fragCount = 0;
+                    if (selectCodePattern(node->val.np[1], frag->rightTokenClass, availableRegs & ~leftUsedMask, righRequiredResult, &rightUsedRegs) <= 0)
                         continue;
-                    l4 = computeUsedRegs(p1a->info.np[1]);
+                    rightLiveRegs = computeUsedRegs(node->val.np[1]);
                 }
-                if ((dopetab[p1a->a_c0] & 0x100) || (l4 & l2)) {
-                    if (l8 & l3) {
-                        if (dopetab[p1a->a_c0] & 0x100)
+                if ((dopetab[node->op] & 0x100) || (rightLiveRegs & leftUsedRegs)) {
+                    if (leftUsedMask & rightUsedRegs) {
+                        if (dopetab[node->op] & 0x100)
                             continue;
-                        p1a->a_c2 = 2;
-                        l4        = 0;
+                        node->evalOrder = 2;
+                        rightLiveRegs        = 0;
                     } else
-                        p1a->a_c2 = 1;
+                        node->evalOrder = 1;
                 } else
-                    p1a->a_c2 = 0;
+                    node->evalOrder = 0;
             }
-        } else if (l6 != 0)
-            p4 = l6;
+        } else if (resultConstraint != 0)
+            requiredResult = resultConstraint;
 
-        if (sz->c_2 != 0) {
-            m = p3;
-            if (!(sz->c_2 & 0x40) || (n = selectCompatibleRegister(computeUsedRegs(p1a), p4, sz->c_2)) == 0) {
-                if ((sz->c_2 & 0x40) == 0)
-                    m &= ~computeUsedRegs(p1a);
-                m &= ~l4;
-                n = selectCompatibleRegister(m, p4, sz->c_2);
-                if (n == 0 && (n = findRegisterMatch(m, sz->c_2)) == 0)
+        if (frag->scratchRegClass != 0) {
+            scratchCandidates = availableRegs;
+            if (!(frag->scratchRegClass & 0x40) || (selectedReg = selectCompatibleRegister(computeUsedRegs(node), requiredResult, frag->scratchRegClass)) == 0) {
+                if ((frag->scratchRegClass & 0x40) == 0)
+                    scratchCandidates &= ~computeUsedRegs(node);
+                scratchCandidates &= ~rightLiveRegs;
+                selectedReg = selectCompatibleRegister(scratchCandidates, requiredResult, frag->scratchRegClass);
+                if (selectedReg == 0 && (selectedReg = findRegisterMatch(scratchCandidates, frag->scratchRegClass)) == 0)
                     continue;
             }
-            p1a->a_uc9[p1a->a_c1] = n;
+            node->scratchReg[node->fragCount] = selectedReg;
         } else
-            p1a->a_uc9[p1a->a_c1] = 0;
+            node->scratchReg[node->fragCount] = 0;
 
-        p1a->a_c3[p1a->a_c1++]    = (uint8_t)(sz - codeFrag);
-        n                         = (uint8_t)chooseResultRegister(p1a);
-        assert(p1a->a_c1 > 0);
-        p1a->a_reg[p1a->a_c1 - 1] = n;
-        if (n == 0 && p1a->a_c0 == USEREG)
-            p1a->a_reg[p1a->a_c1 - 1] = n = p1a->info.l;
+        node->fragIdx[node->fragCount++]    = (uint8_t)(frag - codeFrag);
+        selectedReg                         = (uint8_t)chooseResultRegister(node);
+        assert(node->fragCount > 0);
+        node->resultReg[node->fragCount - 1] = selectedReg;
+        if (selectedReg == 0 && node->op == USEREG)
+            node->resultReg[node->fragCount - 1] = selectedReg = node->val.l;
         /* clang-format off */
-        if ((p4 != 0 && !TopBitSet(p4) && (n == 0 || findRegisterMatch(MapVal(p4), n) != n)) ||
-            (TopBitSet(p4) && (MapVal(p4) & MapVal(n)) != MapVal(n))) {
-                p1a->a_c1--;
+        if ((requiredResult != 0 && !TopBitSet(requiredResult) && (selectedReg == 0 || findRegisterMatch(MapVal(requiredResult), selectedReg) != selectedReg)) ||
+            (TopBitSet(requiredResult) && (MapVal(requiredResult) & MapVal(selectedReg)) != MapVal(selectedReg))) {
+                node->fragCount--;
                 continue;
             }
         /* clang-format on */
-        *p5 = array_AAE8[p1a->a_uc9[p1a->a_c1 - 1]];
+        *usedRegsOut = registerMaskById[node->scratchReg[node->fragCount - 1]];
 
-        if ((uint8_t)sz->c_3 >= 'H' || sz->c_4 != 0)
-            *p5 |= l2;
-        if (sz->c_5 != 0)
-            *p5 |= l3;
+        if ((uint8_t)frag->emitClass >= 'H' || frag->leftTokenClass != 0)
+            *usedRegsOut |= leftUsedRegs;
+        if (frag->rightTokenClass != 0)
+            *usedRegsOut |= rightUsedRegs;
         return 1;
-    } while (l5 >= 0);
+    } while (currentRuleIndex >= 0);
     return -1;
 }
 
@@ -2564,65 +2574,65 @@ int selectCodePattern(node_t *p1a, int p2, int p3, int p4, int *p5) {
  * apart from one minor optimisation difference to save
  * a pop bc, the code is identical
  *********************************************************/
-int computeUsedRegsForStep(register node_t *sa, int par) {
-    char *s;
-    struct codeFrag_t *l2z;
-    node_t *l3a;
-    char *t;
-    uint8_t ch;
-    int l6;
-    int l7;
+int computeUsedRegsForStep(register node_t *node, int stepIndex) {
+    char *regTemplate;
+    struct codeFrag_t *frag;
+    node_t *targetNode;
+    char *aliasSuffixes;
+    uint8_t templateCode;
+    int targetStep;
+    int usedRegsMask;
 
-    l2z = &codeFrag[sa->a_c3[par]];
-    l7  = 0;
+    frag = &codeFrag[node->fragIdx[stepIndex]];
+    usedRegsMask  = 0;
 
-    for (s = l2z->p_8; *s;) {
-        switch (ch = *(s++)) {
+    for (regTemplate = frag->regTemplate; *regTemplate;) {
+        switch (templateCode = *(regTemplate++)) {
         case 'X':
         case 'G':
-            if (isdigit(*s)) {
-                t = s;
-                while (isdigit(*s))
-                    s++;
+            if (isdigit(*regTemplate)) {
+                aliasSuffixes = regTemplate;
+                while (isdigit(*regTemplate))
+                    regTemplate++;
             } else
-                t = 0;
+                aliasSuffixes = 0;
 
-            switch (*s++) {
+            switch (*regTemplate++) {
             case 'N':
-                l6  = par;
-                l3a = sa;
+                targetStep  = stepIndex;
+                targetNode = node;
                 break;
             case 'L':
-                if (par > 0) {
-                    l3a = sa;
-                    l6  = par - 1;
+                if (stepIndex > 0) {
+                    targetNode = node;
+                    targetStep  = stepIndex - 1;
                 } else {
-                    l3a = sa->info.np[0];
-                    l6  = l3a->a_c1 - 1;
+                    targetNode = node->val.np[0];
+                    targetStep  = targetNode->fragCount - 1;
                 }
                 break;
             case 'R':
-                l3a = sa->info.np[1];
-                l6  = l3a->a_c1 - 1;
+                targetNode = node->val.np[1];
+                targetStep  = targetNode->fragCount - 1;
                 break;
             default:
                 fprintf(stderr, "%s: line %d - internal error\n", __FILE__, __LINE__);
                 exit(1);
             }
-            if (ch == 'S') {
-                if (l3a->a_c0 == USEREG)
-                    ch = (uint8_t)l3a->info.l;
+            if (templateCode == 'S') {
+                if (targetNode->op == USEREG)
+                    templateCode = (uint8_t)targetNode->val.l;
                 else
-                    ch = 0;
+                    templateCode = 0;
             } else {
-                ch = ch == 'G' ? l3a->a_reg[l6] : l3a->a_uc9[l6];
-                if (t)
-                    while (isdigit(*t) != 0)
-                        ch = array_AB24[ch * 2 + (*t++ - '0')];
+                templateCode = templateCode == 'G' ? targetNode->resultReg[targetStep] : targetNode->scratchReg[targetStep];
+                if (aliasSuffixes)
+                    while (isdigit(*aliasSuffixes) != 0)
+                        templateCode = registerAliasBySuffix[templateCode * 2 + (*aliasSuffixes++ - '0')];
             }
-            l7 |= array_AAE8[ch];
-            if (ch != 0)
-                byte_AFFA = ch;
+            usedRegsMask |= registerMaskById[templateCode];
+            if (templateCode != 0)
+                lastReferencedReg = templateCode;
             break;
         case 'A':
         case 'B':
@@ -2637,58 +2647,58 @@ int computeUsedRegsForStep(register node_t *sa, int par) {
         case 'V':
         case 'W':
         case 'Z':
-            while (*s && *s != 'N' && *s != 'L' && *s != 'R')
-                s++;
+            while (*regTemplate && *regTemplate != 'N' && *regTemplate != 'L' && *regTemplate != 'R')
+                regTemplate++;
             break;
         case '~':
-            while (*s && *s != 'L' && *s != 'R')
-                s++;
+            while (*regTemplate && *regTemplate != 'L' && *regTemplate != 'R')
+                regTemplate++;
             break;
         case 'L':
-            if (par > 0)
-                l7 |= computeUsedRegsForStep(sa, par - 1);
+            if (stepIndex > 0)
+                usedRegsMask |= computeUsedRegsForStep(node, stepIndex - 1);
             else
-                l7 |= computeUsedRegs(sa->info.np[0]);
+                usedRegsMask |= computeUsedRegs(node->val.np[0]);
 
             break;
         case 'R':
-            l7 |= computeUsedRegs(sa->info.np[1]);
+            usedRegsMask |= computeUsedRegs(node->val.np[1]);
             break;
         case 'D':
         case 'U':
             break;
         }
     }
-    return l7 & word_B017;
+    return usedRegsMask & word_B017;
 }
 
 /*********************************************************
  * sub_2B2A OK++ PMO   Used in: selectCodePattern, computeUsedRegsForStep, chooseResultRegister
- * optimiser improves on code for sa->a_c1 - 1
+ * optimiser improves on code for node->a_c1 - 1
  *********************************************************/
 int computeUsedRegs(register node_t *sa) {
 
-    if (sa->a_c1 == 0) {
-        if ((dopetab[sa->a_c0] & 0xC) == 0)
+    if (sa->fragCount == 0) {
+        if ((dopetab[sa->op] & 0xC) == 0)
             return 0;
-        return computeUsedRegs(sa->info.np[0]); /* LOGOP & QUEST */
+        return computeUsedRegs(sa->val.np[0]); /* LOGOP & QUEST */
     }
-    return computeUsedRegsForStep(sa, sa->a_c1 - 1);
+    return computeUsedRegsForStep(sa, sa->fragCount - 1);
 }
 
 /*********************************************************
  * sub_2B79 OK++ PMO			 Used in: selectCodePattern
  *********************************************************/
-uint8_t chooseResultRegister(register node_t *sa) {
-    uint8_t l1;
-    int l2;
+uint8_t chooseResultRegister(register node_t *node) {
+    uint8_t scratchReg;
+    int usedRegsMask;
 
-    l1        = sa->a_uc9[sa->a_c1 - 1];
-    byte_AFFA = 0;
-    l2        = computeUsedRegs(sa);
-    if (l1 != 0 && findRegisterMatch(l2, l1) == l1)
-        return l1;
-    return byte_AFFA;
+    scratchReg   = node->scratchReg[node->fragCount - 1];
+    lastReferencedReg    = 0;
+    usedRegsMask = computeUsedRegs(node);
+    if (scratchReg != 0 && findRegisterMatch(usedRegsMask, scratchReg) == scratchReg)
+        return scratchReg;
+    return lastReferencedReg;
 }
 /* end of file sym3.c */
 /*
@@ -2702,19 +2712,19 @@ uint8_t chooseResultRegister(register node_t *sa) {
 void generateCodeForExpr(register node_t *sa) {
     int tmp;
 
-    sa->a_c1 = 0;
+    sa->fragCount = 0;
 
     if (selectCodePattern(sa, 0x48, word_B017, 0, &tmp) <= 0)
         fatalErr("Expression too complicated");
 
     emitTreeCode(sa);
-    if (sa->a_c0 == COLON_U) {
-        if (sa->a_i15 & 2) {
-            prFrameHead(array_AEDB[lvlidx]->b_off); /* emit_call_ncsv */
+    if (sa->op == COLON_U) {
+        if (sa->ptrFlags & 2) {
+            prFrameHead(array_AEDB[lvlidx]->offset); /* emit_call_ncsv */
             emitRegisterVarLoads();
         }
-        if (sa->info.np[0]->a_c0 == IDOP)
-            sa->info.np[0]->info.mp[0]->b_sloc |= 1; /* may ba struct aaa a_c3[0] */
+        if (sa->val.np[0]->op == IDOP)
+            sa->val.np[0]->val.mp[0]->storageFlags |= 1; /* may ba struct aaa fragIdx[0] */
     }
     freeNodeTree(sa);
 }
@@ -2765,56 +2775,56 @@ uint8_t log2IfPowerOfTwo(long);
  *  sub_2D09_v2 OK++	Used in: emitNodeCodeFragments
  * minor differences
  * 1) block of 5 instructions has different order but same effect
- * 2) one optimisation missed on loading a from lc10, possibly
+ * 2) one optimisation missed on loading a from activeStep, possibly
  *    related to note 1
- * 3) optimisation because p3 is passed recursively as a char
+ * 3) optimisation because targetClass is passed recursively as a char
  *.......................................................*/
-void emitCodeTemplate(register node_t *sa, char *p2, char p3) {
-    struct codeFrag_t *lz1 FORCEINIT; // avoid uninitialised warning
-    node_t *la2 FORCEINIT; // avoid uninitialised warning
-    char *li3 FORCEINIT;   // avoid uninitialised warning
-    uint8_t lc4;
-    char lc5 = 0;       // avoid uninitialised warning
-    char lc6;
-    char lc7;
-    int ch;
-    long ll9;
-    uint8_t lc10 = 0;   // avoid uninitialised warning
-    char lc11;
-    char *li12;
-    uint32_t ll13 = 0;  // avoid uninitalised warning
-    bool lc14;
+void emitCodeTemplate(register node_t *node, char *templateText, char stepIndex) {
+    struct codeFrag_t *selectedFrag FORCEINIT; // avoid uninitialised warning
+    node_t *targetNode FORCEINIT; // avoid uninitialised warning
+    char *aliasDigits FORCEINIT;   // avoid uninitialised warning
+    uint8_t regId;
+    char offsetAdjust = 0;       // avoid uninitialised warning
+    char targetSelector;
+    char directive;
+    int modifier;
+    long value;
+    uint8_t activeStep = 0;   // avoid uninitialised warning
+    char deferredValuePending;
+    char *templateLineStart;
+    uint32_t deferredValue = 0;  // avoid uninitalised warning
+    bool atLineStart;
 
-    li12 = p2;
-    lc11 = lc14 = false;
+    templateLineStart = templateText;
+    deferredValuePending = atLineStart = false;
     for (;;) {
-        if ((lc7 = *p2++) == 0)
+        if ((directive = *templateText++) == 0)
             return;
-        switch (lc7) {
+        switch (directive) {
         case ' ':
-            if (!lc14) {
+            if (!atLineStart) {
                 fputchar('\t');
-                lc14 = true;
+                atLineStart = true;
             } else
-                fputchar(lc7);
+                fputchar(directive);
             continue;
         case ';':
             return;
         case '\n':
         case '\r':
             fputchar('\n');
-            lc14 = false;
+            atLineStart = false;
             continue;
         case 'G':
         case 'X':
-            if (isdigit(*p2)) {
-                li3 = p2;
-                while (isdigit(*p2))
-                    p2++;
+            if (isdigit(*templateText)) {
+                aliasDigits = templateText;
+                while (isdigit(*templateText))
+                    templateText++;
             } else
-                li3 = 0;
-            lc6 = *p2++;
-            ch  = 'G';
+                aliasDigits = 0;
+            targetSelector = *templateText++;
+            modifier  = 'G';
             break;
         case 'A':
         case 'B':
@@ -2830,68 +2840,68 @@ void emitCodeTemplate(register node_t *sa, char *p2, char p3) {
         case 'W':
         case 'Z':
         case '~':
-            if ((ch = *p2) == '-' || ch == '+') {
-                if (isdigit(*++p2)) {
-                    lc5 = atoi(p2);
-                    if (ch == '-')
-                        lc5 = -lc5;
-                    ch = 0;
+            if ((modifier = *templateText) == '-' || modifier == '+') {
+                if (isdigit(*++templateText)) {
+                    offsetAdjust = atoi(templateText);
+                    if (modifier == '-')
+                        offsetAdjust = -offsetAdjust;
+                    modifier = 0;
                 } else
-                    lc5 = 0;
-                while (isdigit(*p2) || *p2 == '+' || *p2 == '-')
-                    p2++;
-            } else if (ch == '>') {
-                for (lc5 = 0; *p2 == '>'; p2++, lc5++)
+                    offsetAdjust = 0;
+                while (isdigit(*templateText) || *templateText == '+' || *templateText == '-')
+                    templateText++;
+            } else if (modifier == '>') {
+                for (offsetAdjust = 0; *templateText == '>'; templateText++, offsetAdjust++)
                     ;
             } else {
-                ch  = 0;
-                lc5 = 0;
+                modifier  = 0;
+                offsetAdjust = 0;
             }
 
-            lc6 = *p2++;
+            targetSelector = *templateText++;
             break;
         case 'L':
         case 'R':
         case 'U':
-            lc6 = lc7;
-            lc7 = '~';
-            ch  = 0;
-            lc5 = 0;
+            targetSelector = directive;
+            directive = '~';
+            modifier  = 0;
+            offsetAdjust = 0;
             break;
         case 'D':
-            lc6 = lc7;
-            ch  = 0;
-            lc5 = 0;
+            targetSelector = directive;
+            modifier  = 0;
+            offsetAdjust = 0;
             break;
 
         default:
-            fputchar(lc7);
+            fputchar(directive);
             continue;
         }
 
-        switch (lc6) {
+        switch (targetSelector) {
         case 'L':
-            if (p3 > 0) { /* m27: */
-                la2  = sa;
-                lc10 = p3 - 1;
-                lz1  = &codeFrag[sa->a_c3[lc10]];
+            if (stepIndex > 0) { /* m27: */
+                targetNode  = node;
+                activeStep = stepIndex - 1;
+                selectedFrag  = &codeFrag[node->fragIdx[activeStep]];
             } else {
-                la2  = sa->info.np[0];
-                lc10 = la2->a_c1 - 1;
-                lz1  = &codeFrag[la2->a_c3[lc10]];
+                targetNode  = node->val.np[0];
+                activeStep = targetNode->fragCount - 1;
+                selectedFrag  = &codeFrag[targetNode->fragIdx[activeStep]];
             }
             break;
         case 'R':
-            la2  = sa->info.np[1];
-            lc10 = la2->a_c1 - 1;
-            lz1  = &codeFrag[la2->a_c3[lc10]];
+            targetNode  = node->val.np[1];
+            activeStep = targetNode->fragCount - 1;
+            selectedFrag  = &codeFrag[targetNode->fragIdx[activeStep]];
             break;
         case 'N':
-            la2  = sa;
-            lc10 = p3;
+            targetNode  = node;
+            activeStep = stepIndex;
             break;
         }
-        switch (lc7) {
+        switch (directive) {
         case 'D':
             if (word_AFF8 != 0) {
                 printf("%d", word_AFF8);
@@ -2899,119 +2909,119 @@ void emitCodeTemplate(register node_t *sa, char *p2, char p3) {
             }
             break;
         case 'S':
-            if (la2->a_c0 == USEREG)
-                printf("%s", regNames[la2->info.l]);
-            else if (la2->a_c0 == CONST)
-                emitSizedConstant(la2, la2->info.l);
-            else if (la2->a_c0 == FCONST)
-                printf("%s", la2->info.sv.s);
+            if (targetNode->op == USEREG)
+                printf("%s", regNames[targetNode->val.l]);
+            else if (targetNode->op == CONST)
+                emitSizedConstant(targetNode, targetNode->val.l);
+            else if (targetNode->op == FCONST)
+                printf("%s", targetNode->val.sv.s);
             else
-                printf("%s", la2->info.mp[0]->b_name);
+                printf("%s", targetNode->val.mp[0]->name);
         proff:
-            if (ch == 0) {
-                lc5 += word_AFF8;
+            if (modifier == 0) {
+                offsetAdjust += word_AFF8;
                 word_AFF8 = 0;
-                if (lc5 > 0)
-                    printf("+%d", lc5);
-                else if (lc5 < 0)
-                    printf("%d", lc5);
+                if (offsetAdjust > 0)
+                    printf("+%d", offsetAdjust);
+                else if (offsetAdjust < 0)
+                    printf("%d", offsetAdjust);
             }
             break;
         case 'F':
-            printf("%d", la2->info.sv.v);
+            printf("%d", targetNode->val.sv.v);
             goto proff;
 
         case 'Z':
-            ll9 = nodesize(la2);
+            value = nodesize(targetNode);
             goto m46;
         case 'B':
-            ll9 = getPointeeSize(la2);
+            value = getPointeeSize(targetNode);
         m46:
-            if (ch == '-') {
-                if (lc11 == 0) {
-                    ll13      = ll9 + (long)word_AFF8;
+            if (modifier == '-') {
+                if (deferredValuePending == 0) {
+                    deferredValue      = value + (long)word_AFF8;
                     word_AFF8 = 0;
-                    lc11      = 1;
+                    deferredValuePending      = 1;
                 }
                 goto m54;
             }
-            printf("%lu", ll9);
+            printf("%lu", value);
             break;
         case 'O':
-            printf("%s", otherFrag[la2->a_c0]);
+            printf("%s", otherFrag[targetNode->op]);
             break;
         case 'A':
-            emitTypeSuffix(la2);
+            emitTypeSuffix(targetNode);
             break;
         case 'V':
-            if (ch == '-' || ch == '+') {
-                if (lc11 == 0) {
-                    ll13      = la2->info.l + (long)word_AFF8;
+            if (modifier == '-' || modifier == '+') {
+                if (deferredValuePending == 0) {
+                    deferredValue      = targetNode->val.l + (long)word_AFF8;
                     word_AFF8 = 0;
-                    lc11      = 1;
+                    deferredValuePending      = 1;
                 }
             m54:
-                ll13 += ch == '-' ? -1L : 1L;
-                if (getTypeClass(la2) == 2 && nodesize(la2) < 4)
-                    ll13 &= (1 << (int)(nodesize(la2) * 8)) - 1;
+                deferredValue += modifier == '-' ? -1L : 1L;
+                if (getTypeClass(targetNode) == 2 && nodesize(targetNode) < 4)
+                    deferredValue &= (1 << (int)(nodesize(targetNode) * 8)) - 1;
 
-                if (ll13 != 0) {
-                    while (li12 < p2 && p2[-1] != '\n')
-                        p2--;
+                if (deferredValue != 0) {
+                    while (templateLineStart < templateText && templateText[-1] != '\n')
+                        templateText--;
                     fputchar('\n');
                 } else
-                    lc11 = 0;
+                    deferredValuePending = 0;
             } else {
-                lc5 += word_AFF8;
+                offsetAdjust += word_AFF8;
                 word_AFF8 = 0;
-                emitSizedConstant(la2, la2->info.l >> (lc5 * 8));
+                emitSizedConstant(targetNode, targetNode->val.l >> (offsetAdjust * 8));
             }
             break;
 
         case 'C':
-            if (la2->a_c0 == BFIELD)
-                printf("%d", la2->info.mp[1]->bOffset);
+            if (targetNode->op == BFIELD)
+                printf("%d", targetNode->val.mp[1]->bitOffset);
             else {
-                ll9 = la2->info.l;
-                if (log2IfPowerOfTwo(ll9) == 0)
-                    ll9 = ~ll9;
-                word_AFF8 += (log2IfPowerOfTwo(ll9) - 1) / 8;
+                value = targetNode->val.l;
+                if (log2IfPowerOfTwo(value) == 0)
+                    value = ~value;
+                word_AFF8 += (log2IfPowerOfTwo(value) - 1) / 8;
             }
             break;
         case 'T':
-            if (la2->a_c0 == BFIELD)
-                printf("%d", la2->info.mp[1]->bWidth);
+            if (targetNode->op == BFIELD)
+                printf("%d", targetNode->val.mp[1]->bitWidth);
             else {
-                ll9 = la2->info.l;
-                if (log2IfPowerOfTwo(ll9) == 0)
-                    ll9 = ~ll9;
-                printf("%d", log2IfPowerOfTwo(ll9) - 1);
+                value = targetNode->val.l;
+                if (log2IfPowerOfTwo(value) == 0)
+                    value = ~value;
+                printf("%d", log2IfPowerOfTwo(value) - 1);
             }
             break;
         case 'G':
         case 'X':
-            assert(la2 != NULL); // Ensure la2 is not NULL
-            lc4 = lc7 == 'G' ? la2->a_reg[lc10] : la2->a_uc9[lc10];
+            assert(targetNode != NULL); // Ensure targetNode is not NULL
+            regId = directive == 'G' ? targetNode->resultReg[activeStep] : targetNode->scratchReg[activeStep];
 
-            if (li3 != 0)
-                while (isdigit(*li3))
-                    lc4 = array_AB24[lc4 * 2 + (*li3++ - '0')];
+            if (aliasDigits != 0)
+                while (isdigit(*aliasDigits))
+                    regId = registerAliasBySuffix[regId * 2 + (*aliasDigits++ - '0')];
 
-            if (*p2 != '+') {
-                lc4 += word_AFF8;
+            if (*templateText != '+') {
+                regId += word_AFF8;
                 word_AFF8 = 0;
             }
-            printf("%s", regNames[lc4]);
+            printf("%s", regNames[regId]);
             break;
         case '~':
-            if (lc6 == 'U') {
-                lc5 += word_AFFB;
-                if ((dopetab[sa->a_c0] & 0x200) && p3 != 0)
-                    lc5--;
-                printf("%d", lc5);
+            if (targetSelector == 'U') {
+                offsetAdjust += word_AFFB;
+                if ((dopetab[node->op] & 0x200) && stepIndex != 0)
+                    offsetAdjust--;
+                printf("%d", offsetAdjust);
             } else {
-                word_AFF8 += lc5;
-                emitCodeTemplate(la2, lz1->p_8, lc10);
+                word_AFF8 += offsetAdjust;
+                emitCodeTemplate(targetNode, selectedFrag->regTemplate, activeStep);
             }
             break;
         }
@@ -3033,9 +3043,9 @@ void emitNodeCodeFragments(register node_t *sa) {
     struct codeFrag_t *l2z;
 
     word_AFF8 = 0;
-    for (l1 = 0; l1 != sa->a_c1; l1++) {
-        if ((l2z = &codeFrag[sa->a_c3[l1]])->p_6) {
-            emitCodeTemplate(sa, l2z->p_6, l1);
+    for (l1 = 0; l1 != sa->fragCount; l1++) {
+        if ((l2z = &codeFrag[sa->fragIdx[l1]])->emitTemplate) {
+            emitCodeTemplate(sa, l2z->emitTemplate, l1);
             fputchar('\n');
         }
     }
@@ -3048,26 +3058,26 @@ void emitNodeCodeFragments(register node_t *sa) {
 void emitTreeCode(register node_t *sa) {
     int l1;
 
-    if (dopetab[sa->a_c0] & 0x200)
+    if (dopetab[sa->op] & 0x200)
         word_AFFB++;
-    l1 = dopetab[sa->a_c0] & 0xC;
+    l1 = dopetab[sa->op] & 0xC;
     if (8 == l1) {
-        if (sa->a_c2 & 1) {
-            emitTreeCode(sa->info.np[0]);
-            emitTreeCode(sa->info.np[1]);
+        if (sa->evalOrder & 1) {
+            emitTreeCode(sa->val.np[0]);
+            emitTreeCode(sa->val.np[1]);
         } else {
-            emitTreeCode(sa->info.np[1]);
-            if (sa->a_c2 & 2)
-                prPush(sa->info.np[1]->a_reg[sa->info.np[1]->a_c1 - 1]);
-            emitTreeCode(sa->info.np[0]);
+            emitTreeCode(sa->val.np[1]);
+            if (sa->evalOrder & 2)
+                prPush(sa->val.np[1]->resultReg[sa->val.np[1]->fragCount - 1]);
+            emitTreeCode(sa->val.np[0]);
         }
     }
     if (l1 == 4)
-        emitTreeCode(sa->info.np[0]);
-    if (sa->a_c2 & 2)
-        prPop(sa->info.np[1]->a_reg[sa->info.np[1]->a_c1 - 1]);
+        emitTreeCode(sa->val.np[0]);
+    if (sa->evalOrder & 2)
+        prPop(sa->val.np[1]->resultReg[sa->val.np[1]->fragCount - 1]);
     emitNodeCodeFragments(sa);
-    if (dopetab[sa->a_c0] & 0x200)
+    if (dopetab[sa->op] & 0x200)
         word_AFFB--;
 }
 
@@ -3081,9 +3091,9 @@ void emitTreeCode(register node_t *sa) {
 void freeNode(register node_t *sa) {
 
     byte_B013 = true;
-    if (sa->a_c0 == FCONST)
-        free(sa->info.np[0]);
-    sa->pm       = nodeFreeList;
+    if (sa->op == FCONST)
+        free(sa->val.np[0]);
+    sa->type       = nodeFreeList;
     nodeFreeList = sa;
 }
 
@@ -3098,7 +3108,7 @@ node_t *allocNode(void) {
     byte_B013 = true;
     if (nodeFreeList) {
         sa           = nodeFreeList;
-        nodeFreeList = sa->pm;
+        nodeFreeList = sa->type;
         blkclr((char *)sa, sizeof(node_t));
     } else { /* create node_t */
         sa = allocMem(sizeof(node_t));
@@ -3116,7 +3126,7 @@ bool releaseNodeFreeList(void) {
     if (nodeFreeList == 0)
         return false;
     while ((sa = nodeFreeList)) {
-        nodeFreeList = sa->pm;
+        nodeFreeList = sa->type;
         free(sa);
     }
     return true;
@@ -3131,30 +3141,30 @@ node_t *cloneNodeTree(node_t *p1a) {
     sa  = allocNode();
     *sa = *p1a;
 
-    if (dopetab[sa->a_c0] & 0xC)
-        sa->info.np[0] = cloneNodeTree(sa->info.np[0]);
-    if ((dopetab[sa->a_c0] & 0xC) == 8)
-        sa->info.np[1] = cloneNodeTree(sa->info.np[1]);
+    if (dopetab[sa->op] & 0xC)
+        sa->val.np[0] = cloneNodeTree(sa->val.np[0]);
+    if ((dopetab[sa->op] & 0xC) == 8)
+        sa->val.np[1] = cloneNodeTree(sa->val.np[1]);
     return sa;
 }
 
 /*********************************************************
  * sub_37ED v1 OK++ OK	      Used in: getPointeeSize, makeOpNode
  *
- * missed optimisation on reloading l1b but otherwise
+ * missed optimisation on reloading member but otherwise
  * identical
  *********************************************************/
 void dereferenceNodeType(register node_t *sa) {
     member_t *l1b;
 
-    l1b = sa->pm;
-    if (sa->a_i15 != 0)
-        sa->a_i15 >>= 2;
+    l1b = sa->type;
+    if (sa->ptrFlags != 0)
+        sa->ptrFlags >>= 2;
     else {
-        while (l1b->b_refl == 0)
-            l1b = l1b->b_type;
-        sa->pm    = l1b->b_type;
-        sa->a_i15 = l1b->b_refl >> 2;
+        while (l1b->indirFlags == 0)
+            l1b = l1b->typeDesc;
+        sa->type    = l1b->typeDesc;
+        sa->ptrFlags = l1b->indirFlags >> 2;
     }
 }
 
@@ -3163,7 +3173,7 @@ void dereferenceNodeType(register node_t *sa) {
  *			     rewriteMemberAccess
  *********************************************************/
 void markPointerType(register node_t *sa) {
-    sa->a_i15 = (sa->a_i15 * 4) | 1;
+    sa->ptrFlags = (sa->ptrFlags * 4) | 1;
 }
 
 /*********************************************************
@@ -3172,7 +3182,7 @@ void markPointerType(register node_t *sa) {
 uint16_t getPointeeSize(register node_t *sa) {
     uint8_t loc;
 
-    if (sa->a_i15 == 0 && sa->pm->b_type == 0 && sa->pm->b_refl == 0)
+    if (sa->ptrFlags == 0 && sa->type->typeDesc == 0 && sa->type->indirFlags == 0)
         return 1;
 
     dereferenceNodeType(sa);
@@ -3188,17 +3198,17 @@ uint16_t getPointeeSize(register node_t *sa) {
 bool hasTypeFlag(node_t *p1a, int p2) {
     register member_t *sb;
 
-    if (p1a->a_i15 & p2)
+    if (p1a->ptrFlags & p2)
         return true;
-    if (p1a->a_i15 != 0)
+    if (p1a->ptrFlags != 0)
         return false;
-    sb = p1a->pm;
+    sb = p1a->type;
     do {
-        if (sb->b_refl & p2)
+        if (sb->indirFlags & p2)
             return true;
-        if (sb->b_refl != 0)
+        if (sb->indirFlags != 0)
             return false;
-    } while ((sb = sb->b_type) != 0);
+    } while ((sb = sb->typeDesc) != 0);
     return false;
 }
 
@@ -3220,7 +3230,7 @@ bool hasFunctionFlag(node_t *sa) {
  * sub_3968 OK++ PMO			Used in: isPatternApplicable
  *********************************************************/
 bool isStructValueNode(register node_t *sa) {
-    return sa->pm->b_class == STRUCT && (sa->a_i15 & 1) == 0;
+    return sa->type->symKind == STRUCT && (sa->ptrFlags & 1) == 0;
 }
 
 /*********************************************************
@@ -3232,12 +3242,12 @@ bool isStructValueNode(register node_t *sa) {
  *********************************************************/
 uint16_t nodesize(register node_t *sa) {
 
-    if (sa->a_i15 & 2)
+    if (sa->ptrFlags & 2)
         prError("can\'t take sizeof func");
 
-    if (sa->a_i15 & 1)
+    if (sa->ptrFlags & 1)
         return 2;
-    return sa->pm->b_size;
+    return sa->type->typeSize;
 }
 
 /*********************************************************
@@ -3246,19 +3256,19 @@ uint16_t nodesize(register node_t *sa) {
 node_t *foldConstantConversion(register node_t *sa) {
     char buf[50];
 
-    freeNode(sa->info.np[1]);
+    freeNode(sa->val.np[1]);
     if (getTypeClass(sa) == 3) {
-        sprintf(buf, "%ld.", sa->info.np[0]->info.l);
-        freeNode(sa->info.np[0]);
-        sa->info.sv.s = allocMem(strlen(buf) + 1); /* create string */
-        strcpy(sa->info.sv.s, buf);
-        sa->info.sv.v = newLocal();
-        sa->a_c0      = FCONST;
+        sprintf(buf, "%ld.", sa->val.np[0]->val.l);
+        freeNode(sa->val.np[0]);
+        sa->val.sv.s = allocMem(strlen(buf) + 1); /* create string */
+        strcpy(sa->val.sv.s, buf);
+        sa->val.sv.v = newLocal();
+        sa->op      = FCONST;
         return sa;
     }
-    convertNodeToType(sa, sa->info.np[0]);
+    convertNodeToType(sa, sa->val.np[0]);
     freeNode(sa);
-    return sa->info.np[0];
+    return sa->val.np[0];
 }
 
 /*********************************************************
@@ -3273,15 +3283,15 @@ void convertNodeToType(register node_t *sa, node_t *p2a) {
     l1 = nodesize(sa);
     if (l1 != 0 && l1 < 4) {
         l1 <<= 3;
-        p2a->info.l &= (1L << l1) - 1L;
+        p2a->val.l &= (1L << l1) - 1L;
         if (getTypeClass(sa) == 1) {
-            if (p2a->info.l & (long)(1 << (l1 - 1))) { /* sign extend */
-                p2a->info.l |= ~((1L << l1) - 1L);
+            if (p2a->val.l & (long)(1 << (l1 - 1))) { /* sign extend */
+                p2a->val.l |= ~((1L << l1) - 1L);
             }
         }
     }
-    p2a->pm    = sa->pm;
-    p2a->a_i15 = sa->a_i15;
+    p2a->type    = sa->type;
+    p2a->ptrFlags = sa->ptrFlags;
 }
 
 /*********************************************************
@@ -3349,24 +3359,24 @@ void evalBinaryOperation(register long *ptr, long p2, int operator) {
 node_t *rewriteExprForCodegen(register node_t *sa) {
     int loc;
 
-    if (sa->a_c0 == SCOLON) {
-        generateCodeForExpr(sa->info.np[0]);
+    if (sa->op == SCOLON) {
+        generateCodeForExpr(sa->val.np[0]);
         freeNode(sa);
-        sa = sa->info.np[1];
+        sa = sa->val.np[1];
     }
     if (byte_B014 != 10) {
-        if (dopetab[sa->a_c0] & 0x4000)
+        if (dopetab[sa->op] & 0x4000)
             return sa;
-        if ((sa->a_c0 == INCR || sa->a_c0 == DECR) && isRegisterIndirection(sa)) {
+        if ((sa->op == INCR || sa->op == DECR) && isRegisterIndirection(sa)) {
             array_AFFD[byte_B014++] = sa;
-            sa->a_c0                = sa->a_c0 == INCR ? ASADD : ASSUB;
-            sa                      = cloneNodeTree(sa->info.np[0]);
+            sa->op                = sa->op == INCR ? ASADD : ASSUB;
+            sa                      = cloneNodeTree(sa->val.np[0]);
         }
-        loc = dopetab[sa->a_c0];
+        loc = dopetab[sa->op];
         if (loc & 0xC)
-            sa->info.np[0] = rewriteExprForCodegen(sa->info.np[0]);
+            sa->val.np[0] = rewriteExprForCodegen(sa->val.np[0]);
         if ((loc & 0xC) == 8)
-            sa->info.np[1] = rewriteExprForCodegen(sa->info.np[1]);
+            sa->val.np[1] = rewriteExprForCodegen(sa->val.np[1]);
     }
     return sa;
 }
@@ -3382,22 +3392,22 @@ void compileExpression(register node_t *sa) {
     uint16_t loc;
 
     sa = optimizeExpression(sa);
-    if (sa->a_c0 == DOLLAR && sa->info.np[0]->a_c0 == CONST) {
+    if (sa->op == DOLLAR && sa->val.np[0]->op == CONST) {
         prWarning("constant conditional branch");
-        if (sa->info.np[0]->info.l != 0) {
-            sa->a_c0 = DOLLAR_U;
-            freeNode(sa->info.np[0]);
-            sa->info.np[0] = sa->info.np[1];
+        if (sa->val.np[0]->val.l != 0) {
+            sa->op = DOLLAR_U;
+            freeNode(sa->val.np[0]);
+            sa->val.np[0] = sa->val.np[1];
         } else {
             freeNodeTree(sa);
             return;
         }
     }
     byte_B014 = 0;
-    if (sa->a_c0 == INCR)
-        sa->a_c0 = ASADD;
-    else if (sa->a_c0 == DECR)
-        sa->a_c0 = ASSUB;
+    if (sa->op == INCR)
+        sa->op = ASADD;
+    else if (sa->op == DECR)
+        sa->op = ASSUB;
 
     sa = rewriteExprForCodegen(sa);
     if (byte_B014 != 0)
@@ -3415,28 +3425,28 @@ node_t *foldConstantExpressions(register node_t *sa) {
     node_t *l1a;
     int l2;
 
-    if ((l2 = dopetab[sa->a_c0] & 0xC))
-        sa->info.np[0] = foldConstantExpressions(sa->info.np[0]);
+    if ((l2 = dopetab[sa->op] & 0xC))
+        sa->val.np[0] = foldConstantExpressions(sa->val.np[0]);
     if (l2 == 8)
-        sa->info.np[1] = foldConstantExpressions(sa->info.np[1]);
-    if (sa->a_c0 == CONV && sa->info.np[0]->a_c0 == FCONST && getTypeClass(sa) == 3) {
-        l1a     = sa->info.np[0];
-        l1a->pm = sa->pm;
-        freeNode(sa->info.np[1]);
+        sa->val.np[1] = foldConstantExpressions(sa->val.np[1]);
+    if (sa->op == CONV && sa->val.np[0]->op == FCONST && getTypeClass(sa) == 3) {
+        l1a     = sa->val.np[0];
+        l1a->type = sa->type;
+        freeNode(sa->val.np[1]);
         freeNode(sa);
         return l1a;
     }
-    if (l2 == 0 || sa->info.np[0]->a_c0 != CONST)
+    if (l2 == 0 || sa->val.np[0]->op != CONST)
         return sa;
 
-    if (sa->a_c0 == CONV)
+    if (sa->op == CONV)
         return foldConstantConversion(sa);
 
-    if (l2 == 8 && sa->info.np[1]->a_c0 != CONST)
+    if (l2 == 8 && sa->val.np[1]->op != CONST)
         return sa;
 
     if (getTypeClass(sa) == 2) {
-        switch (sa->a_c0) {
+        switch (sa->op) {
         case LT:
         case LEQ:
         case GT:
@@ -3446,16 +3456,16 @@ node_t *foldConstantExpressions(register node_t *sa) {
         case MOD:
         case DIV:
         case RSHIFT:
-            evalUnsignedOperation(&sa->info.np[0]->info.ul, sa->info.np[1]->info.l, sa->a_c0);
+            evalUnsignedOperation(&sa->val.np[0]->val.ul, sa->val.np[1]->val.l, sa->op);
         finish:
             if (l2 == 8)
-                freeNodeTree(sa->info.np[1]);
-            convertNodeToType(sa, sa->info.np[0]);
+                freeNodeTree(sa->val.np[1]);
+            convertNodeToType(sa, sa->val.np[0]);
             freeNode(sa);
-            return sa->info.np[0];
+            return sa->val.np[0];
         }
     }
-    switch (sa->a_c0) { /* m10: */
+    switch (sa->op) { /* m10: */
     case NEQL:
     case LT:
     case LEQ:
@@ -3476,16 +3486,16 @@ node_t *foldConstantExpressions(register node_t *sa) {
     case MOD:
     case RSHIFT:
     case LSHIFT:
-        evalBinaryOperation(&sa->info.np[0]->info.l, sa->info.np[1]->info.l, sa->a_c0);
+        evalBinaryOperation(&sa->val.np[0]->val.l, sa->val.np[1]->val.l, sa->op);
         goto finish;
     case MINUS_U:
-        sa->info.np[0]->info.l = -sa->info.np[0]->info.l;
+        sa->val.np[0]->val.l = -sa->val.np[0]->val.l;
         goto finish;
     case NOT:
-        sa->info.np[0]->info.l = sa->info.np[0]->info.l == 0;
+        sa->val.np[0]->val.l = sa->val.np[0]->val.l == 0;
         goto finish;
     case BNOT:
-        sa->info.np[0]->info.l = ~sa->info.np[0]->info.l;
+        sa->val.np[0]->val.l = ~sa->val.np[0]->val.l;
         goto finish;
     default:
         return sa;
@@ -3499,9 +3509,9 @@ node_t *foldConstantExpressions(register node_t *sa) {
 node_t *makeConstNode(long number) {
     register node_t *sa;
     sa         = allocNode();
-    sa->a_c0   = CONST;
-    sa->pm     = typeLong;
-    sa->info.l = number;
+    sa->op   = CONST;
+    sa->type     = typeLong;
+    sa->val.l = number;
     return sa;
 }
 
@@ -3542,63 +3552,63 @@ void prGlobalDef(member_t *);
  * uint8_t, otherwise identical
  *********************************************************/
 node_t *parseExpr() {
-    node_t *l1a;
-    char *l2;
-    int l3;
-    int l4;
-    register node_t *sa;
+    node_t *leftNode;
+    char *tokenText;
+    int tokenKindFlags;
+    int tokenId;
+    register node_t *node;
 
     for (;;) {
-        l2 = getToken();
-        if (isdigit(*l2) || (*l2 == '-' && isdigit(l2[1]))) {
-            if (*l2 == '-') {
-                l4 = 1;
-                l2++;
+        tokenText = getToken();
+        if (isdigit(*tokenText) || (*tokenText == '-' && isdigit(tokenText[1]))) {
+            if (*tokenText == '-') {
+                tokenId = 1;
+                tokenText++;
             } else
-                l4 = 0;
+                tokenId = 0;
 
-            sa = makeConstNode(atol(l2));
-            if (l4 != 0)
-                sa->info.l = -sa->info.l;
-            return sa;
+            node = makeConstNode(atol(tokenText));
+            if (tokenId != 0)
+                node->val.l = -node->val.l;
+            return node;
         }
 
-        if (*l2 == '_' || isalpha(*l2)) {
-            (sa = allocNode())->a_c0 = IDOP; /* m8:  */
-            sa->info.mp[0]           = getOrCreateSymbol(l2);
-            sa->pm                   = sa->info.mp[0]->b_type;
-            sa->a_i15                = sa->info.mp[0]->b_refl;
-            if (sa->info.mp[0]->b_flag == 3 && (sa->info.mp[0]->b_sloc & 2) == 0) {
-                prGlobalDef(sa->info.mp[0]); /* Emit "global name" */
+        if (*tokenText == '_' || isalpha(*tokenText)) {
+            (node = allocNode())->op = IDOP; /* m8:  */
+            node->val.mp[0]           = getOrCreateSymbol(tokenText);
+            node->type                   = node->val.mp[0]->typeDesc;
+            node->ptrFlags                = node->val.mp[0]->indirFlags;
+            if (node->val.mp[0]->StorageClass == 3 && (node->val.mp[0]->storageFlags & 2) == 0) {
+                prGlobalDef(node->val.mp[0]); /* Emit "global name" */
             }
-            return sa;
+            return node;
         }
-        if (*l2 == '`') {
-            sa       = allocNode();
-            sa->pm   = parseTypeWithIndirection(l2, &sa->a_i15);
-            sa->a_c0 = TYPE;
-            return sa;
+        if (*tokenText == '`') {
+            node       = allocNode();
+            node->type   = parseTypeWithIndirection(tokenText, &node->ptrFlags);
+            node->op = TYPE;
+            return node;
         }
-        if (*l2 == '.' && l2[1] && l2[1] != '.') {
-            sa            = allocNode();
-            sa->pm        = typeDouble;                   /* "d" - double */
-            sa->info.sv.s = (char *)allocMem(strlen(l2)); /* create string */
-            strcpy(sa->info.sv.s, l2 + 1);
-            sa->info.sv.v = newLocal(); /* swTableCnt++ */
-            sa->a_c0      = FCONST;
-            return sa;
+        if (*tokenText == '.' && tokenText[1] && tokenText[1] != '.') {
+            node            = allocNode();
+            node->type        = typeDouble;                   /* "d" - double */
+            node->val.sv.s = (char *)allocMem(strlen(tokenText)); /* create string */
+            strcpy(node->val.sv.s, tokenText + 1);
+            node->val.sv.v = newLocal(); /* swTableCnt++ */
+            node->op      = FCONST;
+            return node;
         }
-        l4 = lookupTokenId(l2); /* Token search */ /* m12: */
-        l3 = dopetab[l4] & 0xC;
-        switch (l3) {
+        tokenId = lookupTokenId(tokenText); /* Token search */ /* m12: */
+        tokenKindFlags = dopetab[tokenId] & 0xC;
+        switch (tokenKindFlags) {
         case 0xc:
-            switch (l4) {
+            switch (tokenId) {
             case '9':
                 parseVariable();
                 continue;
             case '7':
             case '8':
-                parseMembers(l4);
+                parseMembers(tokenId);
                 continue;
             case '4':
                 parseEnum();
@@ -3609,12 +3619,12 @@ node_t *parseExpr() {
             }
             /* fall through */
         case 0:
-            return makeOpNode(l4, 0, 0);
+            return makeOpNode(tokenId, 0, 0);
         case 4:
-            return makeOpNode(l4, parseExpr(), 0);
+            return makeOpNode(tokenId, parseExpr(), 0);
         case 8:
-            l1a = parseExpr();
-            return makeOpNode(l4, l1a, parseExpr());
+            leftNode = parseExpr();
+            return makeOpNode(tokenId, leftNode, parseExpr());
         }
     }
 }
@@ -3631,92 +3641,92 @@ node_t *parseExpr() {
  *                            normalizeUnaryMinusAndSub
 
  *********************************************************/
-node_t *makeOpNode(uint8_t p1, node_t *p2a, node_t *p3a) {
-    member_t *l1b;
-    long l2;
-    register node_t *sa;
+node_t *makeOpNode(uint8_t op, node_t *left, node_t *right) {
+    member_t *member;
+    long sizeValue;
+    register node_t *node;
 
-    sa             = allocNode();
-    sa->a_c0       = p1;
-    sa->info.np[0] = p2a;
-    sa->info.np[1] = p3a;
-    switch (dopetab[sa->a_c0] & 0x30) {
+    node             = allocNode();
+    node->op       = op;
+    node->val.np[0] = left;
+    node->val.np[1] = right;
+    switch (dopetab[node->op] & 0x30) {
     case 0x10:
-        sa->pm = typeLong; /* long	  */
+        node->type = typeLong; /* long	  */
         break;
     case 0x20:
-        sa->pm = typeB; /* b	  */
+        node->type = typeB; /* b	  */
         break;
 
     case 0x30:
-        sa->pm = typeVar; /* variable */
+        node->type = typeVar; /* variable */
         break;
 
     default:
-        sa->pm    = p2a->pm;
-        sa->a_i15 = p2a->a_i15;
+        node->type    = left->type;
+        node->ptrFlags = left->ptrFlags;
     }
-    switch (sa->a_c0) {
+    switch (node->op) {
     case DOT:
-        if (p2a->a_c0 == TYPE) {
-            l1b = p2a->pm;
-            freeNode(sa);
-            freeNode(p2a);
-            sa          = p3a;
-            sa->pm      = l1b;
-            p3a->info.l = (long)l1b->b_memb.ilist->vals[sa->info.l];
+        if (left->op == TYPE) {
+            member = left->type;
+            freeNode(node);
+            freeNode(left);
+            node          = right;
+            node->type      = member;
+            right->val.l = (long)member->payload.enumList->vals[node->val.l];
             break;
         }
-        l1b         = sa->pm->b_memb.mlist->vals[p3a->info.l];
-        sa->pm      = l1b->b_type;
-        sa->a_i15   = l1b->b_refl;
-        p3a->info.l = (long)l1b->b_off;
-        p3a->pm     = typeX; /* x      */
-        if (l1b->b_sloc & 0x10) {
-            p2a             = allocNode();
-            *p2a            = *sa;
-            p2a->info.np[0] = sa;
-            sa              = p2a;
-            sa->a_c0        = BFIELD;
-            sa->info.mp[1]  = l1b;
+        member         = node->type->payload.memberList->vals[right->val.l];
+        node->type      = member->typeDesc;
+        node->ptrFlags   = member->indirFlags;
+        right->val.l = (long)member->offset;
+        right->type     = typeX; /* x      */
+        if (member->storageFlags & 0x10) {
+            left             = allocNode();
+            *left            = *node;
+            left->val.np[0] = node;
+            node              = left;
+            node->op        = BFIELD;
+            node->val.mp[1]  = member;
         }
         break;
     case CONV:
     case SCOLON:
     case QUEST:
-        sa->pm    = sa->info.np[1]->pm;
-        sa->a_i15 = sa->info.np[1]->a_i15;
+        node->type    = node->val.np[1]->type;
+        node->ptrFlags = node->val.np[1]->ptrFlags;
         break;
     case GADDR:
-        if (sa->a_i15 == 0 && sa->pm->b_nelem > 1) {
-            sa->a_i15 = sa->pm->b_refl;
-            sa->pm    = sa->pm->b_type;
+        if (node->ptrFlags == 0 && node->type->elemCount > 1) {
+            node->ptrFlags = node->type->indirFlags;
+            node->type    = node->type->typeDesc;
         }
-        markPointerType(sa);
+        markPointerType(node);
         break;
     case LPAREN:
     case MUL_U:
-        dereferenceNodeType(sa);
+        dereferenceNodeType(node);
         break;
     case COLON_S:
-        sa->pm    = typeChar; /* char   */
-        sa->a_i15 = 1;
+        node->type    = typeChar; /* char   */
+        node->ptrFlags = 1;
         break;
     case HASHSIGN:
-        if (sa->info.np[0]->a_c0 == IDOP)
-            l2 = sa->info.np[0]->info.mp[0]->b_size;
+        if (node->val.np[0]->op == IDOP)
+            sizeValue = node->val.np[0]->val.mp[0]->typeSize;
         else
-            l2 = (uint16_t)nodesize(sa->info.np[0]);
-        if (l2 == 0)
+            sizeValue = (uint16_t)nodesize(node->val.np[0]);
+        if (sizeValue == 0)
             prWarning("Sizeof yields 0");
-        freeNodeTree(sa->info.np[0]);
-        sa->a_c0   = CONST;
-        sa->pm     = typeLong; /* long	  */
-        sa->a_i15  = 0;
-        sa->info.l = l2;
+        freeNodeTree(node->val.np[0]);
+        node->op   = CONST;
+        node->type     = typeLong; /* long	  */
+        node->ptrFlags  = 0;
+        node->val.l = sizeValue;
         break;
     }
-    return sa;
+    return node;
 }
 
 /*********************************************************
@@ -3744,10 +3754,10 @@ uint8_t log2IfPowerOfTwo(long p1) {
 void freeNodeTree(register node_t *sa) {
     int loc;
 
-    if ((loc = dopetab[sa->a_c0] & 0xC)) {
-        freeNodeTree(sa->info.np[0]);
+    if ((loc = dopetab[sa->op] & 0xC)) {
+        freeNodeTree(sa->val.np[0]);
         if (loc == 8)
-            freeNodeTree(sa->info.np[1]);
+            freeNodeTree(sa->val.np[1]);
     }
     freeNode(sa);
 }
@@ -3760,8 +3770,8 @@ void freeNodeTree(register node_t *sa) {
  * true/false from != condition
  * I have tried multiple variants of code to get better matches
  * for the current code, the other differences are
- * 1) at m49dc:, code for sub_14FE(sa) != 3 is moved
- * 2) case SUB: nodesize(sa) == 2 code moved and missed sharing
+ * 1) at m49dc:, code for sub_14FE(node) != 3 is moved
+ * 2) case SUB: nodesize(node) == 2 code moved and missed sharing
  *    of code for or a ! sbc hl,de ! jp nz false
  * 3) case DECR: similar to (2)
  * 4) case GADDR: similar to (2)
@@ -3777,11 +3787,13 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
 
     switch (p2) {
     case MUL_U:
-        sa = sa->info.np[1];
+        sa = sa->val.np[1];
+        // fallthrough
     case T_SCOLON:
-        return sa->info.l >= 1L && sa->info.l < 3L;
+        return sa->val.l >= 1L && sa->val.l < 3L;
     case RPAREN:
-        sa = sa->info.np[0];
+        sa = sa->val.np[0];
+        // fallthrough
     case MOD:
         if (nodesize(sa) == 2 && !isStructValueNode(sa))
             return true;
@@ -3791,30 +3803,33 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
             return false;
         goto m485f;
     case MUL:
-        sa = sa->info.np[0];
+        sa = sa->val.np[0];
+        // fallthrough
     case DOLLAR_U:
     m485f:
         if (nodesize(sa) == 4 && !isStructValueNode(sa))
             return true;
         break;
     case SCOLON:
-        sa = sa->info.np[0];
+        sa = sa->val.np[0];
+        // fallthrough
     case DOLLAR:
         return isStructValueNode(sa);
     case ADD:
-        return (uint8_t)sa->info.l == 8 || (uint8_t)sa->info.l == 9;
+        return (uint8_t)sa->val.l == 8 || (uint8_t)sa->val.l == 9;
     case INCR:
-        l1 = signExtendToNodeSize(sa, sa->info.l);
+        l1 = signExtendToNodeSize(sa, sa->val.l);
         return -128L <= l1 && l1 < 125L;
     case COLON_U:
-        return 1L <= sa->info.l && sa->info.l < 5L;
+        return 1L <= sa->val.l && sa->val.l < 5L;
     case COLON_S:
-        l1 = sa->info.l;
+        l1 = sa->val.l;
         if (getTypeClass(sa) == 2 && (l1 & (uint16_t)(1 << ((int16_t)nodesize(sa) << 3))))
             l1 |= (uint16_t) ~((1 << ((int16_t)nodesize(sa) << 3)) - 1);
         return l1 < 0 && l1 >= -4L;
     case LPAREN:
-        sa = sa->info.np[1];
+        sa = sa->val.np[1];
+        //  fallthrough
     case HASHSIGN:
         return nodesize(sa) == 1 && !isStructValueNode(sa);
     case MINUS_U:
@@ -3824,15 +3839,15 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
     case COMMA:
         if (nodesize(sa) == 2)
         m49dc:
-            if (getTypeClass(sa) != 3 && getTypeClass(sa->info.np[0]) != 3)
-                return getTypeClass(sa) == 2 || getTypeClass(sa->info.np[0]) == 2;
+            if (getTypeClass(sa) != 3 && getTypeClass(sa->val.np[0]) != 3)
+                return getTypeClass(sa) == 2 || getTypeClass(sa->val.np[0]) == 2;
         break;
     case LT:
-        return sa->info.l == 0;
+        return sa->val.l == 0;
     case CONV:
         if (nodesize(sa) == 4)
         m4a48:
-            return getTypeClass(sa) == 1 && getTypeClass(sa->info.np[0]) == 1;
+            return getTypeClass(sa) == 1 && getTypeClass(sa->val.np[0]) == 1;
         return false;
 
     case SUB:
@@ -3840,11 +3855,11 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
             goto m4a48;
         break;
     case PLUS_U:
-        return 1L == sa->info.l;
+        return 1L == sa->val.l;
     case NOT:
-        return log2IfPowerOfTwo(sa->info.np[1]->info.l);
+        return log2IfPowerOfTwo(sa->val.np[1]->val.l);
     case NEQL:
-        return log2IfPowerOfTwo(~sa->info.np[1]->info.l);
+        return log2IfPowerOfTwo(~sa->val.np[1]->val.l);
     case COLON:
         if (nodesize(sa) == 4)
             goto m4b02;
@@ -3858,22 +3873,22 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
         if (nodesize(sa) != 1)
             return false;
     m4b02:
-        return (getTypeClass(sa) == 1 || getTypeClass(sa) == 2) && getTypeClass(sa->info.np[0]) == 3;
+        return (getTypeClass(sa) == 1 || getTypeClass(sa) == 2) && getTypeClass(sa->val.np[0]) == 3;
     case DIV:
-        if (nodesize(sa->info.np[0]) == 1)
+        if (nodesize(sa->val.np[0]) == 1)
             goto dotp;
         break;
     case DOT_DOT:
-        if (nodesize(sa->info.np[0]) == 2)
+        if (nodesize(sa->val.np[0]) == 2)
             goto dotp;
         break;
     case DOT:
-        if (nodesize(sa->info.np[0]) == 4) {
+        if (nodesize(sa->val.np[0]) == 4) {
         dotp:
             if (getTypeClass(sa) != 3)
                 return false;
             else
-                return getTypeClass(sa->info.np[0]) == 1 || getTypeClass(sa->info.np[0]) == 2;
+                return getTypeClass(sa->val.np[0]) == 1 || getTypeClass(sa->val.np[0]) == 2;
         }
         break;
     case LAND:
@@ -3888,8 +3903,8 @@ uint8_t isPatternApplicable(register node_t *sa, int p2) {
  *********************************************************/
 bool isAddressLikeExpr(register node_t *sa) {
     /* Any operator except "#", "..", "CONST" */
-    return (dopetab[sa->a_c0] & 0x10) || (sa->a_c0 == GADDR && sa->info.np[0]->a_c0 == IDOP) ||
-           (sa->a_c0 == ADD && sa->info.np[1]->a_c0 == CONST && isAddressLikeExpr(sa->info.np[0]) != 0);
+    return (dopetab[sa->op] & 0x10) || (sa->op == GADDR && sa->val.np[0]->op == IDOP) ||
+           (sa->op == ADD && sa->val.np[1]->op == CONST && isAddressLikeExpr(sa->val.np[0]) != 0);
 }
 
 /*********************************************************
@@ -3897,20 +3912,20 @@ bool isAddressLikeExpr(register node_t *sa) {
  *********************************************************/
 bool isZeroConst(register node_t *sa) {
 
-    return sa->a_c0 == CONST && sa->info.l == 0;
+    return sa->op == CONST && sa->val.l == 0;
 }
 
 /*********************************************************
  * sub_4C12++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
 int getExprComplexityRank(register node_t *sa) {
-    if (sa->a_c0 == GADDR && sa->info.np[0]->a_c0 == IDOP)
+    if (sa->op == GADDR && sa->val.np[0]->op == IDOP)
         return 1;
-    if (dopetab[sa->a_c0] & 0x10)
+    if (dopetab[sa->op] & 0x10)
         return 0; /* if "#", "..", "CONST"  */
     if (isAddressLikeExpr(sa))
         return 1;
-    return dopetab[sa->a_c0] & 0xF;
+    return dopetab[sa->op] & 0xF;
 }
 
 /*********************************************************
@@ -3918,7 +3933,7 @@ int getExprComplexityRank(register node_t *sa) {
  * bool causes optimiser to use ld l, rather than ld hl
  *********************************************************/
 bool isRegisterIndirection(node_t *p1a) {
-    return p1a->info.np[0]->a_c0 == USEREG;
+    return p1a->val.np[0]->op == USEREG;
 }
 
 /*********************************************************
@@ -3929,23 +3944,23 @@ bool isRegisterIndirection(node_t *p1a) {
 node_t *simplifyLogicalNot(register node_t *sa) {
     node_t *l1;
 
-    l1 = sa->info.np[0];
-    if (sa->info.np[0]->a_c0 == NOT) {
-        l1 = l1->info.np[0];
-        freeNode(sa->info.np[0]);
+    l1 = sa->val.np[0];
+    if (sa->val.np[0]->op == NOT) {
+        l1 = l1->val.np[0];
+        freeNode(sa->val.np[0]);
         freeNode(sa);
         return l1;
     }
-    if ((dopetab[l1->a_c0] & 0x12C) == 0x28) {
+    if ((dopetab[l1->op] & 0x12C) == 0x28) {
         freeNode(sa);
-        l1->a_c0 = invertTest(l1->a_c0);
+        l1->op = invertTest(l1->op);
         return l1;
     }
-    if (dopetab[l1->a_c0] & 0x20) {
-        l1->info.np[0] = makeOpNode(NOT, l1->info.np[0], (node_t *)0);
-        l1->info.np[1] = makeOpNode(NOT, l1->info.np[1], (node_t *)0);
+    if (dopetab[l1->op] & 0x20) {
+        l1->val.np[0] = makeOpNode(NOT, l1->val.np[0], (node_t *)0);
+        l1->val.np[1] = makeOpNode(NOT, l1->val.np[1], (node_t *)0);
         freeNode(sa);
-        l1->a_c0 = l1->a_c0 == LAND ? LOR : LAND;
+        l1->op = l1->op == LAND ? LOR : LAND;
         return l1;
     }
     return sa;
@@ -3959,22 +3974,22 @@ node_t *simplifyLogicalNot(register node_t *sa) {
 node_t *resolveIdentifierNode(register node_t *sa) {
     node_t *l1a;
 
-    if (sa->info.mp[0]->b_flag == 1) {
-        l1a        = makeConstNode(sa->info.mp[0]->b_off);
-        l1a->pm    = sa->pm;
-        l1a->a_i15 = sa->a_i15;
+    if (sa->val.mp[0]->StorageClass == 1) {
+        l1a        = makeConstNode(sa->val.mp[0]->offset);
+        l1a->type    = sa->type;
+        l1a->ptrFlags = sa->ptrFlags;
         freeNodeTree(sa);
         markPointerType(l1a);
         sa         = allocNode();
         *sa        = *l1a;
-        sa->a_c0   = USEREG;
-        sa->info.l = 8L;
+        sa->op   = USEREG;
+        sa->val.l = 8L;
         sa         = makeOpNode(ADD, sa, l1a);
         return makeOpNode(MUL_U, sa, 0);
     }
-    if (sa->info.mp[0]->b_flag == 2) {
-        sa->a_c0   = USEREG;
-        sa->info.l = sa->info.mp[0]->b_memb.i;
+    if (sa->val.mp[0]->StorageClass == 2) {
+        sa->op   = USEREG;
+        sa->val.l = sa->val.mp[0]->payload.regIdx;
     }
     return sa;
 }
@@ -3987,22 +4002,22 @@ node_t *resolveIdentifierNode(register node_t *sa) {
 node_t *rewriteMemberAccess(register node_t *sa) {
     node_t *l1a;
 
-    if (dopetab[(l1a = sa->info.np[0])->a_c0] & 0x1000) {
-        l1a->pm        = sa->pm;
-        l1a->a_i15     = sa->a_i15;
-        sa->info.np[0] = l1a = makeOpNode(GADDR, l1a, 0);
+    if (dopetab[(l1a = sa->val.np[0])->op] & 0x1000) {
+        l1a->type        = sa->type;
+        l1a->ptrFlags     = sa->ptrFlags;
+        sa->val.np[0] = l1a = makeOpNode(GADDR, l1a, 0);
     } else {
         l1a       = allocNode();
         *l1a      = *sa;
-        l1a->a_c0 = TYPE;
+        l1a->op = TYPE;
         markPointerType(l1a);
-        sa->info.np[0] = makeOpNode(CONV, makeOpNode(GADDR, sa->info.np[0], 0), l1a);
+        sa->val.np[0] = makeOpNode(CONV, makeOpNode(GADDR, sa->val.np[0], 0), l1a);
     }
-    sa->pm                = l1a->pm;
-    sa->a_i15             = l1a->a_i15;
-    sa->info.np[1]->a_i15 = sa->a_i15;
-    sa->info.np[1]->pm    = sa->pm;
-    sa->a_c0              = ADD;
+    sa->type                = l1a->type;
+    sa->ptrFlags             = l1a->ptrFlags;
+    sa->val.np[1]->ptrFlags = sa->ptrFlags;
+    sa->val.np[1]->type    = sa->type;
+    sa->op              = ADD;
     return makeOpNode(MUL_U, sa, 0);
 }
 
@@ -4011,9 +4026,9 @@ node_t *rewriteMemberAccess(register node_t *sa) {
  *********************************************************/
 node_t *dropRightOperand(register node_t *sa) {
 
-    freeNodeTree(sa->info.np[1]);
+    freeNodeTree(sa->val.np[1]);
     freeNode(sa);
-    return sa->info.np[0];
+    return sa->val.np[0];
 }
 
 /*********************************************************
@@ -4022,34 +4037,34 @@ node_t *dropRightOperand(register node_t *sa) {
  *********************************************************/
 node_t *strengthReduceMulDivMod(register node_t *sa) {
 
-    switch (sa->a_c0) {
+    switch (sa->op) {
     case MUL:
-        sa->a_c0 = LSHIFT;
+        sa->op = LSHIFT;
         break;
     case ASMUL:
-        sa->a_c0 = ASLSHIFT;
+        sa->op = ASLSHIFT;
         break;
     case DIV:
         if (getTypeClass(sa) != 2)
             return sa;
-        sa->a_c0 = RSHIFT;
+        sa->op = RSHIFT;
         break;
     case ASDIV:
         if (getTypeClass(sa) != 2)
             return sa;
-        sa->a_c0 = ASRSHIFT;
+        sa->op = ASRSHIFT;
         break;
     case ASMOD:
-        sa->a_c0 = ASAND;
-        sa->info.np[1]->info.l--;
+        sa->op = ASAND;
+        sa->val.np[1]->val.l--;
         return sa;
     case MOD:
-        sa->a_c0 = BAND;
-        sa->info.np[1]->info.l--;
+        sa->op = BAND;
+        sa->val.np[1]->val.l--;
         return sa;
     }
     byte_B013              = true;
-    sa->info.np[1]->info.l = log2IfPowerOfTwo(sa->info.np[1]->info.l) - 1;
+    sa->val.np[1]->val.l = log2IfPowerOfTwo(sa->val.np[1]->val.l) - 1;
     return sa;
 }
 
@@ -4063,59 +4078,59 @@ node_t *simplifyConversion(register node_t *sa) {
     char buf[15];
     long l3;
 
-    if (getTypeClass(sa) == 3 && sa->info.np[0]->a_c0 == CONST) {
-        l3 = sa->info.np[0]->info.l;
-        freeNode(sa->info.np[0]);
-        freeNode(sa->info.np[1]);
+    if (getTypeClass(sa) == 3 && sa->val.np[0]->op == CONST) {
+        l3 = sa->val.np[0]->val.l;
+        freeNode(sa->val.np[0]);
+        freeNode(sa->val.np[1]);
         sprintf(buf, "%ld", l3);
-        sa->info.sv.s = allocMem(strlen(buf) + 1); /* create string */
-        strcpy(sa->info.sv.s, buf);
-        sa->info.sv.v = newLocal();
-        sa->a_c0      = FCONST;
+        sa->val.sv.s = allocMem(strlen(buf) + 1); /* create string */
+        strcpy(sa->val.sv.s, buf);
+        sa->val.sv.v = newLocal();
+        sa->op      = FCONST;
         return sa;
     }
-    if ((dopetab[(l1a = sa->info.np[0])->a_c0] & 0x1000) && nodesize(l1a) >= nodesize(sa) &&
+    if ((dopetab[(l1a = sa->val.np[0])->op] & 0x1000) && nodesize(l1a) >= nodesize(sa) &&
         getTypeClass(sa) != 3 && getTypeClass(l1a) != 3) {
-        l1a->pm    = sa->pm;
-        l1a->a_i15 = sa->a_i15;
-        freeNode(sa->info.np[1]);
+        l1a->type    = sa->type;
+        l1a->ptrFlags = sa->ptrFlags;
+        freeNode(sa->val.np[1]);
         freeNode(sa);
         return l1a;
     }
     if (isSameTypeAndSize(sa, l1a)) {
-        freeNodeTree(sa->info.np[1]);
-        l1a->pm    = sa->pm;
-        l1a->a_i15 = sa->a_i15;
+        freeNodeTree(sa->val.np[1]);
+        l1a->type    = sa->type;
+        l1a->ptrFlags = sa->ptrFlags;
         freeNode(sa);
         return l1a;
     }
     if (nodesize(l1a) < nodesize(sa))
         return sa;
-    if (l1a->a_c0 == CONV && nodesize(l1a->info.np[0]) >= nodesize(sa)) {
-        if (isSameTypeAndSize(sa, l1a->info.np[0]) ||
-            (getTypeClass(sa) == getTypeClass(l1a) && getTypeClass(sa) == getTypeClass(l1a->info.np[0]))) {
-            sa->info.np[0] = l1a->info.np[0];
-            freeNode(l1a->info.np[1]);
+    if (l1a->op == CONV && nodesize(l1a->val.np[0]) >= nodesize(sa)) {
+        if (isSameTypeAndSize(sa, l1a->val.np[0]) ||
+            (getTypeClass(sa) == getTypeClass(l1a) && getTypeClass(sa) == getTypeClass(l1a->val.np[0]))) {
+            sa->val.np[0] = l1a->val.np[0];
+            freeNode(l1a->val.np[1]);
             freeNode(l1a);
             return sa;
         }
     }
-    if ((dopetab[l1a->a_c0] & 0xC00) == 0 || getTypeClass(l1a) == 3)
+    if ((dopetab[l1a->op] & 0xC00) == 0 || getTypeClass(l1a) == 3)
         return sa;
 
-    if ((dopetab[l1a->a_c0] & 0x400) &&
-        (l1a->info.np[0]->a_c0 != CONV || nodesize(l1a->info.np[0]->info.np[0]) >= nodesize(l1a)))
+    if ((dopetab[l1a->op] & 0x400) &&
+        (l1a->val.np[0]->op != CONV || nodesize(l1a->val.np[0]->val.np[0]) >= nodesize(l1a)))
         return sa;
 
-    l2a = makeOpNode(CONV, l1a->info.np[0], sa->info.np[1]);
-    *sa = *sa->info.np[1];
-    if (dopetab[l1a->a_c0] & 8) {
-        sa = makeOpNode(CONV, l1a->info.np[1], sa);
+    l2a = makeOpNode(CONV, l1a->val.np[0], sa->val.np[1]);
+    *sa = *sa->val.np[1];
+    if (dopetab[l1a->op] & 8) {
+        sa = makeOpNode(CONV, l1a->val.np[1], sa);
     } else {
         freeNode(sa);
         sa = 0;
     }
-    l2a = makeOpNode((uint8_t)l1a->a_c0, l2a, sa);
+    l2a = makeOpNode((uint8_t)l1a->op, l2a, sa);
     freeNode(l1a);
     return l2a;
 }
@@ -4126,20 +4141,20 @@ node_t *simplifyConversion(register node_t *sa) {
 node_t *collapseAddressDereference(register node_t *sa) {
     node_t *l1a;
 
-    if (dopetab[(l1a = sa->info.np[0])->info.np[0]->a_c0] & 0x1000) {
-        l1a        = l1a->info.np[0];
-        l1a->pm    = sa->pm;
-        l1a->a_i15 = sa->a_i15;
-        freeNode(sa->info.np[0]);
+    if (dopetab[(l1a = sa->val.np[0])->val.np[0]->op] & 0x1000) {
+        l1a        = l1a->val.np[0];
+        l1a->type    = sa->type;
+        l1a->ptrFlags = sa->ptrFlags;
+        freeNode(sa->val.np[0]);
         freeNode(sa);
         return l1a;
     }
-    sa->a_c0       = CONV;
-    sa->info.np[1] = l1a;
-    sa->info.np[0] = l1a->info.np[0];
-    l1a->a_c0      = TYPE;
-    l1a->pm        = sa->pm;
-    l1a->a_i15     = sa->a_i15;
+    sa->op       = CONV;
+    sa->val.np[1] = l1a;
+    sa->val.np[0] = l1a->val.np[0];
+    l1a->op      = TYPE;
+    l1a->type        = sa->type;
+    l1a->ptrFlags     = sa->ptrFlags;
     byte_B013      = true;
     return sa;
 }
@@ -4182,115 +4197,115 @@ bool constFitsComparisonRange(node_t *, node_t *);
  * 2) in MUL_U, the optimiser uses bc rather than hl, then
  *    does hl = bc
  *********************************************************/
-node_t *optimizeExpressionTree(register node_t *sa) {
-    node_t *l1a;
-    node_t *l2a;
-    int l3;
-    uint32_t l4;
+node_t *optimizeExpressionTree(register node_t *node) {
+    node_t *tempNode;
+    node_t *convNode;
+    int operandKind;
+    uint32_t valueMask;
 
-    l3 = dopetab[sa->a_c0] & 0xC;
-    if (l3 != 0)
-        sa->info.np[0] = optimizeExpressionTree(sa->info.np[0]);
+    operandKind = dopetab[node->op] & 0xC;
+    if (operandKind != 0)
+        node->val.np[0] = optimizeExpressionTree(node->val.np[0]);
 
-    if (l3 == 8)
-        sa->info.np[1] = optimizeExpressionTree(sa->info.np[1]);
+    if (operandKind == 8)
+        node->val.np[1] = optimizeExpressionTree(node->val.np[1]);
 
-    if (dopetab[sa->a_c0] & 0x40) {
-        if (getExprComplexityRank(sa->info.np[0]) < getExprComplexityRank(sa->info.np[1])) {
+    if (dopetab[node->op] & 0x40) {
+        if (getExprComplexityRank(node->val.np[0]) < getExprComplexityRank(node->val.np[1])) {
             byte_B013      = true;
-            l1a            = sa->info.np[0];
-            sa->info.np[0] = sa->info.np[1];
-            sa->info.np[1] = l1a;
+            tempNode            = node->val.np[0];
+            node->val.np[0] = node->val.np[1];
+            node->val.np[1] = tempNode;
         }
-        if ((dopetab[sa->a_c0] & 0x2000) && sa->a_c0 == sa->info.np[0]->a_c0) {
-            if (isAddressLikeExpr(sa->info.np[1]) && isAddressLikeExpr((l1a = sa->info.np[0])->info.np[1])) {
+        if ((dopetab[node->op] & 0x2000) && node->op == node->val.np[0]->op) {
+            if (isAddressLikeExpr(node->val.np[1]) && isAddressLikeExpr((tempNode = node->val.np[0])->val.np[1])) {
                 byte_B013       = true;
-                sa->info.np[0]  = l1a->info.np[1];
-                l1a->info.np[1] = sa;
-                sa              = l1a;
-            } else if (getExprComplexityRank(sa->info.np[0]->info.np[1]) < getExprComplexityRank(sa->info.np[1])) {
+                node->val.np[0]  = tempNode->val.np[1];
+                tempNode->val.np[1] = node;
+                node              = tempNode;
+            } else if (getExprComplexityRank(node->val.np[0]->val.np[1]) < getExprComplexityRank(node->val.np[1])) {
                 byte_B013                  = true;
-                l1a                        = sa->info.np[1];
-                sa->info.np[1]             = sa->info.np[0]->info.np[1];
-                sa->info.np[0]->info.np[1] = l1a;
+                tempNode                        = node->val.np[1];
+                node->val.np[1]             = node->val.np[0]->val.np[1];
+                node->val.np[0]->val.np[1] = tempNode;
             }
         }
     }
 
-    if ((dopetab[sa->a_c0] & 0xC00) == 0x800 && sa->info.np[0]->a_c0 == CONV &&
-        nodesize(sa->info.np[0]->info.np[0]) < nodesize(sa) &&
-        fitsInTargetType(sa->info.np[1], sa->info.np[0]->info.np[0])) {
+    if ((dopetab[node->op] & 0xC00) == 0x800 && node->val.np[0]->op == CONV &&
+        nodesize(node->val.np[0]->val.np[0]) < nodesize(node) &&
+        fitsInTargetType(node->val.np[1], node->val.np[0]->val.np[0])) {
 
-        l2a                   = sa->info.np[0];
-        sa->info.np[0]        = l2a->info.np[0];
-        sa->pm                = sa->info.np[0]->pm;
-        sa->a_i15             = sa->info.np[0]->a_i15;
-        sa->info.np[1]->pm    = sa->pm;
-        sa->info.np[1]->a_i15 = sa->a_i15;
-        l2a->info.np[0]       = sa;
-        sa                    = l2a;
+        convNode                   = node->val.np[0];
+        node->val.np[0]        = convNode->val.np[0];
+        node->type                = node->val.np[0]->type;
+        node->ptrFlags             = node->val.np[0]->ptrFlags;
+        node->val.np[1]->type    = node->type;
+        node->val.np[1]->ptrFlags = node->ptrFlags;
+        convNode->val.np[0]       = node;
+        node                    = convNode;
     }
 
-    if ((dopetab[sa->a_c0] & 0x420) == 0x420 && (l1a = sa->info.np[0])->a_c0 == CONV &&
-        nodesize(l1a->info.np[0]) != 0 && nodesize(l1a->info.np[0]) < nodesize(l1a)) {
-        if (sa->info.np[1]->a_c0 == CONST &&
-            (getTypeClass(l1a) == 1 || getTypeClass(l1a->info.np[0]) == 2)) {
-            if (constFitsComparisonRange(sa->info.np[0], sa->info.np[1])) {
-                freeNode(sa->info.np[0]);
-                freeNode(sa->info.np[0]->info.np[1]);
-                sa->info.np[0]        = sa->info.np[0]->info.np[0];
-                sa->info.np[1]->pm    = sa->info.np[0]->pm;
-                sa->info.np[1]->a_i15 = sa->info.np[0]->a_i15;
+    if ((dopetab[node->op] & 0x420) == 0x420 && (tempNode = node->val.np[0])->op == CONV &&
+        nodesize(tempNode->val.np[0]) != 0 && nodesize(tempNode->val.np[0]) < nodesize(tempNode)) {
+        if (node->val.np[1]->op == CONST &&
+            (getTypeClass(tempNode) == 1 || getTypeClass(tempNode->val.np[0]) == 2)) {
+            if (constFitsComparisonRange(node->val.np[0], node->val.np[1])) {
+                freeNode(node->val.np[0]);
+                freeNode(node->val.np[0]->val.np[1]);
+                node->val.np[0]        = node->val.np[0]->val.np[0];
+                node->val.np[1]->type    = node->val.np[0]->type;
+                node->val.np[1]->ptrFlags = node->val.np[0]->ptrFlags;
             } else
                 warningMsg = "mismatched comparision"; /* m8: */
-        } else if (sa->info.np[1]->a_c0 == CONV &&
-                   isSameTypeAndSize(sa->info.np[0]->info.np[0], sa->info.np[1]->info.np[0])) {
-            l1a            = sa->info.np[0];
-            sa->info.np[0] = l1a->info.np[0];
-            freeNode(l1a->info.np[1]);
-            freeNode(l1a);
-            l1a            = sa->info.np[1];
-            sa->info.np[1] = l1a->info.np[0];
-            freeNode(l1a->info.np[1]);
-            freeNode(l1a);
+        } else if (node->val.np[1]->op == CONV &&
+                   isSameTypeAndSize(node->val.np[0]->val.np[0], node->val.np[1]->val.np[0])) {
+            tempNode            = node->val.np[0];
+            node->val.np[0] = tempNode->val.np[0];
+            freeNode(tempNode->val.np[1]);
+            freeNode(tempNode);
+            tempNode            = node->val.np[1];
+            node->val.np[1] = tempNode->val.np[0];
+            freeNode(tempNode->val.np[1]);
+            freeNode(tempNode);
         }
     }
 
-    switch (sa->a_c0) {
+    switch (node->op) {
     case IDOP:
-        return resolveIdentifierNode(sa);
+        return resolveIdentifierNode(node);
     case DOT:
-        return rewriteMemberAccess(sa);
+        return rewriteMemberAccess(node);
     case NOT:
-        return simplifyLogicalNot(sa);
+        return simplifyLogicalNot(node);
     case LT:
     case GEQ:
-        if (getTypeClass(sa->info.np[0]) == 2 && isZeroConst(sa->info.np[1])) {
+        if (getTypeClass(node->val.np[0]) == 2 && isZeroConst(node->val.np[1])) {
             warningMsg = "degenerate unsigned comparision";
-            freeNodeTree(sa);
-            sa = makeConstNode(sa->a_c0 == GEQ ? 1L : 0L);
+            freeNodeTree(node);
+            node = makeConstNode(node->op == GEQ ? 1L : 0L);
         }
         break;
     case LEQ:
     case GT:
-        if (getTypeClass(sa->info.np[0]) == 2 && isZeroConst(sa->info.np[1]))
-            sa->a_c0 = sa->a_c0 == GT ? NEQL : EQL;
-        else if (sa->info.np[1]->a_c0 == CONST) {
-            sa->info.np[1]->info.l += 1;
-            sa->a_c0 = sa->a_c0 == GT ? GEQ : LT;
+        if (getTypeClass(node->val.np[0]) == 2 && isZeroConst(node->val.np[1]))
+            node->op = node->op == GT ? NEQL : EQL;
+        else if (node->val.np[1]->op == CONST) {
+            node->val.np[1]->val.l += 1;
+            node->op = node->op == GT ? GEQ : LT;
         } else {
-            l1a            = sa->info.np[0];
-            sa->info.np[0] = sa->info.np[1];
-            sa->info.np[1] = l1a;
-            sa->a_c0       = sa->a_c0 != GT ? GEQ : LT;
+            tempNode            = node->val.np[0];
+            node->val.np[0] = node->val.np[1];
+            node->val.np[1] = tempNode;
+            node->op       = node->op != GT ? GEQ : LT;
         }
         break;
     case ASEOR:
     case BOR:
-        if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == -1L) {
-            freeNodeTree(sa->info.np[0]);
-            freeNode(sa);
-            return sa->info.np[1];
+        if (node->val.np[1]->op == CONST && node->val.np[1]->val.l == -1L) {
+            freeNodeTree(node->val.np[0]);
+            freeNode(node);
+            return node->val.np[1];
         }
         /* fall through */
     case ADD:
@@ -4301,74 +4316,74 @@ node_t *optimizeExpressionTree(register node_t *sa) {
     case ASLSHIFT:
     case ASRSHIFT:
     case RSHIFT:
-        if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == 0L)
-            return dropRightOperand(sa);
+        if (node->val.np[1]->op == CONST && node->val.np[1]->val.l == 0L)
+            return dropRightOperand(node);
 
-        if ((dopetab[sa->a_c0] & 0x80) && nodesize(sa->info.np[1]) != 1) {
-            l1a            = allocNode();
-            l1a->pm        = getTypeClass(sa->info.np[1]) == 2 ? typeUChar : typeChar;
-            l1a->a_c0      = TYPE;
-            sa->info.np[1] = makeOpNode(CONV, sa->info.np[1], l1a);
+        if ((dopetab[node->op] & 0x80) && nodesize(node->val.np[1]) != 1) {
+            tempNode            = allocNode();
+            tempNode->type        = getTypeClass(node->val.np[1]) == 2 ? typeUChar : typeChar;
+            tempNode->op      = TYPE;
+            node->val.np[1] = makeOpNode(CONV, node->val.np[1], tempNode);
         }
         break;
     case MUL:
     case DIV:
     case ASMUL:
     case ASDIV:
-        if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == 1L)
-            return dropRightOperand(sa);
+        if (node->val.np[1]->op == CONST && node->val.np[1]->val.l == 1L)
+            return dropRightOperand(node);
         /* fall through */
     case MOD:
     case ASMOD:
-        if (sa->info.np[1]->a_c0 == CONST && log2IfPowerOfTwo(sa->info.np[1]->info.l) != 0)
-            return strengthReduceMulDivMod(sa);
+        if (node->val.np[1]->op == CONST && log2IfPowerOfTwo(node->val.np[1]->val.l) != 0)
+            return strengthReduceMulDivMod(node);
         /* fall through */
     case BAND:
     case ASAND:
-        if (sa->info.np[1]->a_c0 == CONST && sa->info.np[1]->info.l == 0L)
-            switch (sa->a_c0) {
+        if (node->val.np[1]->op == CONST && node->val.np[1]->val.l == 0L)
+            switch (node->op) {
             case MOD:
             case DIV:
             case ASMOD:
             case ASDIV:
                 prWarning("Division by zero");
-                return sa;
+                return node;
             case BAND:
             case MUL:
-                freeNodeTree(sa->info.np[0]);
-                freeNodeTree(sa->info.np[1]);
-                sa->a_c0   = CONST;
-                sa->info.l = 0;
-                return sa;
+                freeNodeTree(node->val.np[0]);
+                freeNodeTree(node->val.np[1]);
+                node->op   = CONST;
+                node->val.l = 0;
+                return node;
             case ASAND:
             case ASMUL:
-                sa->a_c0 = ASSIGN;
-                return sa;
+                node->op = ASSIGN;
+                return node;
             }
-        l4 = nodesize(sa) >= 4 ? -1L : (1L << (nodesize(sa) * 8)) - 1;
-        if ((sa->a_c0 == BAND || sa->a_c0 == ASAND) && sa->info.np[1]->a_c0 == CONST &&
-            l4 == (sa->info.np[1]->info.l & l4))
-            return dropRightOperand(sa);
+        valueMask = nodesize(node) >= 4 ? -1L : (1L << (nodesize(node) * 8)) - 1;
+        if ((node->op == BAND || node->op == ASAND) && node->val.np[1]->op == CONST &&
+            valueMask == (node->val.np[1]->val.l & valueMask))
+            return dropRightOperand(node);
         break;
     case CONV:
-        return simplifyConversion(sa);
+        return simplifyConversion(node);
     case PLUS_U:
-        freeNode(sa);
-        sa = sa->info.np[0];
+        freeNode(node);
+        node = node->val.np[0];
         break;
     case GADDR:
-        if (sa->info.np[0]->a_c0 == MUL_U)
-            return collapseAddressDereference(sa);
+        if (node->val.np[0]->op == MUL_U)
+            return collapseAddressDereference(node);
         break;
     case MUL_U:
-        if (sa->info.np[0]->a_c0 == GADDR) {
-            l1a = sa->info.np[0]->info.np[0];
-            if (l1a->a_c0 != LPAREN && l1a->a_c0 != ASSIGN && l1a->a_c0 != QUEST)
-                return collapseAddressDereference(sa);
+        if (node->val.np[0]->op == GADDR) {
+            tempNode = node->val.np[0]->val.np[0];
+            if (tempNode->op != LPAREN && tempNode->op != ASSIGN && tempNode->op != QUEST)
+                return collapseAddressDereference(node);
         }
         break;
     }
-    return sa;
+    return node;
 }
 
 /* end of file local1s.c */
@@ -4382,22 +4397,22 @@ node_t *optimizeExpressionTree(register node_t *sa) {
  *********************************************************/
 void allocateOrEmitVariable(register member_t *sb, int p2) {
 
-    switch (sb->b_flag) {
+    switch (sb->StorageClass) {
     case 1:
         if (assignVariableToRegister(sb, p2) == 0) {
-            array_AE13[lvlidx] -= sb->b_size;
-            if ((sb->b_off = array_AE13[lvlidx]) < -128 && sb->b_size <= 4)
-                prWarning("%s: large offset", sb->b_name);
+            array_AE13[lvlidx] -= sb->typeSize;
+            if ((sb->offset = array_AE13[lvlidx]) < -128 && sb->typeSize <= 4)
+                prWarning("%s: large offset", sb->name);
         }
         break;
     case 5:
-        sb->b_off = array_AE97[lvlidx];
-        array_AE97[lvlidx] += sb->b_size;
-        if (sb->b_size == 1 && sb->b_type->b_class != STRUCT && sb->b_type->b_class != UNION)
+        sb->offset = array_AE97[lvlidx];
+        array_AE97[lvlidx] += sb->typeSize;
+        if (sb->typeSize == 1 && sb->typeDesc->symKind != STRUCT && sb->typeDesc->symKind != UNION)
             array_AE97[lvlidx]++;
 
         if (!assignVariableToRegister(sb, p2))
-            sb->b_flag = 1;
+            sb->StorageClass = 1;
         break;
     case 3:
     case 4:
@@ -4414,35 +4429,35 @@ node_t *normalizeUnaryMinusAndSub(register node_t *sa) {
     char l1;
     char *l2;
 
-    l1 = dopetab[sa->a_c0] & 0xC;
+    l1 = dopetab[sa->op] & 0xC;
     if (l1 == 8)
-        sa->info.np[1] = normalizeUnaryMinusAndSub(sa->info.np[1]);
+        sa->val.np[1] = normalizeUnaryMinusAndSub(sa->val.np[1]);
     if (l1 != 0)
-        sa->info.np[0] = normalizeUnaryMinusAndSub(sa->info.np[0]);
+        sa->val.np[0] = normalizeUnaryMinusAndSub(sa->val.np[0]);
 
-    switch (sa->a_c0) {
+    switch (sa->op) {
     case SUB:
     case ASSUB:
-        if (sa->info.np[1]->a_c0 == CONST)
-            sa->info.np[1]->info.l = -sa->info.np[1]->info.l;
+        if (sa->val.np[1]->op == CONST)
+            sa->val.np[1]->val.l = -sa->val.np[1]->val.l;
         else
-            sa->info.np[1] = makeOpNode(MINUS_U, sa->info.np[1], 0);
-        sa->a_c0 = sa->a_c0 == SUB ? ADD : ASADD;
+            sa->val.np[1] = makeOpNode(MINUS_U, sa->val.np[1], 0);
+        sa->op = sa->op == SUB ? ADD : ASADD;
         break;
     case MINUS_U:
-        if (sa->info.np[0]->a_c0 == MINUS_U) {
+        if (sa->val.np[0]->op == MINUS_U) {
             freeNode(sa);
-            sa = sa->info.np[0];
+            sa = sa->val.np[0];
             freeNode(sa);
-            sa = sa->info.np[0];
+            sa = sa->val.np[0];
         }
-        if (sa->info.np[0]->a_c0 == FCONST) {
+        if (sa->val.np[0]->op == FCONST) {
             freeNode(sa);
-            sa = sa->info.np[0];
-            l2 = allocMem(strlen(sa->info.sv.s) + 2);
-            strcat(strcpy(l2, "-"), sa->info.sv.s);
-            free(sa->info.sv.s);
-            sa->info.sv.s = l2;
+            sa = sa->val.np[0];
+            l2 = allocMem(strlen(sa->val.sv.s) + 2);
+            strcat(strcpy(l2, "-"), sa->val.sv.s);
+            free(sa->val.sv.s);
+            sa->val.sv.s = l2;
         }
     }
     return sa;
@@ -4455,24 +4470,25 @@ node_t *normalizeAddSubForms(register node_t *sa) {
     char l1;
     node_t *l2;
 
-    l1 = dopetab[sa->a_c0] & 0xC;
+    l1 = dopetab[sa->op] & 0xC;
     if (l1 == 8)
-        sa->info.np[1] = normalizeAddSubForms(sa->info.np[1]);
+        sa->val.np[1] = normalizeAddSubForms(sa->val.np[1]);
     if (l1 != 0)
-        sa->info.np[0] = normalizeAddSubForms(sa->info.np[0]);
+        sa->val.np[0] = normalizeAddSubForms(sa->val.np[0]);
 
-    switch (sa->a_c0) {
+    switch (sa->op) {
     case ADD:
-        if (sa->info.np[0]->a_c0 == MINUS_U) {
-            l2             = sa->info.np[0];
-            sa->info.np[0] = sa->info.np[1];
-            sa->info.np[1] = l2;
+        if (sa->val.np[0]->op == MINUS_U) {
+            l2             = sa->val.np[0];
+            sa->val.np[0] = sa->val.np[1];
+            sa->val.np[1] = l2;
         }
+        // fall through
     case ASADD:
-        if (sa->info.np[1]->a_c0 == MINUS_U) {
-            freeNode(sa->info.np[1]);
-            sa->info.np[1] = sa->info.np[1]->info.np[0];
-            sa->a_c0       = sa->a_c0 == ASADD ? ASSUB : SUB;
+        if (sa->val.np[1]->op == MINUS_U) {
+            freeNode(sa->val.np[1]);
+            sa->val.np[1] = sa->val.np[1]->val.np[0];
+            sa->op       = sa->op == ASADD ? ASSUB : SUB;
         }
     }
 
@@ -4486,11 +4502,11 @@ node_t *normalizeAddSubForms(register node_t *sa) {
  *********************************************************/
 node_t *optimizeExpression(register node_t *sa) {
 
-    // int l1; /* Not used */
+    // int upperBound; /* Not used */
 
     warningMsg = 0;
     sa         = normalizeUnaryMinusAndSub(sa);
-    // l1    = 0; /* Not used */
+    // upperBound    = 0; /* Not used */
     do {
         byte_B013 = false;
         /*
@@ -4514,7 +4530,7 @@ node_t *optimizeExpression(register node_t *sa) {
 int invertTest(int op) {
 
 #ifdef DEBUG
-    printf("\tsub_605E(%d)\n", op);
+    printf("\tinvertTest(%d)\n", op);
 #endif
 
     switch (op) {
@@ -4541,21 +4557,21 @@ int invertTest(int op) {
 bool fitsInTargetType(register node_t *sa, node_t *p2a) {
     long l1;
 
-    if (sa->a_c0 != 'C')
+    if (sa->op != 'C')
         return 0;
     if (nodesize(p2a) >= 4)
-        return sa->info.l >= 0 || getTypeClass(p2a) == 1;
+        return sa->val.l >= 0 || getTypeClass(p2a) == 1;
 
     l1 = (uint16_t)(1 << (nodesize(p2a) * 8));
     if (getTypeClass(p2a) == 2) {
-        if (sa->info.l < 0)
+        if (sa->val.l < 0)
             return 0;
     } else {
         l1 /= 2;
-        if (sa->info.l < 0)
-            return sa->info.l >= -l1;
+        if (sa->val.l < 0)
+            return sa->val.l >= -l1;
     }
-    return sa->info.l < l1;
+    return sa->val.l < l1;
 }
 
 /*********************************************************
@@ -4563,14 +4579,14 @@ bool fitsInTargetType(register node_t *sa, node_t *p2a) {
  *********************************************************/
 bool assignVariableToRegister(register member_t *sb, int p2) {
 
-    if (!rflag && isupper(p2) && sb->b_refl == 1 && sb->b_nelem <= 1) {
+    if (!rflag && isupper(p2) && sb->indirFlags == 1 && sb->elemCount <= 1) {
         if (findRegisterMatch(word_B017, 9) == 0)
             return false;
-        if (sb->b_flag == 5)
-            sb->b_sloc |= 4;
-        sb->b_flag   = 2;
-        sb->b_memb.i = findRegisterMatch(word_B017, 9);
-        word_B017 &= ~array_AAE8[sb->b_memb.i];
+        if (sb->StorageClass == 5)
+            sb->storageFlags |= 4;
+        sb->StorageClass   = 2;
+        sb->payload.regIdx = findRegisterMatch(word_B017, 9);
+        word_B017 &= ~registerMaskById[sb->payload.regIdx];
         return true;
     }
 
@@ -4595,20 +4611,20 @@ bool areBothSigned(node_t *p1a, node_t *p2a) {
 /*********************************************************
  * sub_62BE OK++ PMO			Used in: optimizeExpressionTree
  *********************************************************/
-bool constFitsComparisonRange(register node_t *sa, node_t *p2a) {
-    long l1, l2;
-    char l3;
+bool constFitsComparisonRange(register node_t *comparisonNode, node_t *constNode) {
+    long upperBound, lowerBound;
+    char bitCount;
 
-    l3 = nodesize(sa->info.np[0]) * 8;
-    if (l3 >= 32)
+    bitCount = nodesize(comparisonNode->val.np[0]) * 8;
+    if (bitCount >= 32)
         return true;
-    l1 = 1L << l3;
-    l2 = 0;
-    if (areBothSigned(sa, sa->info.np[0])) {
-        l1 /= 2;
-        l2 = -l1;
+    upperBound = 1L << bitCount;
+    lowerBound = 0;
+    if (areBothSigned(comparisonNode, comparisonNode->val.np[0])) {
+        upperBound /= 2;
+        lowerBound = -upperBound;
     }
-    return l2 <= p2a->info.l && p2a->info.l < l1;
+    return lowerBound <= constNode->val.l && constNode->val.l < upperBound;
 }
 
 /* macros to make reading the code easier */
@@ -4618,42 +4634,42 @@ bool constFitsComparisonRange(register node_t *sa, node_t *p2a) {
 */
 #ifndef TOPBIT
 #define TOPBIT 0x8000
-#define TopBitSet(n) ((n)&TOPBIT)
-#define MapVal(n) (TopBitSet(n)?~(n):array_AAE8[n])
+#define TopBitSet(selectedReg) ((selectedReg)&TOPBIT)
+#define MapVal(selectedReg) (TopBitSet(selectedReg)?~(selectedReg):registerMaskById[selectedReg])
 #endif
 /* clang-format on */
 /*********************************************************
  * sub_63B8 OK++ PMO				Used in: selectCodePattern
  *
  *********************************************************/
-uint8_t selectCompatibleRegister(int p1, int p2, int p3) {
-    uint8_t l1;
-    uint8_t l0;
-    int l2;
-    register uint8_t *st;
+uint8_t selectCompatibleRegister(int candidateMask, int requiredMatch, int targetClass) {
+    uint8_t selectedReg;
+    uint8_t candidateReg;
+    int fallbackReg;
+    register uint8_t *classOptions;
 
-    p3 &= ~0x40;
-    l1 = 0;
+    targetClass &= ~0x40;
+    selectedReg = 0;
 
-    if (p2 == 0)
-        l1 = findRegisterMatch(p1, p3);
-    else if (p2 & 0x8000)
-        l1 = findRegisterMatch(MapVal(p2) & p1, p3);
-    else if (p3 < 24) {
-        if ((l1 = findRegisterMatch(MapVal(p2) & p1, p3)) == 0 && (l2 = findRegisterMatch(p1, p3)) != 0 &&
-            findRegisterMatch(MapVal(l2), p2) != 0)
-            l1 = l2;
+    if (requiredMatch == 0)
+        selectedReg = findRegisterMatch(candidateMask, targetClass);
+    else if (requiredMatch & 0x8000)
+        selectedReg = findRegisterMatch(MapVal(requiredMatch) & candidateMask, targetClass);
+    else if (targetClass < 24) {
+        if ((selectedReg = findRegisterMatch(MapVal(requiredMatch) & candidateMask, targetClass)) == 0 && (fallbackReg = findRegisterMatch(candidateMask, targetClass)) != 0 &&
+            findRegisterMatch(MapVal(fallbackReg), requiredMatch) != 0)
+            selectedReg = fallbackReg;
     } else {
-        l2 = 6;
-        st = &array_AB54[(p3 - 24) * 6];
-        while (*st && l2-- != 0)
-            if ((l0 = findRegisterMatch(p1, *st++)) != 0 &&
-                (findRegisterMatch(array_AAE8[l0], p2) != 0 || findRegisterMatch(array_AAE8[p2], l0) != 0)) {
-                l1 = l0;
+        fallbackReg = 6;
+        classOptions = &array_AB54[(targetClass - 24) * 6];
+        while (*classOptions && fallbackReg-- != 0)
+            if ((candidateReg = findRegisterMatch(candidateMask, *classOptions++)) != 0 &&
+                (findRegisterMatch(registerMaskById[candidateReg], requiredMatch) != 0 || findRegisterMatch(registerMaskById[requiredMatch], candidateReg) != 0)) {
+                selectedReg = candidateReg;
                 break;
             }
     }
-    return l1;
+    return selectedReg;
 }
 
 /*********************************************************
@@ -4663,24 +4679,28 @@ uint8_t selectCompatibleRegister(int p1, int p2, int p3) {
  *      ld a,(ix-1) ! add a,255 ! ld (ix-1),a ! or a
  * with dec (ix-1)
  *********************************************************/
-uint8_t findRegisterMatch(int p1, int p2) {
-    char l1;
-    uint8_t *l2;
+uint8_t findRegisterMatch(int availableMask, int requestedClass) {
+    char remainingChoices;
+    uint8_t *classRegList;
 
-    p2 &= ~0x40; /* Clear bit 6 */
-    if (p2 < 24) {
-        if ((p1 & array_AAE8[p2]) == array_AAE8[p2])
-            return p2;
+    requestedClass &= ~0x40;
+    if (requestedClass < 24) {
+        if ((availableMask & registerMaskById[requestedClass]) == registerMaskById[requestedClass])
+            return requestedClass;
         else
             return 0;
     }
-    p2 -= 24;
-    l1 = 6;
-    l2 = &array_AB54[p2 * 6];
+
+    requestedClass -= 24;
+    remainingChoices = 6;
+    classRegList     = &array_AB54[requestedClass * 6];
+
     do {
-        if (*l2 != 0 && (p1 & array_AAE8[*l2]) == array_AAE8[*l2])
-            return *l2;
-    } while (*++l2 && --l1 != 0);
+        if (*classRegList != 0 &&
+            (availableMask & registerMaskById[*classRegList]) == registerMaskById[*classRegList])
+            return *classRegList;
+    } while (*++classRegList && --remainingChoices != 0);
+
     return 0;
 }
 
@@ -4694,7 +4714,7 @@ uint16_t mapRegisterAlias(uint16_t p1, uint8_t p2) {
         return 0;
     p2 -= 48;
     for (loc = 1; loc < 24; loc++)
-        if (array_AB24[loc * 2 + p2] == p1)
+        if (registerAliasBySuffix[loc * 2 + p2] == p1)
             return loc;
     return 0;
 }
@@ -4705,45 +4725,59 @@ uint16_t mapRegisterAlias(uint16_t p1, uint8_t p2) {
  * to int
  *********************************************************/
 
-int mergeRegisterConstraints(int p1, int p2, int p3, char *p4) {
-    int16_t l1, retval;
-    char *l3;
+int mergeRegisterConstraints(int existingConstraint, int newConstraint, int availableMask,
+                             char *aliasSuffixes) {
+    int16_t mergedMaskOrReg;
+    int mergedConstraint;
+    char *suffixPtr;
 
-    retval = 0;
-    if ((p2 & 0x8000) != 0) {
-        if (p1 == 0)
-            retval = p2;
-        else if ((l1 = findRegisterMatch(((p2 & 0x8000) ? ~p2 : array_AAE8[p2]) & p3, p1)) != 0)
-            retval = l1;
+    mergedConstraint = 0;
+    if ((newConstraint & 0x8000) != 0) {
+        if (existingConstraint == 0)
+            mergedConstraint = newConstraint;
+        else if ((mergedMaskOrReg = findRegisterMatch(((newConstraint & 0x8000)
+                                                           ? ~newConstraint
+                                                           : registerMaskById[newConstraint]) &
+                                                          availableMask,
+                                                      existingConstraint)) != 0)
+            mergedConstraint = mergedMaskOrReg;
         else
-            retval = findRegisterMatch(p3, p1);
-    } else if (p1 == 0) {
-        if (p2 == 0 || p4 == 0)
-            retval = p2;
+            mergedConstraint = findRegisterMatch(availableMask, existingConstraint);
+    } else if (existingConstraint == 0) {
+        if (newConstraint == 0 || aliasSuffixes == 0)
+            mergedConstraint = newConstraint;
         else {
-            for (l3 = p4; isdigit(l3[1]); l3++)
+            for (suffixPtr = aliasSuffixes; isdigit(suffixPtr[1]); suffixPtr++)
                 ;
-            if (p2 >= 24 && (p2 = findRegisterMatch(p3, p2)) == 0)
-                retval = 0;
+            if (newConstraint >= 24 &&
+                (newConstraint = findRegisterMatch(availableMask, newConstraint)) == 0)
+                mergedConstraint = 0;
             else {
                 do {
-                    p2 = mapRegisterAlias(p2, (uint8_t)*l3);
-                } while (l3-- != p4);
-                retval = p2;
+                    newConstraint = mapRegisterAlias(newConstraint, (uint8_t)*suffixPtr);
+                } while (suffixPtr-- != aliasSuffixes);
+                mergedConstraint = newConstraint;
             }
         }
-    } else if (p2 == 0)
-        retval = p1;
+    } else if (newConstraint == 0)
+        mergedConstraint = existingConstraint;
     else {
-        l1 = ((p1 & 0x8000) ? ~p1 : array_AAE8[p1]) & ((p2 & 0x8000) ? ~p2 : array_AAE8[p2]);
-        if (((p1 & 0x8000) ? ~p1 : array_AAE8[p1]) == l1)
-            retval = p1;
-        else if (((p2 & 0x8000) ? ~p2 : array_AAE8[p2]) == l1)
-            retval = p2;
+        mergedMaskOrReg =
+            ((existingConstraint & 0x8000) ? ~existingConstraint
+                                           : registerMaskById[existingConstraint]) &
+            ((newConstraint & 0x8000) ? ~newConstraint : registerMaskById[newConstraint]);
+
+        if (((existingConstraint & 0x8000)
+                 ? ~existingConstraint
+                 : registerMaskById[existingConstraint]) == mergedMaskOrReg)
+            mergedConstraint = existingConstraint;
+        else if (((newConstraint & 0x8000) ? ~newConstraint : registerMaskById[newConstraint]) ==
+                 mergedMaskOrReg)
+            mergedConstraint = newConstraint;
         else
-            retval = findRegisterMatch(l1, p1);
+            mergedConstraint = findRegisterMatch(mergedMaskOrReg, existingConstraint);
     }
-    return retval;
+    return mergedConstraint;
 }
 /* end of local2.c*/
 /*
@@ -4944,12 +4978,12 @@ rescan:
                 continue;
             /* unlink the blocks to be joined */
             if (&Link(hiblk) == curLo)      /* free list order is hi lo next */
-                *curHi = Link(loblk);       /* move the next info to the hi block */
+                *curHi = Link(loblk);       /* move the next val to the hi block */
             else if (curHi == &Link(loblk)) /* free list order is low hi next */
-                *curLo = Link(hiblk);       /* move the next info to the lo block */
+                *curLo = Link(hiblk);       /* move the next val to the lo block */
             else {                          /* not adjacent in freelist */
-                *curLo = Link(loblk);       /* move the lo -> next info */
-                *curHi = Link(hiblk);       /* move the hi -> next info */
+                *curLo = Link(loblk);       /* move the lo -> next val */
+                *curHi = Link(hiblk);       /* move the hi -> next val */
             }
             loblk = BlkAddr(loblk); /* make sure we also include the header */
             free(setSize(loblk, hiblk + Len(hiblk) - loblk)); /* join the blocks */
@@ -4965,8 +4999,8 @@ rescan:
  * malloc v2 OK			Used in: allocMem
  *********************************************************/
 void *malloc(size_t size) {
-    uint8_t *l1;
-    size_t l2;
+    uint8_t *upperBound;
+    size_t tokenText;
     bool done;
     register uint8_t *sst;
 
@@ -4979,15 +5013,15 @@ void *malloc(size_t size) {
      * failing that allocate a new block
      */
     do {
-        for (sst = (uint8_t *)&freeList; l1 = Link(sst); sst = l1) {
-            if (Len(l1) >= size) {
-                Link(sst) = Link(l1);
-                sst       = l1;
+        for (sst = (uint8_t *)&freeList; upperBound = Link(sst); sst = upperBound) {
+            if (Len(upperBound) >= size) {
+                Link(sst) = Link(upperBound);
+                sst       = upperBound;
                 /* if splitting the block would leave sufficient space
-                 * for a new block i.e. header + data/pointer then split it */
-                if ((l2 = Len(sst)) > size + 2 + sizeof(uint8_t *)) { /* ? +1 ok */
-                    l1 = sst + size;
-                    free(setSize(l1, l2 - size));
+                 * for a new block regIdx.e. header + data/pointer then split it */
+                if ((tokenText = Len(sst)) > size + 2 + sizeof(uint8_t *)) { /* ? +1 ok */
+                    upperBound = sst + size;
+                    free(setSize(upperBound, tokenText - size));
                     sst = BlkAddr(sst);
                     return setSize(sst, size);
                 } else
@@ -4995,11 +5029,11 @@ void *malloc(size_t size) {
             }
         }
     } while (!done && (done = pack()));
-    l2 = size < 128 ? 1 : 3; /* size of block header */
-    if ((sst = sbrk(size + l2)) == (uint8_t *)-1)
+    tokenText = size < 128 ? 1 : 3; /* size of block header */
+    if ((sst = sbrk(size + tokenText)) == (uint8_t *)-1)
         return 0;
 
-    return setSize(sst, size + l2);
+    return setSize(sst, size + tokenText);
 }
 
 /*********************************************************
@@ -5009,12 +5043,12 @@ void *malloc(size_t size) {
  *
  *********************************************************/
 void free(void *p) {
-    register uint8_t *st;
+    register uint8_t *classOptions;
 
-    for (st = (uint8_t *)&freeList; Link(st) && Len(Link(st)) < Len((uint8_t *)p); st = Link(st))
+    for (classOptions = (uint8_t *)&freeList; Link(classOptions) && Len(Link(classOptions)) < Len((uint8_t *)p); classOptions = Link(classOptions))
         ;
-    Link(p)  = Link(st);
-    Link(st) = (uint8_t *)p;
+    Link(p)  = Link(classOptions);
+    Link(classOptions) = (uint8_t *)p;
 }
 #endif
 /* end of file malloc.c */
