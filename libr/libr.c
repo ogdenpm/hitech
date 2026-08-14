@@ -1,4 +1,3 @@
-
 /*
  * Program to combine multiple object files into one file.
  *
@@ -97,7 +96,7 @@ int cmdIndex;
 char haveIdent;
 uchar recbuf[512];
 uchar rectyp; // byte_4d81
-int length;   // word_4d82
+unsigned length;   // word_4d82
 
 struct sym {
     uchar *name;
@@ -130,7 +129,7 @@ int unlink(char *name);
 char *index(char *s, char c);
 #endif
 
-void (*dispatch[])() = {
+void (*dispatch[])(char *, char *) = {
     replaceModule,  // Replace modules
     deleteModule,   // Delete modules
     extractModules, // Extract modules
@@ -141,7 +140,7 @@ void (*dispatch[])() = {
 /**************************************************************************
  1	cmpNames	ok++	String comparison
  **************************************************************************/
-/* could use strcasecmp */
+/* could use stricmp */
 int cmpNames(register char *st, char *p2) {
     char l1, l2;
 
@@ -204,7 +203,7 @@ void processUnmatched(void (*fun)(uint8_t *, uint)) {
  5	copyUnchangedSymbols	ok++
  **************************************************************************/
 void copyUnchangedSymbols(uint8_t *name, long dummy) {
-
+    (void)dummy;
     if (lookupName(name) == 0)
         copySymbolsToTemp();
 }
@@ -213,7 +212,7 @@ void copyUnchangedSymbols(uint8_t *name, long dummy) {
  6	copyUnchangedModules	ok++
  **************************************************************************/
 void copyUnchangedModules(uint8_t *name, long dummy) {
-
+    (void)dummy;
     if (lookupName(name) == 0)
         copyModuleToTemp();
 }
@@ -221,8 +220,9 @@ void copyUnchangedModules(uint8_t *name, long dummy) {
 /**************************************************************************
  7	deleteModule	Delete modules		ok++
  **************************************************************************/
-void deleteModule() {
-
+void deleteModule(char *p, char *q) {
+    (void)p;
+    (void)q;
     if (num_ofiles == 0)
         fatal_err("delete what ?");
     openContent();
@@ -238,7 +238,7 @@ void deleteModule() {
  8	extractNamedModule	ok++
  **************************************************************************/
 void extractNamedModule(uint8_t *p1, long dummy) {
-
+    (void)dummy;
     if (lookupName(p1) != 0)
         extractOneModule((char *)p1);
 }
@@ -246,8 +246,9 @@ void extractNamedModule(uint8_t *p1, long dummy) {
 /**************************************************************************
  9	extractModules	Extract modules		ok++
  **************************************************************************/
-void extractModules() {
-
+void extractModules(char *p, char *q) {
+    (void)p;
+    (void)q;
     openContent();
     visitModules(extractNamedModule);
     processUnmatched(noModule); // Module not found
@@ -433,7 +434,7 @@ void visitSymbols(void (*action)(uint8_t *, int)) {
  19	copySymbolsToTemp	ok++
  **************************************************************************/
 void copySymbolsToTemp() {
-    int l1, l2;
+    unsigned long l1, l2;
 
     writeFile(libBuf, 1, (l1 = (int)strlen((char *)libBuf + 12) + 13), tempFp);
     tempFileSize += l1;
@@ -455,7 +456,7 @@ void copySymbolsToTemp() {
  20	copyModuleToTemp	ok++
  **************************************************************************/
 void copyModuleToTemp() {
-    int l1, l2;
+    unsigned long l1, l2;
 
     l1 = moduleSize;
     while (l1 != 0) {
@@ -473,7 +474,7 @@ void copyModuleToTemp() {
  21	extractOneModule	ok++
  **************************************************************************/
 void extractOneModule(char *name) {
-    int l1, l2;
+    unsigned long l1, l2;
     register FILE *st;
 
     if ((st = fopen(name, "wb")) == 0)
@@ -630,7 +631,7 @@ void checkToList(uint8_t *p1, int tType) {
  32	listOneModule	Print obj name from library	ok++
  **************************************************************************/
 void listOneModule(uint8_t *p1, long dummy) {
-
+    (void)dummy;
     if (lookupName(p1) == 0)
         return;
     if (listModuleName) {
@@ -689,7 +690,7 @@ void printSymbol(uint8_t *name, int tType) {
  35	printObjAndSymbols	ok+	Print obj name and symbol names
  **************************************************************************/
 void printObjAndSymbols(uint8_t *p1, long dummy) {
-
+    (void)dummy;
     if (lookupName(p1) == 0)
         return;
     printf("%-16.15s", (char *)p1); // Print obj name from library with the key s
@@ -705,7 +706,9 @@ void printObjAndSymbols(uint8_t *p1, long dummy) {
 /**************************************************************************
  36	listWithSymbols	List modules with symbols	ok++
  **************************************************************************/
-void listWithSymbols() {
+void listWithSymbols(char *p, char *q) {
+    (void)p;
+    (void)q;
 
     if ((columns = (width - 16) / 16) == 0)
         columns = 1;
@@ -746,6 +749,7 @@ int main(int argc, char **argv) {
                     l1    = "";
                     break;
                 }
+                // fallthrough
             default:
                 fatal_err(usageMsg); // "Usage: ...]"
                 break;
@@ -889,7 +893,7 @@ void badFormat(char *name, char *fmt, ...) {
  44	noModule	ok++	module not found
  **************************************************************************/
 void noModule(uint8_t *p1, uint dummy) {
-
+    (void)dummy;
     simpl_err("no such module: %s", (char *)p1);
 }
 
@@ -906,7 +910,7 @@ _Noreturn void finish(int p1) {
  46	sigintHandler	ok++
  **************************************************************************/
 void sigintHandler(int p1) {
-
+    (void)p1;
     finish(4);
 }
 
@@ -1103,6 +1107,7 @@ void parseSymbolRec() {
  56	copyMatchedSymbols	ok++
  **************************************************************************/
 void copyMatchedSymbols(uint8_t *p1, long dummy) {
+    (void)dummy;
 
     if (lookupName(p1) != 0) {
         copyNewSymbols(p1, lookupName(p1) - 1);
@@ -1115,7 +1120,7 @@ void copyMatchedSymbols(uint8_t *p1, long dummy) {
  57	copyMatchedModules	ok++
  **************************************************************************/
 void copyMatchedModules(uint8_t *p1, long dummy) {
-
+    (void)dummy;
     if (lookupName(p1) != 0) {
         copyNewModule(p1, lookupName(p1) - 1);
         return;
@@ -1126,8 +1131,9 @@ void copyMatchedModules(uint8_t *p1, long dummy) {
 /**************************************************************************
  58	replaceModule	Replace modules		ok++
  **************************************************************************/
-void replaceModule() {
-
+void replaceModule(char *p, char *q) {
+    (void)p;
+    (void)q;
     if (num_ofiles == 0)
         fatal_err("replace what ?");
     openContent();

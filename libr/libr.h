@@ -37,16 +37,16 @@
 #endif
 
 /* libr.c */
-void (*dispatch[])();
+void (*dispatch[])(char *, char *);
 int cmpNames(register char *st, char *p2);
 void allocModuleArrays ( int p1 , char **p2 );
 uchar lookupName ( uint8_t *p1 );
 void processUnmatched ( void (*fun )(uint8_t *,uint ));
 void copyUnchangedSymbols ( uint8_t *name , long dummy );
 void copyUnchangedModules ( uint8_t *name , long dummy );
-void deleteModule ( void );
+void deleteModule ( char *, char * );
 void extractNamedModule ( uint8_t *p1 , long dummy );
-void extractModules ( void );
+void extractModules ( char *, char * );
 void openTemp ( void );
 int writeFile ( uint8_t *buf , uint size , uint count , FILE *fp );
 void closeTemp ( void );
@@ -73,7 +73,7 @@ void listOneModule ( uint8_t *p1 , long dummy );
 void listModules ( char *key , char *name );
 void printSymbol ( uint8_t *name , int tType );
 void printObjAndSymbols ( uint8_t *p1 , long dummy );
-void listWithSymbols ( void );
+void listWithSymbols ( char *, char * );
 int main ( int argc , char **argv );
 #ifdef CPM
 void fatal_err P((int p1, int p2, int p3, int p4, int p5));
@@ -106,5 +106,5 @@ void skipRecord ( void );
 void parseSymbolRec ( void );
 void copyMatchedSymbols ( uint8_t *p1 , long dummy );
 void copyMatchedModules ( uint8_t *p1 , long dummy );
-void replaceModule ( void );
+void replaceModule ( char *p, char *q);
 
