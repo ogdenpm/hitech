@@ -38,7 +38,9 @@
 #define DIRSEP "/\\:"
 #else
 #define DIRSEP "/"
+#ifdef posix
 #define stricmp strcasecmp
+#endif
 #endif
 
 #define MEMINITIAL  256
@@ -90,7 +92,7 @@ void listrelocHandler();
 void lr_textHandler();
 void lr_relocHandler();
 void cond_exprHandler();
-void procFile();
+void procFile(FILE *fp);
 bool readRecord(FILE *fp);
 
 _Noreturn void fatal(char *fmt, ...);
@@ -195,7 +197,7 @@ int complexCnt;
 
 uint8_t recBuf[512];
 char *fname;
-int recLen;
+unsigned recLen;
 int recNum;
 uint8_t major;
 uint8_t minor;
@@ -299,7 +301,7 @@ void addReloc(unsigned addr, char *name, uint8_t fixup) {
 */
 void addLabel(char *psectName, unsigned addr, char *name) {
     psect_t *mp = getPsect(psectName);
-    int insertAt;
+    unsigned insertAt;
     if (mp->labCnt == 0 || addr > mp->labels[mp->labCnt - 1].addr) // most likely case
         insertAt = mp->labCnt;
     else {
@@ -657,7 +659,7 @@ void textHandler() {
 
     if (dumpRecords) {
         printf("\t\t%s\t0x%X\t%d", psname, curBase, dataLen);
-        int rowAddr = 1;
+        unsigned rowAddr = 1;
         int col     = 0;
         int tcol;
         for (unsigned addr = curBase; addr < curBase + dataLen; addr++) {
@@ -1045,7 +1047,7 @@ void endHandler() {
 }
 
 void identHandler() {
-    int voffset = (int)strlen((char *)recBuf + 6) + 7;
+    unsigned voffset = (unsigned)strlen((char *)recBuf + 6) + 7;
     major = minor = 0;
     if (voffset + 2 <= recLen) {
         minor = recBuf[voffset + 1];
