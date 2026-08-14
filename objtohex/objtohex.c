@@ -796,6 +796,7 @@ void doSym() {
             switch (*pname) {
             default:
                 fprintf(stderr, "Unexpected *pname '%c' %s line %d\n", *pname, __FILE__, __LINE__);
+                // fallthrough
             case '_':
             case 't':
                 var23 = 0xa200;
