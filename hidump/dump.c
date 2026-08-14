@@ -157,7 +157,7 @@ struct {
 
 uint8_t recBuf[512];
 char *fname;
-int recLen;
+unsigned recLen;
 int recNum;
 uint8_t major;
 uint8_t minor;
@@ -232,7 +232,7 @@ void textHandler() {
     if (dataLen < 0)
         fatal("text record has length too small: %d", dataLen);
     printf("\t\t%s\t%04" PRIX32 "\t%d", psname, curBase, dataLen);
-    int rowAddr = 1;
+    unsigned rowAddr = 1;
     int col     = 0;
     int tcol;
     for (unsigned addr = curBase; addr < curBase + dataLen; addr++) {
@@ -584,7 +584,7 @@ void endHandler() {
 }
 
 void identHandler() {
-    int voffset = (int)strlen((char *)recBuf + 6) + 7;
+    unsigned voffset = (unsigned)strlen((char *)recBuf + 6) + 7;
     major = minor = 0;
     if (voffset + 2 <= recLen) {
         minor = recBuf[voffset + 1];
