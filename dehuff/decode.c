@@ -28,7 +28,7 @@ void bld_tree(void) {
 node *get_tree(void) {
     register node *tp;
 
-    if (!(tp = (node *)calloc(sizeof(node), 1)))
+    if (!(tp = (node *)calloc(1, sizeof(node))))
         error("Out of memory");
     if (get_bit()) {
         tp->n_left  = get_tree();
