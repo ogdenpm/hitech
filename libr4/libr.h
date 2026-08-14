@@ -109,9 +109,9 @@ uint8_t lookupName(uint8_t *name);
 void processUnmatched(pfuncptr action);
 void copyUnchangedSymbols(uint8_t *name, time_t libTime);
 void copyUnchangedModules(uint8_t *name, time_t libTime);
-void deleteModule(void);
+void deleteModule(char *, char *);
 void extractNamedModule(uint8_t *name, time_t libTime);
-void extractModules(void);
+void extractModules(char *, char *);
 void openTemp(void);
 size_t writeBlock(void *buf, size_t size, size_t count, FILE *fp);
 void closeTemp(void);
@@ -135,7 +135,7 @@ void writeName(char *name);
 void writeObjName(char *p1); /* writes object file name, mapping to lower case unless -s option */
 void unexp_eof(void);
 void listModules(char *key, char *name);
-void listWithSymbols(void);
+void listWithSymbols(char *, char *);
 int main(int argc, char **argv);
 
 void fatal_err(char *fmt, ...);
@@ -161,7 +161,7 @@ void skipRecord(void);
 void parseSymbolRec(void);
 void copyMatchedSymbols(uint8_t *name, time_t libTime);
 void copyMatchedModules(uint8_t *name, time_t libTime);
-void replaceModule(void);
+void replaceModule(char *, char *);
 
 
 char **_getargs(char *, char *);

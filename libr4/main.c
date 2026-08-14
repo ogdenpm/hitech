@@ -6,7 +6,7 @@ char commands[]      = "rdxms"; /* Program Keys */
 char usageMsg[]      = "Usage: libr [-w][-pwidth][-v] key [subkeys symbol] file.lib [modules ...]";
 char keysMsg[]       = "Keys: r(eplace), d(elete), (e)x(tract), m(odules), s(ymbols)";
 
-void (*dispatch[])() = {
+void (*dispatch[])(char *, char *) = {
     replaceModule,  /* Replace modules */
     deleteModule,   /* Delete modules */
     extractModules, /* Extract modules */
@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
                     p     = "";
                     break;
                 }
+                // fallthrough
             default:
                 fatal_err(usageMsg);
                 break;
@@ -170,7 +171,7 @@ _Noreturn void finish(int p1) {
 }
 
 void sigintHandler(int p1) {
-
+    (void)p1;
     finish(4);
 }
 
@@ -217,6 +218,7 @@ void processUnmatched(pfuncptr action) {
 }
 
 void copyUnchangedSymbols(uint8_t *name, time_t libTime) {
+    (void)libTime;
     if (lookupName(name) == 0)
         copySymbolsToTemp();
     else if (verbose)
@@ -224,7 +226,7 @@ void copyUnchangedSymbols(uint8_t *name, time_t libTime) {
 }
 
 void copyUnchangedModules(uint8_t *name, time_t libTime) {
-    
+    (void)libTime;
     if (lookupName(name) == 0)
         copyModuleToTemp();
 }

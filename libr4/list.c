@@ -77,6 +77,7 @@ static void printSymbol(uint8_t *name, int tType) {
 }
 
 static void printObjAndSymbols(uint8_t *name, time_t libTime) {
+    (void)libTime;
     if (lookupName(name) == 0)
         return;
     printf("%-16.15s", (char *)name); /* Print obj name from library with the key s */
@@ -86,8 +87,9 @@ static void printObjAndSymbols(uint8_t *name, time_t libTime) {
         putchar('\n');
 }
 
-void listWithSymbols() {
-
+void listWithSymbols(char *p, char *q) {
+    (void)p;
+    (void)q;
     if ((columns = (width - 16) / 16) == 0)
         columns = 1;
     visitModules(printObjAndSymbols); /*  Print obj name and symbol names */

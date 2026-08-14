@@ -210,7 +210,7 @@ void copyModuleToTemp() {
 }
 
 void extractOneModule(char *name) {
-    int remaining, chunkSize;
+    unsigned remaining, chunkSize;
     register FILE *fp;
 
     if ((fp = fopen(name, "wb")) == 0)

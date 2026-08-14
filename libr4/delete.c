@@ -1,7 +1,8 @@
 #include "libr.h"
 
-void deleteModule() {
-
+void deleteModule(char *p, char *q) {
+    (void)p;
+    (void)q;
     if (num_ofiles == 0)
         fatal_err("delete what ?");
     openContent();

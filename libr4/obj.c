@@ -8,7 +8,7 @@ char *moduleName;
 
 struct sym *curSymPtr;
 
-int dataLen;
+unsigned dataLen;
 uint32_t reclen;
 struct sym symbols[500];
 bool haveIdent;
@@ -144,6 +144,7 @@ int scanModule(char *name) {
 
 
 void copyMatchedSymbols(uint8_t *moduleName, time_t libTime) {
+    (void)libTime;
     int moduleId;
 
     if ((moduleId = lookupName(moduleName)))
@@ -153,6 +154,7 @@ void copyMatchedSymbols(uint8_t *moduleName, time_t libTime) {
 }
 
 void copyMatchedModules(uint8_t *moduleName, time_t libTime) {
+    (void)libTime;
     int moduleId;
     if ((moduleId = lookupName(moduleName)))
         copyNewModule(moduleId - 1);

@@ -1,7 +1,8 @@
 #include "libr.h"
 
-void replaceModule() {
-
+void replaceModule(char *p, char *q) {
+    (void)p;
+    (void)q;
     if (num_ofiles == 0)
         fatal_err("replace what ?");
     openContent();
