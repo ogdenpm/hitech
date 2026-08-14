@@ -155,12 +155,13 @@ typedef struct _sym {
 #define a_args        attr.pFargs
 
 typedef struct {
-    char name[3];
+    char name[4];   // avoid warning from GNUC re dropping '\0'
     char prec;
     uint8_t operandFlags;
     int16_t operatorFlags;
     uint8_t nodeType;
 } op_t;
+
 /* operand flags */
 #define O_LEAF      1 /* leaf expression */
 #define O_BINARY    2 /* binary expression */
