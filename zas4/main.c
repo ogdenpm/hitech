@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     if (!objFileName) {
         char *name = fname(argv[0]);
         char *dot  = strrchr(name, '.');
-        extPt      = dot ? (dot - name) : strlen(name);
+        extPt      = dot ? (size_t)(dot - name) : strlen(name);
         if (extPt > 25)
             extPt = 25;
 #ifdef _MSC_VER
