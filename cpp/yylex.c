@@ -204,6 +204,7 @@ LOCAL int tobinary(char *st, int b) {
             t = c - 'a' + 10;
             if (b > 10)
                 break;
+            // fallthrough
         case 'A':
         case 'B':
         case 'C':
@@ -213,6 +214,7 @@ LOCAL int tobinary(char *st, int b) {
             t = c - 'A' + 10;
             if (b > 10)
                 break;
+            // fallthrough
         default:
             t = -1;
             if (c == 'l' || c == 'L')

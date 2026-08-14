@@ -342,7 +342,7 @@ STATIC int elslvl;
 /* simplified as size is always one */
 size_t afread(void *ptr, size_t count, FILE *stream) {
     int c   = 0;
-    int cnt = 0;
+    size_t cnt = 0;
     while (cnt < count && (c = getc(stream)) != EOF && c != 0x1a)
         if (c != '\r')
             ((char *)ptr)[cnt++] = c;

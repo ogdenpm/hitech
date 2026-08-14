@@ -190,7 +190,7 @@ yydefault:
             yyerror("syntax error");
         //yyerrlab:
             ++yynerrs;
-
+            // fallthrough
         case 1:
         case 2: /* incompletely recovered error ... try again */
 
