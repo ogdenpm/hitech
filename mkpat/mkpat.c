@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "showVersion.h"
-#ifndef _MSC_VER
+#ifdef posix
 #define stricmp strcasecmp
 #endif
 unsigned short crc16(unsigned char *data_p, size_t length);
@@ -40,8 +40,8 @@ typedef unsigned short word;
 #define MAXNAMELEN 64
 
 struct {
-    int length;
-    int pos;
+    unsigned length;
+    unsigned pos;
     int tType;
     uint8_t data[512];
 } record;
@@ -214,7 +214,7 @@ int doText(char *name) {
     if (stricmp(psect, "text") != 0 && stricmp(psect, "_text") != 0)
         return -1;
 
-    int length = record.length - record.pos;
+    unsigned length = record.length - record.pos;
     if (codesize == 0)
         codebase = offset;
     if (offset + length - codebase >= sizeof(code)) {
@@ -259,7 +259,7 @@ void doReloc(char *name, int base) {
                     }
                 }
             }
-
+            // fallthrough
         case RPSECT:
         case RRPSECT:
         case RSPSECT:
