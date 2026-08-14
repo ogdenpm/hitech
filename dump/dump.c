@@ -107,7 +107,7 @@ struct node {
 char *name;          /* File name		*/
 int cur_rec;         /* current record	*/
 uchar rec_typ;       /* Record type		*/
-int rec_len;         /* Record length	*/
+unsigned rec_len;         /* Record length	*/
 uchar buf_data[512]; /* Record data buffer	*/
 
 uint8_t order32[] = { 0, 1, 2, 3 }; /* 32 bit order */
@@ -218,9 +218,7 @@ char *reloc_types[] = {
 /*
  *	Main program (ok++, works good)
  */
-int main(argc, argv) int argc;
-char **argv;
-{
+int main(int argc, char **argv) {
     char **next_arg;
 
     CHK_SHOW_VERSION(argc, argv);
@@ -507,14 +505,14 @@ _Noreturn void error(char *fmt, ...) {
 /*
  *	Calculate the value (ok++, works good)
  */
-uint calc_val(p1) uchar *p1;
-{ return ((uint) * ((uchar)order16[1] + p1) << 8) + *((uchar)order16[0] + p1); }
+uint calc_val(uchar *p1) {
+    return ((uint) * ((uchar)order16[1] + p1) << 8) + *((uchar)order16[0] + p1);
+}
 
 /*
  *	Calculate long value (ok, works good)
  */
-ulong calc_long(p1) uchar *p1;
-{
+ulong calc_long(uchar *p1) {
     long l1;
     uchar l2;
 
